@@ -10,6 +10,7 @@ import {
   stripOf,
 } from "../web/circuit/breadboard.ts";
 import { PICO_PINS, picoPin, picoPinForStrip } from "../web/circuit/pico.ts";
+import { clearanceProblems } from "../web/circuit/geometry.ts";
 
 const errors = (circuit: Circuit, options = {}) =>
   analyze(circuit, options)
@@ -94,6 +95,12 @@ describe("revisión eléctrica de cada montaje del taller", () => {
         expect(step.title.length).toBeGreaterThan(8);
         expect(step.detail.length).toBeGreaterThan(12);
       }
+    });
+  }
+
+  for (const [id, circuit] of Object.entries(circuits)) {
+    it(`${id}: ningún cable ni pata queda bajo el cuerpo de otra pieza`, () => {
+      expect(clearanceProblems(circuit)).toEqual([]);
     });
   }
 

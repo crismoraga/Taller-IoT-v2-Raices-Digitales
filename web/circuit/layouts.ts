@@ -25,6 +25,10 @@ import {
  *                          divisor del HC-SR04 43–59
  *   Mitad inferior (a–e):  LED 22–27 · buzzer 29–36 · pulsador 38–40 · DHT11 44–46 ·
  *                          HC-SR04 57–60
+ *
+ *   Las piezas altas van en los bordes para no tapar agujeros en uso: el buzzer (12 mm)
+ *   apoya sus patas junto al canal, y el DHT11 y el HC-SR04 se enchufan en la letra a
+ *   mirando hacia afuera. Ningún cable llega a un agujero de riel que quede bajo ellos.
  */
 
 type Fragment = Pick<Circuit, "parts" | "wires" | "steps" | "nets">;
@@ -213,9 +217,9 @@ const buzzer = fragment(
       id: "buzzer",
       type: "buzzer",
       label: "Buzzer pasivo",
-      holes: { mas: "d33", menos: "d36" },
+      holes: { mas: "e33", menos: "e36" },
     },
-    resistor("r_buz", 220, "c29", "c33"),
+    resistor("r_buz", 220, "b29", "b33"),
   ],
   [
     jumper("w_buz_sig", "a5", "a29", "morado", "señal GP3"),
@@ -225,9 +229,9 @@ const buzzer = fragment(
     {
       id: "buzzer-place",
       kind: "place",
-      title: "Coloca el buzzer: pata + en d33, la otra en d36",
+      title: "Coloca el buzzer: pata + en e33, la otra en e36",
       detail:
-        "Usa el buzzer pasivo: por debajo se ve su circuito verde. La pata marcada con + va en d33.",
+        "Usa el buzzer pasivo: por debajo se ve su circuito verde. La pata marcada con + va en e33, junto al canal central.",
       parts: ["buzzer"],
       tip: "El buzzer activo tiene la base sellada con resina negra y suena solo al darle energía. Ese no va directo a un pin GP.",
       verify: "El + del buzzer quedó en el número 33.",
@@ -235,7 +239,7 @@ const buzzer = fragment(
     {
       id: "buzzer-resistor",
       kind: "place",
-      title: "Coloca una resistencia de 220 Ω entre c29 y c33",
+      title: "Coloca una resistencia de 220 Ω entre b29 y b33",
       detail:
         "Queda unida a la pata + del buzzer, que comparte la tira del número 33.",
       parts: ["r_buz"],
@@ -810,7 +814,7 @@ const hcsr04 = fragment(
     resistor("r_echo5", 1000, "h47", "h43"),
   ],
   [
-    jumper("w_hc_gnd", "b60", "bn:60", "negro", "GND"),
+    jumper("w_hc_gnd", "b60", "bn:58", "negro", "GND"),
     jumper("w_hc_trig", "c58", "i19", "verde", "señal GP17"),
     jumper("w_hc_div_gnd", "j43", "tn:43", "negro", "GND"),
     jumper("w_hc_echo", "i55", "j17", "azul", "señal GP18"),
@@ -830,7 +834,8 @@ const hcsr04 = fragment(
       id: "hc-gnd",
       kind: "wire",
       title: "Cable negro: de b60 al riel azul de abajo",
-      detail: "Lleva GND al sensor, frente al número 60.",
+      detail:
+        "Lleva GND al sensor. Llega al riel frente al número 58, en el espacio que queda entre los dos «ojos».",
       wires: ["w_hc_gnd"],
     },
     {
