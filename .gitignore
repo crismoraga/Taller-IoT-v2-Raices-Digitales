@@ -3,10 +3,12 @@ dist/
 .env
 .env.*
 !.env.example
-data/
-tools/
+/data/
+/tools/
 *.log
 __pycache__/
 *.pyc
 test-results/
 playwright-report/
+.vercel
+.env*.local
