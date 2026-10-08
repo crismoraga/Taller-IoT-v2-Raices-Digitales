@@ -1,0 +1,22 @@
+FROM node:24-bookworm-slim
+ARG CLI_VERSION=1.4.1
+ARG AVR_VERSION=1.8.6
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar bzip2 && rm -rf /var/lib/apt/lists/*
+# Official release + published SHA-256; explicit architecture avoids wrong binary.
+RUN arch="$(dpkg --print-architecture)"; case "$arch" in amd64) cli_arch=64bit ;; arm64) cli_arch=ARM64 ;; *) exit 1 ;; esac; \
+    archive="arduino-cli_${CLI_VERSION}_Linux_${cli_arch}.tar.gz"; \
+    url="https://github.com/arduino/arduino-cli/releases/download/v${CLI_VERSION}"; \
+    curl -fsSL "$url/$archive" -o "/tmp/$archive" && \
+    curl -fsSL "$url/${CLI_VERSION}-checksums.txt" -o /tmp/checksums.txt && \
+    cd /tmp && grep " $archive$" checksums.txt | sha256sum --check --strict && \
+    tar -xzf "$archive" -C /usr/local/bin arduino-cli && rm "/tmp/$archive" /tmp/checksums.txt
+ENV ARDUINO_DIRECTORIES_DATA=/opt/arduino/data ARDUINO_DIRECTORIES_USER=/opt/arduino/user ARDUINO_CLI_PATH=/usr/local/bin/arduino-cli NODE_ENV=development
+RUN arduino-cli core update-index && arduino-cli core install arduino:avr@${AVR_VERSION} && \
+    arduino-cli lib install "DHT sensor library@1.4.6" "Adafruit Unified Sensor@1.1.15" "OneWire@2.3.8" "DallasTemperature@4.0.5" "Servo@1.3.0"
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY server ./server
+USER node
+EXPOSE 3002
+CMD ["node", "--import", "tsx", "server/compiler-service.ts"]

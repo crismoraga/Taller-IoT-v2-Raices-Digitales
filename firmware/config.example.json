@@ -1,0 +1,19 @@
+{
+  "ssid": "",
+  "password": "",
+  "endpoint": "",
+  "deviceId": "",
+  "token": "",
+  "caFile": "ca.pem",
+  "enabled": {
+    "soil": false,
+    "light": false,
+    "water_level": false,
+    "rain": false,
+    "dht11": false,
+    "soil_temperature": false,
+    "distance": false,
+    "motion": false
+  },
+  "calibration": {}
+}

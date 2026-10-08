@@ -1,0 +1,37 @@
+:root {
+  --ink: #183d32;
+  --forest: #214b3c;
+  --forest-deep: #122e27;
+  --sage: #dfe8d8;
+  --sage-strong: #799871;
+  --lime: #d2e7a0;
+  --paper: #f8f9f4;
+  --surface: #fff;
+  --canvas: #edf1e7;
+  --border: #e2e7dc;
+  --muted: #758176;
+  --orange: #cf724d;
+  --danger: #a63c3c;
+  --warning: #996721;
+  --font-body: "DM Sans", "Segoe UI", sans-serif;
+  --font-display: "Outfit", "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", monospace;
+  --radius: 16px;
+  --radius-sm: 9px;
+  --shadow: 0 8px 30px #163b2b06;
+  --duration: 180ms;
+}
+@font-face {
+  font-family: "DM Sans";
+  src: url("/fonts/dm-sans.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Outfit";
+  src: url("/fonts/outfit.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}

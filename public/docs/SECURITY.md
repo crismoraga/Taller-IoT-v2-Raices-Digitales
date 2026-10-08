@@ -1,0 +1,19 @@
+# Seguridad y límites comprobables
+
+Las consultas se autorizan en el servidor. Cada grupo recibe un secreto aleatorio de 256 bits en cookie `HttpOnly`, `SameSite=Strict`; producción añade `Secure`. La base guarda sólo su SHA-256. El ID público de sesión no sirve para iniciar sesión ni leer un grupo ajeno. El número del grupo es una etiqueta; el aislamiento depende de la sesión del navegador.
+
+La sesión docente es independiente, dura ocho horas y usa un secreto opaco propio. La contraseña procede del entorno; el servidor no incluye contraseñas por defecto y rechaza configuraciones de producción con menos de doce caracteres. Las comparaciones usan hashes de longitud fija y `timingSafeEqual`; los intentos de acceso tienen un límite por IP.
+
+Las mutaciones de navegador requieren un `Origin` exacto incluido en `APP_ORIGIN`. El origen permitido no es un comodín. Los endpoints de emparejamiento e ingestión del dispositivo no usan cookies; aceptan respectivamente un código temporal o un token Bearer. No se habilita CORS abierto. Los códigos de 48 bits duran cinco minutos, se almacenan por hash, son de un uso y se invalidan al generar otro. Los tokens de dispositivo son de 256 bits, se guardan por hash y quedan rechazados al revocar la estación, borrar o vencer la sesión.
+
+Cada payload usa esquema estricto, tamaños máximos y sensores conocidos. La telemetría impide enviar un ID de grupo o de dispositivo elegido por el cliente: ambos salen del token autorizado. El timestamp de servidor prevalece sobre el reloj de la placa. Los datos de simulación conservan `source=simulation`, estado independiente de alertas y nunca envían Telegram. Las consultas SQL usan parámetros; exportación CSV neutraliza fórmulas procedentes de campos de texto. Los logs no registran cuerpos, cookies, tokens de emparejamiento ni credenciales.
+
+Las credenciales Telegram se guardan con AES-256-GCM, IV aleatorio y autenticación de integridad. `SECRETS_KEY` tiene exactamente 32 bytes en base64. El servidor devuelve sólo `configured` y el chat ID, jamás el token. Se realizan solicitudes únicamente a `api.telegram.org` con timeout. El chat configurado es compartido para todo el taller; sólo el docente lo puede cambiar y comprobar.
+
+La compilación pública ocurre en un servicio privado separado, sin montar SQLite ni credenciales de la aplicación, ejecutado como usuario no privilegiado, con sistema de archivos de sólo lectura, temporal limitado, límite de memoria/procesos/CPU, capacidades eliminadas y red interna sin salida. No se monta el socket de Docker en la aplicación. Se verifica el token del servicio y no se publica su puerto. Los includes de estudiante están limitados a bibliotecas educativas conocidas; no se ejecuta el programa del estudiante en el servidor. Arduino CLI se invoca con argumentos estructurados, `shell:false`, timeout y entorno sin contraseñas del servidor. El compilador local de desarrollo conserva este filtro, pero no ofrece el aislamiento de contenedor de producción.
+
+Los despliegues que habiliten `ARDUINO_SANDBOX=docker` manualmente deben evaluar el acceso al daemon Docker: el socket ofrece privilegios elevados. La composición incluida usa un servicio privado y evita ese acceso.
+
+Las lecturas analógicas no permiten confirmar la presencia de todos los sensores. Un pin flotante puede parecer un valor válido; los drivers y la UX marcan lo no verificable. Ningún sensor es un control certificado de seguridad y no se conecta a tensión de red. La guía de [hardware](HARDWARE.md) establece tensiones, resistencias y limitaciones del kit.
+
+El servidor publica cabeceras de protección básicas y HTTPS con HSTS. Los accesos por USB requieren autorización explícita del navegador; la web no puede abrir un puerto silenciosamente. Un administrador del host o alguien con acceso a la clave y SQLite puede leer los datos: protege el host, backups y variables del entorno. Ejecuta una sola réplica y expón únicamente el proxy HTTPS.

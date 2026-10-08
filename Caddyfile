@@ -1,0 +1,22 @@
+{
+	email {$ACME_EMAIL}
+}
+{$DOMAIN} {
+	# The Pico firmware trusts ISRG Root X1. Avoid a fallback issuer it cannot trust.
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			preferred_chains {
+				root_common_name "ISRG Root X1"
+			}
+		}
+	}
+	encode zstd gzip
+	reverse_proxy app:3001 {
+		flush_interval -1
+	}
+	log {
+		output stdout
+		format json
+	}
+}
