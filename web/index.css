@@ -1,0 +1,497 @@
+@import "tailwindcss";
+@import "@fontsource-variable/montserrat/index.css";
+@import "@fontsource-variable/nunito-sans/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+@import "./brand/tokens.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Tailwind solo conoce la paleta de la marca: no hay bg-blue-500 ni grises genéricos.
+ * Cada color es una variable de tokens.css, así las utilidades cambian solas con el tema.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-deep: var(--primary-deep);
+  --color-primary-input: var(--primary-input);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-cream: var(--cream);
+  --color-cream-soft: var(--cream-soft);
+  --color-cream-shade: var(--cream-shade);
+  --color-slate: var(--slate);
+  --color-muted: var(--muted);
+  --color-on-dark: var(--on-dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-light: var(--danger-light);
+  --color-info: var(--info);
+
+  --color-pilar-datos: var(--pilar-datos);
+  --color-pilar-software: var(--pilar-software);
+  --color-pilar-redes: var(--pilar-redes);
+  --color-pilar-teleco: var(--pilar-teleco);
+  --color-pilar-hardware: var(--pilar-hardware);
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-highlight: var(--highlight);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-accent: var(--ink-accent);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-text: var(--danger-text);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-overlay: var(--overlay);
+  --color-code: var(--code-bg);
+
+  --font-display: "Montserrat Variable", "Montserrat", system-ui, sans-serif;
+  --font-body: "Nunito Sans Variable", "Nunito Sans", system-ui, sans-serif;
+  --font-sans: "Nunito Sans Variable", "Nunito Sans", system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "Cascadia Code", ui-monospace, Menlo, Consolas,
+    monospace;
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+
+  --shadow-soft: var(--elev-soft);
+  --shadow-card: var(--elev-card);
+  --shadow-lifted: var(--elev-lifted);
+  --shadow-glow: var(--elev-glow);
+
+  --ease-out: var(--curve-out);
+  --ease-spring: var(--curve-spring);
+
+  --breakpoint-xs: 26rem;
+
+  --animate-rise: rise var(--duration-slow) var(--curve-out) both;
+  --animate-fade: fade var(--duration-base) ease-out both;
+  --animate-pop: pop var(--duration-slow) var(--curve-spring) both;
+  --animate-float: float 3.2s ease-in-out infinite;
+  --animate-twinkle: twinkle var(--duration-ambient) ease-in-out infinite
+    alternate;
+  --animate-shimmer: shimmer 1.25s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+  --animate-dash: dash 0.9s linear infinite;
+  --animate-dots: dots 1s ease-in-out infinite;
+  --animate-sheet: sheet var(--duration-slow) var(--curve-out) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes twinkle {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes shimmer {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.55);
+      opacity: 0;
+    }
+    15% {
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  }
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -24;
+    }
+  }
+  @keyframes dots {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.5;
+    }
+    30% {
+      transform: translateY(-5px);
+      opacity: 1;
+    }
+  }
+  @keyframes sheet {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ── Escala tipográfica de la marca ──────────────────────────────
+   Montserrat para títulos, botones, cifras y kickers; Nunito Sans para lectura. */
+@utility t-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.25rem, 1.4rem + 3.2vw, 3.75rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+@utility t-hero {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.75rem, 1.35rem + 1.5vw, 2.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+@utility t-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.625rem;
+  line-height: 2rem;
+  letter-spacing: -0.012em;
+}
+@utility t-heading {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1875rem;
+  line-height: 1.5625rem;
+  letter-spacing: -0.005em;
+}
+@utility t-subtitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.4375rem;
+}
+@utility t-overline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+@utility t-number {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  line-height: 2rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+@utility t-body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+@utility t-body-strong {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+@utility t-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+@utility t-caption {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+@utility t-small {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+@utility t-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-variant-ligatures: none;
+}
+
+/* Fondo de las pantallas inmersivas: azul noche con degradado, igual en ambos temas. */
+@utility bg-night {
+  background-image: linear-gradient(
+    160deg,
+    var(--primary-deep) 0%,
+    var(--primary) 46%,
+    var(--primary-soft) 100%
+  );
+  color: var(--cream);
+}
+/* Anillo de foco visible con teclado, sobre cualquier fondo. */
+@utility focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  &:focus-visible {
+    outline-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+}
+/* Presionar encoge a 0,96 con resorte (regla de movimiento de la marca). */
+@utility pressable {
+  transition:
+    transform var(--duration-fast) var(--curve-spring),
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    opacity var(--duration-fast) ease;
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+}
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    min-height: 100dvh;
+    background: var(--paper);
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button,
+  [role="button"],
+  summary,
+  select,
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+    font-variant-ligatures: none;
+  }
+  kbd {
+    display: inline-block;
+    padding: 0 0.375rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    background: var(--surface-alt);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  input[type="range"] {
+    accent-color: var(--action);
+  }
+}
+
+@layer components {
+  /* Deslizador: pista con relleno hasta el valor (--fill) y perilla de 24 px. */
+  .rd-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--ink-accent) var(--fill, 0%),
+      var(--surface-alt) var(--fill, 0%)
+    );
+  }
+  .rd-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    margin-top: -8px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 3px solid var(--action);
+    box-shadow: var(--elev-soft);
+  }
+  .rd-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-alt);
+  }
+  .rd-slider::-moz-range-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--ink-accent);
+  }
+  .rd-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 3px solid var(--action);
+    box-shadow: var(--elev-soft);
+  }
+
+  /* Texto largo de lecciones y guías. */
+  .prose-rd {
+    font-size: 1rem;
+    line-height: 1.625rem;
+    color: var(--ink);
+  }
+  .prose-rd > * + * {
+    margin-top: 0.75rem;
+  }
+  .prose-rd strong {
+    font-weight: 800;
+  }
+  .prose-rd code {
+    padding: 0.1em 0.38em;
+    border-radius: 6px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    font-size: 0.875em;
+    font-weight: 600;
+    color: var(--ink-accent);
+    white-space: nowrap;
+  }
+  .prose-rd a {
+    color: var(--ink-accent);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose-rd ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .prose-rd ol {
+    list-style: decimal;
+    padding-left: 1.25rem;
+  }
+  .prose-rd li + li {
+    margin-top: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
