@@ -3,6 +3,7 @@ import {
   Wifi,
   Usb,
   Download,
+  Upload,
   Save,
   Trash2,
   ShieldCheck,
@@ -17,7 +18,9 @@ import {
 import { useApp } from "../lib/context";
 import { Icon } from "../brand/Graphics";
 import { PageHeader } from "../ui/Layout";
-import { api, post, type DashboardData } from "../lib/api";
+import { api, post, type DashboardData, type Session } from "../lib/api";
+import { downloadExport, readSessionBackup } from "../lib/export";
+import { offline } from "../lib/offline";
 import { sensors } from "../data/lessons";
 import { Button, Notice, Badge, Modal, EmptyState } from "../components/Common";
 import CalibrationWizard from "../components/CalibrationWizard";
@@ -33,7 +36,11 @@ export default function Settings() {
     [deleting, setDeleting] = useState(false),
     [deleteWord, setDeleteWord] = useState(""),
     [installConfirm, setInstallConfirm] = useState(false),
-    [calibration, setCalibration] = useState(false);
+    [calibration, setCalibration] = useState(false),
+    [backupFile, setBackupFile] = useState<File | null>(null),
+    [importing, setImporting] = useState(false),
+    [importError, setImportError] = useState(""),
+    [exporting, setExporting] = useState(false);
   const arduino = app.board !== "pico";
   useEffect(() => {
     setName(app.session?.name || "");
@@ -76,6 +83,53 @@ export default function Settings() {
       setDeleting(false);
     }
   };
+  const exportSession = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await downloadExport("/session/export", "raices-sesion.json");
+      app.notify("Respaldo de tu sesión descargado.");
+    } catch (problem) {
+      app.notify(
+        problem instanceof Error
+          ? problem.message
+          : "No se pudo descargar el respaldo. Vuelve a intentar.",
+        true,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+  const importSession = async () => {
+    if (!backupFile || importing) return;
+    setImporting(true);
+    setImportError("");
+    try {
+      const payload = await readSessionBackup(backupFile);
+      const restored = await post<{ session: Session }>(
+        "/session/import",
+        payload,
+      );
+      // Preserve a successful recovery if the following refresh loses network.
+      offline.remember(restored.session);
+      await app.refreshSession();
+      app.navigate("/");
+      app.notify("Respaldo recuperado. Conecta tu placa para continuar.");
+    } catch (problem) {
+      const message =
+        problem instanceof TypeError ||
+        (problem instanceof Error &&
+          ["AbortError", "TimeoutError"].includes(problem.name))
+          ? "No se pudo conectar con el servidor para recuperar el respaldo. Revisa tu conexión y vuelve a intentar."
+          : problem instanceof Error
+            ? problem.message
+            : "No se pudo recuperar el respaldo. Vuelve a intentar.";
+      setImportError(message);
+      app.notify(message, true);
+    } finally {
+      setImporting(false);
+    }
+  };
   if (!app.session)
     return (
       <div className="settings-page">
@@ -101,6 +155,48 @@ export default function Settings() {
             </Button>
           }
         />
+        <section className="settings-card">
+          <div className="settings-card-title">
+            <Upload size={20} />
+            <h3>Recupera el trabajo de tu grupo</h3>
+          </div>
+          <p id="session-backup-help">
+            Selecciona el archivo raices-sesion.json que descargaste en otro
+            equipo. Recuperarás tu progreso, código, calibraciones y sensores.
+            Después vuelve a conectar o instalar tu placa; sus accesos y las
+            lecturas anteriores permanecen en la estación original.
+          </p>
+          <label htmlFor="session-backup">
+            Selecciona tu respaldo JSON
+            <input
+              id="session-backup"
+              type="file"
+              accept="application/json,.json"
+              aria-describedby="session-backup-help"
+              disabled={importing}
+              onChange={(event) => {
+                setBackupFile(event.currentTarget.files?.[0] || null);
+                setImportError("");
+              }}
+            />
+          </label>
+          <p className="muted">
+            Tamaño máximo: 5 MiB. Conserva tu archivo original como respaldo.
+          </p>
+          {importError && (
+            <div role="alert">
+              <Notice tone="error">{importError}</Notice>
+            </div>
+          )}
+          <Button
+            variant="secondary"
+            disabled={!backupFile}
+            loading={importing}
+            onClick={() => void importSession()}
+          >
+            <Upload size={15} /> Importar respaldo JSON
+          </Button>
+        </section>
       </div>
     );
   return (
@@ -172,7 +268,7 @@ export default function Settings() {
             Placa de trabajo
             <select
               value={app.board}
-              disabled={app.connected || app.busy}
+              disabled={app.connected || app.connecting || app.busy}
               onChange={(e) => app.setBoard(e.target.value as typeof app.board)}
             >
               <option value="pico">Raspberry Pi Pico W · MicroPython</option>
@@ -435,13 +531,16 @@ export default function Settings() {
           <h3>Tus datos pertenecen a tu equipo.</h3>
           <p>
             Sin correo, RUT ni trackers. Exporta tu progreso o elimina la sesión
-            y toda su telemetría.
+            y toda su telemetría. El respaldo JSON permite recuperar tu código y
+            progreso en un navegador sin sesión activa. Conserva esta descarga
+            antes de cambiar de equipo o eliminar datos.
           </p>
         </div>
         <div>
           <Button
             variant="secondary"
-            onClick={() => window.location.assign("/api/session/export")}
+            loading={exporting}
+            onClick={() => void exportSession()}
           >
             <Download size={15} />
             Exportar mi sesión

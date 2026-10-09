@@ -1,16 +1,94 @@
 import {
   Component,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
   type RefObject,
 } from "react";
-import { Canvas, type CanvasProps, useThree } from "@react-three/fiber";
+import {
+  Canvas,
+  type CanvasProps,
+  useFrame,
+  useThree,
+} from "@react-three/fiber";
+import { createRoot, type Root } from "react-dom/client";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { PerspectiveCamera, Vector3 } from "three";
+import { Group, PerspectiveCamera, Vector3 } from "three";
 import { useRef } from "react";
+
+/** Screen-space labels with independent DOM ownership during Suspense/StrictMode replay. */
+export function SceneHtml({
+  children,
+  position,
+  center = false,
+  zIndexRange = [3, 0],
+}: {
+  children: ReactNode;
+  position: [number, number, number];
+  center?: boolean;
+  zIndexRange?: [number, number];
+}) {
+  const group = useRef<Group>(null);
+  const element = useRef<HTMLDivElement | null>(null);
+  const root = useRef<Root | null>(null);
+  const point = useMemo(() => new Vector3(), []);
+  const { gl, camera, size, invalidate } = useThree();
+  const target = gl.domElement.parentElement;
+
+  useLayoutEffect(() => {
+    if (!target) return;
+    // Never reuse this container: an earlier root may still be finishing its cleanup.
+    const container = document.createElement("div");
+    Object.assign(container.style, {
+      position: "absolute",
+      top: "0",
+      left: "0",
+      pointerEvents: "none",
+      display: "none",
+    });
+    const mountedRoot = createRoot(container);
+    element.current = container;
+    root.current = mountedRoot;
+    target.appendChild(container);
+    invalidate();
+    return () => {
+      element.current = null;
+      root.current = null;
+      container.remove();
+      // A separate DOM root cannot synchronously unmount inside the scene's commit.
+      queueMicrotask(() => mountedRoot.unmount());
+    };
+  }, [target, invalidate]);
+
+  useLayoutEffect(() => {
+    root.current?.render(
+      <div style={{ transform: center ? "translate(-50%, -50%)" : undefined }}>
+        {children}
+      </div>,
+    );
+  });
+
+  useFrame(() => {
+    if (!group.current || !element.current) return;
+    group.current.getWorldPosition(point);
+    const distance = point.distanceTo(camera.position);
+    point.project(camera);
+    const label = element.current;
+    label.style.display = point.z >= -1 && point.z <= 1 ? "block" : "none";
+    label.style.transform = `translate3d(${((point.x + 1) * size.width) / 2}px, ${((1 - point.y) * size.height) / 2}px, 0)`;
+    if (camera instanceof PerspectiveCamera) {
+      const slope =
+        (zIndexRange[1] - zIndexRange[0]) / (camera.far - camera.near);
+      label.style.zIndex = String(
+        Math.round(slope * distance + zIndexRange[1] - slope * camera.far),
+      );
+    }
+  });
+  return <group ref={group} position={position} />;
+}
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(

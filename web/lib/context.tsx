@@ -63,6 +63,8 @@ export type AppContextType = {
   terminal: string;
   clearTerminal: () => void;
   sendSerial: (text: string) => Promise<void>;
+  /** Consulta MicroPython; detiene el programa y comparte el bloqueo de operaciones USB. */
+  queryPico: (code: string) => Promise<string>;
   /** Lecturas recibidas por USB en esta pestaña. */
   localReadings: Reading[];
   lastDiagnostics: Record<string, unknown>;

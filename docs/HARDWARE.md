@@ -10,24 +10,37 @@ Cada kit incluye Pico W, protoboard 830 puntos, USB Micro-B, jumpers/ribbon, LED
 
 La Pico W sin sufijo H puede venir sin headers soldados. El docente debe montar los headers antes del taller: no es una actividad de soldadura para estudiantes dentro de la hora.
 
+## Montaje mínimo para la ruta de una hora
+
+Por mesa prepara **una placa, USB de datos, protoboard, LED rojo, 220 Ω, sonda capacitiva, jumpers y tierra seca/húmeda**. Primero prueba LED y suelo por separado; después instala la estación con solo Suelo habilitado. No hace falta ocupar todos los rieles ni montar los ocho modelos para comprobar el recorrido completo.
+
+| Comprobación antes de conectar USB | Pico W                                                   | Uno/Nano clásicos                 |
+| ---------------------------------- | -------------------------------------------------------- | --------------------------------- |
+| LED                                | GP2 / pin físico 4 → 220 Ω → ánodo; cátodo a GND         | D2 → 220 Ω → ánodo; cátodo a GND  |
+| Sonda                              | VCC a 3V3 / pin 36; GND común; AOUT a GP26 / pin 31      | VCC a 3,3 V; GND común; AOUT a A0 |
+| Entrada ADC libre                  | Retira LM35/potenciómetro de GP26                        | Retira LM35/potenciómetro de A0   |
+| Agua                               | Solo zona sensora enterrada; conector, placa y USB secos | Misma separación física           |
+
+Antes de alimentar, otra persona sigue cada cable de origen a destino y verifica que el positivo no comparta nodo con GND. Para reconocer una resistencia de 220 Ω de cuatro bandas: rojo, rojo, café y dorado. Si los colores no se distinguen, pide comprobarla al docente; no sustituyas por un cable.
+
 ## Pines de estación
 
-| Dispositivo / terminal | Pico W | Pin físico | Uno/Nano AVR | Alimentación Pico |
-|---|---|---:|---|---|
-| Sonda suelo / AOUT | GP26 / ADC0 | 31 | A0 | 3V3 |
-| LDR / nodo divisor | GP27 / ADC1 | 32 | A1 | 3V3 |
-| Water Level / S | GP28 / ADC2 | 34 | A2 | 3V3 |
-| FC-37 módulo / DO | GP14 | 19 | D6 | 3V3 |
-| DHT11 / DATA | GP15 | 20 | D4 | 3V3, confirmar variante |
-| DS18B20 / DATA | GP16 | 21 | D5 | 3V3 |
-| HC-SR04 / TRIG | GP17 | 22 | D7 | VBUS / 5 V |
-| HC-SR04 / ECHO, nodo adaptado | GP18 | 24 | D8 | ECHO 5 V requiere divisor en Pico |
-| HC-SR501 / OUT | GP19 | 25 | D9 | VBUS / 5 V |
-| LED externo con 220 Ω | GP2 | 4 | D2 | GPIO |
-| Piezo pasivo de baja corriente, 220 Ω serie | GP3 | 5 | D3 | GPIO, confirmar piezo |
-| Pulsador, actividad individual | GP4 | 6 | D4 | Pull-up interno y contacto a GND |
-| LM35, actividad individual | GP26 / ADC0 | 31 | A0 | VBUS / 5 V |
-| Potenciómetro, actividad individual | GP26 / ADC0 | 31 | A0 | Extremos 3V3 y GND |
+| Dispositivo / terminal                      | Pico W      | Pin físico | Uno/Nano AVR | Alimentación Pico                 |
+| ------------------------------------------- | ----------- | ---------: | ------------ | --------------------------------- |
+| Sonda suelo / AOUT                          | GP26 / ADC0 |         31 | A0           | 3V3                               |
+| LDR / nodo divisor                          | GP27 / ADC1 |         32 | A1           | 3V3                               |
+| Water Level / S                             | GP28 / ADC2 |         34 | A2           | 3V3                               |
+| FC-37 módulo / DO                           | GP14        |         19 | D6           | 3V3                               |
+| DHT11 / DATA                                | GP15        |         20 | D4           | 3V3, confirmar variante           |
+| DS18B20 / DATA                              | GP16        |         21 | D5           | 3V3                               |
+| HC-SR04 / TRIG                              | GP17        |         22 | D7           | VBUS / 5 V                        |
+| HC-SR04 / ECHO, nodo adaptado               | GP18        |         24 | D8           | ECHO 5 V requiere divisor en Pico |
+| HC-SR501 / OUT                              | GP19        |         25 | D9           | VBUS / 5 V                        |
+| LED externo con 220 Ω                       | GP2         |          4 | D2           | GPIO                              |
+| Piezo pasivo de baja corriente, 220 Ω serie | GP3         |          5 | D3           | GPIO, confirmar piezo             |
+| Pulsador, actividad individual              | GP4         |          6 | D4           | Pull-up interno y contacto a GND  |
+| LM35, actividad individual                  | GP26 / ADC0 |         31 | A0           | VBUS / 5 V                        |
+| Potenciómetro, actividad individual         | GP26 / ADC0 |         31 | A0           | Extremos 3V3 y GND                |
 
 Pico: **3V3 = pin 36**, **VBUS = pin 40**, **GND = pin 38** o cualquiera de 3, 8, 13, 18, 23, 28. Pin 33 AGND también es masa analógica. VBUS proporciona el voltaje USB; no confundir con VSYS, RUN ni 3V3_EN. Todos los sensores comparten GND. El riel 5 V de HC-SR04/PIR está separado del riel 3V3 de las señales.
 
@@ -56,6 +69,8 @@ HC-SR04 ECHO ── 1 kΩ ── 1 kΩ ──┬── GP18 (pin 24)
 ```
 
 Arriba hay 2 kΩ en serie; abajo, 3 kΩ en serie. Para 5 V nominales: `Vsalida = 5 × 3/(2+3) = 3.0 V`. Se deja margen respecto de 3.3 V. Con resistores ±5 %, el extremo de proporciones da aproximadamente 3.12 V con entrada 5 V; el docente debe comprobar el USB y componentes concretos antes del primer uso. La propuesta original 1 kΩ arriba / 2 kΩ abajo produce 3.33 V nominales y no se usa.
+
+Con USB de 5,25 V y tolerancia extrema de ±5 %, el divisor propuesto da aproximadamente **3,27 V**. La revisión eléctrica del software marca error si una entrada calculada supera el límite operacional de **3,3 V**. Un límite absoluto de daño no autoriza operar por encima del voltaje nominal. El cálculo no comprueba tu unidad física: conserva las cinco resistencias y haz revisar el montaje antes de dar energía.
 
 VCC a VBUS, GND a GND, TRIG a GP17. Mantén cables cortos. En Uno/Nano AVR de 5 V, ECHO puede ir directamente a D8; omitir el divisor si la lectura 3 V queda en el límite de nivel alto. Las versiones HC-SR04 de 3.3 V tienen fichas distintas: no asumir que la unidad comprada es una de ellas.
 
@@ -88,32 +103,32 @@ Espera dos segundos entre muestras y no mojes el DHT. El checksum/timeout permit
 
 ## Presupuesto de resistencias para la estación completa
 
-| Uso | Resistencias |
-|---|---|
-| HC-SR04, divisor | 5×1 kΩ: se usa toda la existencia de ese valor |
-| DS18B20, pull-up | 2×10 kΩ en paralelo |
-| LDR, divisor | 1×10 kΩ |
-| DHT11 desnudo | 1×10 kΩ |
-| LED | 1×220 Ω |
-| Piezo pasivo opcional | 1×220 Ω |
+| Uso                   | Resistencias                                   |
+| --------------------- | ---------------------------------------------- |
+| HC-SR04, divisor      | 5×1 kΩ: se usa toda la existencia de ese valor |
+| DS18B20, pull-up      | 2×10 kΩ en paralelo                            |
+| LDR, divisor          | 1×10 kΩ                                        |
+| DHT11 desnudo         | 1×10 kΩ                                        |
+| LED                   | 1×220 Ω                                        |
+| Piezo pasivo opcional | 1×220 Ω                                        |
 
 Queda una resistencia 10 kΩ con DHT desnudo. Las lecciones opcionales reutilizan componentes de la estación; no se realizan todas simultáneamente. No se agrega una bomba. Los siguientes ejemplos se incluyen como actividades individuales fuera de la hora central:
 
-| Componente disponible | Driver real incluido y conexión segura |
-|---|---|
-| Pulsador / SW520D | Entrada GPIO con pull-up, contacto a GND |
-| Potenciómetro / LM35 | ADC retirando antes la sonda suelo; LM35 a 5 V |
-| Piezo pasivo | PWM con 220 Ω solo piezo de baja corriente apto para GPIO |
-| Buzzer activo | Pulsos mediante ULN2003, tensión de carga confirmada |
-| 74HC595 | Shift/latch software, VCC3V3 Pico / VCC5V Arduino, LED limitado |
-| Sensor de llama | DO de comparador a 3.3 V; estímulo óptico sin fuego |
-| Receptor IR / mando | Decodificador NEC, tensión y pinout del receptor verificados |
-| LCD 16×2 | Bus paralelo4bits; RW a GND permanente, nunca lectura de5V sobre Pico; verificar VIH del controlador |
-| Display7segmentos | 1×1 kΩ en común, **solo un segmento por instante** |
-| Display4dígitos | 4×1 kΩ, una por común; **solo una pareja dígito/segmento por instante** |
-| Matriz8×8 desnuda | 5×1 kΩ +3×10 kΩ en filas; **un LED por instante**, sin MAX7219 |
-| Motor paso a paso5V | Driver ULN2003, una bobina activa, corriente/budget USB verificados antes |
-| SG90 | Pulsos50Hz con tiempos acotados; señal demostrada en LED+1 kΩ. **No se energiza el motor con fuente no validada** |
+| Componente disponible | Driver real incluido y conexión segura                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Pulsador / SW520D     | Entrada GPIO con pull-up, contacto a GND                                                                          |
+| Potenciómetro / LM35  | ADC retirando antes la sonda suelo; LM35 a 5 V                                                                    |
+| Piezo pasivo          | PWM con 220 Ω solo piezo de baja corriente apto para GPIO                                                         |
+| Buzzer activo         | Pulsos mediante ULN2003, tensión de carga confirmada                                                              |
+| 74HC595               | Shift/latch software, VCC3V3 Pico / VCC5V Arduino, LED limitado                                                   |
+| Sensor de llama       | DO de comparador a 3.3 V; estímulo óptico sin fuego                                                               |
+| Receptor IR / mando   | Decodificador NEC, tensión y pinout del receptor verificados                                                      |
+| LCD 16×2              | Bus paralelo4bits; RW a GND permanente, nunca lectura de5V sobre Pico; verificar VIH del controlador              |
+| Display7segmentos     | 1×1 kΩ en común, **solo un segmento por instante**                                                                |
+| Display4dígitos       | 4×1 kΩ, una por común; **solo una pareja dígito/segmento por instante**                                           |
+| Matriz8×8 desnuda     | 5×1 kΩ +3×10 kΩ en filas; **un LED por instante**, sin MAX7219                                                    |
+| Motor paso a paso5V   | Driver ULN2003, una bobina activa, corriente/budget USB verificados antes                                         |
+| SG90                  | Pulsos50Hz con tiempos acotados; señal demostrada en LED+1 kΩ. **No se energiza el motor con fuente no validada** |
 
 Los display/matriz no tienen un pinout universal. El docente identifica el código del encapsulado, filas/columnas, comunes y polaridad antes de comenzar. Los ejemplos contienen una opción de polaridad; no requieren un módulo de display comprado aparte. La resistencia compartida en7segmentos solo es segura con un LED activo por instante; no se reutiliza ese esquema para encender todos a la vez.
 
@@ -125,13 +140,13 @@ Para SG90, el fabricante TowerPro declara alimentación mediante adaptador exter
 
 ## Diagnóstico honesto
 
-| Sensor | Se puede comprobar | No se puede inferir con certeza |
-|---|---|---|
-| DS18B20 | ROM encontrada, conversión, CRC | Exactitud absoluta sin referencia |
-| DHT11 | Mensaje válido o timeout/checksum | Cable roto frente a sensor defectuoso en todos los casos |
-| HC-SR04 | Eco y rango temporal | Ausencia del sensor frente a falta de reflector |
-| ADC suelo/luz/nivel | Rango eléctrico y consistencia | Presencia de sensor: un ADC flotante también tiene números |
-| FC-37/PIR | Nivel alto o bajo | Presencia física o estado correcto solo por nivel estable |
+| Sensor              | Se puede comprobar                | No se puede inferir con certeza                            |
+| ------------------- | --------------------------------- | ---------------------------------------------------------- |
+| DS18B20             | ROM encontrada, conversión, CRC   | Exactitud absoluta sin referencia                          |
+| DHT11               | Mensaje válido o timeout/checksum | Cable roto frente a sensor defectuoso en todos los casos   |
+| HC-SR04             | Eco y rango temporal              | Ausencia del sensor frente a falta de reflector            |
+| ADC suelo/luz/nivel | Rango eléctrico y consistencia    | Presencia de sensor: un ADC flotante también tiene números |
+| FC-37/PIR           | Nivel alto o bajo                 | Presencia física o estado correcto solo por nivel estable  |
 
 `UNVERIFIED` solicita una prueba física de respuesta; no transforma un dato en simulación. `DISABLED` es una decisión explícita. Un valor nulo acompañado de `NO_RESPONSE` no se reemplaza por una lectura inventada ni por la última lectura como si fuera nueva.
 

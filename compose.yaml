@@ -5,7 +5,9 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
-      APP_ORIGIN: https://${DOMAIN:?Configura DOMAIN}
+      # Trust only our Caddy peer, never arbitrary forwarded headers from clients.
+      TRUST_PROXY: ${CADDY_PROXY_IP:-172.30.44.2}/32
+      APP_ORIGIN: ${APP_ORIGIN:-https://${DOMAIN:?Configura DOMAIN}}
       DATABASE_PATH: /app/data/raices.sqlite
       TEACHER_PASSWORD: ${TEACHER_PASSWORD:?Configura TEACHER_PASSWORD}
       SECRETS_KEY: ${SECRETS_KEY:?Configura SECRETS_KEY}
@@ -17,10 +19,14 @@ services:
       ARDUINO_SERVICE_TOKEN: ${ARDUINO_SERVICE_TOKEN:?Configura ARDUINO_SERVICE_TOKEN}
     volumes:
       - raices_data:/app/data
-    networks: [private, egress]
+    networks:
+      private: {}
+      proxy:
+        ipv4_address: ${APP_PROXY_IP:-172.30.44.3}
+      egress: {}
     depends_on:
       compiler:
-        condition: service_started
+        condition: service_healthy
     read_only: true
     tmpfs: [/tmp:size=64m,mode=1777]
     cap_drop: [ALL]
@@ -32,6 +38,16 @@ services:
     restart: unless-stopped
     environment:
       ARDUINO_SERVICE_TOKEN: ${ARDUINO_SERVICE_TOKEN:?Configura ARDUINO_SERVICE_TOKEN}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3002/health',{headers:{authorization:'Bearer '+process.env.ARDUINO_SERVICE_TOKEN},signal:AbortSignal.timeout(6000)}).then(async r=>process.exit(r.ok&&(await r.json()).ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 8s
+      start_period: 20s
+      retries: 3
     networks: [private]
     read_only: true
     tmpfs: [/tmp:size=256m,mode=1777]
@@ -51,11 +67,21 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks: [private, egress]
-    depends_on: [app]
+    networks:
+      proxy:
+        ipv4_address: ${CADDY_PROXY_IP:-172.30.44.2}
+      egress: {}
+    depends_on:
+      app:
+        condition: service_healthy
 networks:
   private:
     internal: true
+  proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${PROXY_SUBNET:-172.30.44.0/29}
   egress: {}
 volumes:
   raices_data: {}

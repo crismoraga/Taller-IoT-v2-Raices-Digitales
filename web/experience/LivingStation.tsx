@@ -1,6 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import {
   Leaf,
   Pause,
@@ -17,6 +16,7 @@ import * as THREE from "three";
 import { MovingSignal, Tube, type V3 } from "./Primitives";
 import {
   SafeCanvas,
+  SceneHtml as Html,
   SceneCamera,
   useReducedMotion,
   useSceneActive,

@@ -1,4 +1,4 @@
-import type { Session } from "./api";
+import { ApiError, type Session } from "./api";
 const sessionKey = "raices.session.cache";
 const pendingKey = "raices.session.pending";
 type Pending = { id: string; patch: Partial<Session>; revision?: string };
@@ -55,7 +55,9 @@ export const offline = {
 };
 export function isNetworkError(error: unknown) {
   return (
-    error instanceof Error &&
-    ["TypeError", "TimeoutError", "AbortError"].includes(error.name)
+    (error instanceof ApiError &&
+      (error.status >= 500 || [408, 425, 429].includes(error.status))) ||
+    (error instanceof Error &&
+      ["TypeError", "TimeoutError", "AbortError"].includes(error.name))
   );
 }

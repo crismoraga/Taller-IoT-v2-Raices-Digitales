@@ -42,7 +42,7 @@ export const welcome = activity("welcome", {
   ],
   why: "Los cinco agujeros a–e de un mismo número están unidos; f–j forman otro grupo independiente. El canal central los separa. Los rieles largos distribuyen energía y a veces están cortados al centro. Un cable debe unir nodos distintos: poner dos patas en el mismo grupo puede anular el componente.",
   expected:
-    "Al conectar y ejecutar aparece la identificación del intérprete en la terminal. Todavía no necesitas instalar sensores ni configurar Wi-Fi.",
+    "Elige el modelo de tu placa, conecta un USB de datos y autoriza su puerto. Ejecuta: en Pico aparece la identificación de MicroPython. En Uno/Nano aparece el saludo del sketch a 115200 baudios. Antes de avanzar, cada persona señala alimentación, GND y el camino sensor → programa → red → pantalla.",
   codeNotes: [
     {
       line: "import sys",
@@ -93,6 +93,13 @@ export const welcome = activity("welcome", {
   ],
   troubleshooting: [
     serialTrouble,
+    {
+      symptom: "El taller abre, pero no puedes elegir un puerto USB",
+      checks: [
+        "Para programar usa Chrome o Edge de escritorio y la URL HTTPS del taller. Safari, Firefox y la mayoría de navegadores móviles permiten leer las actividades, pero no este transporte USB.",
+        "Si no tienes un computador compatible, trabaja con el de tu grupo o usa la práctica sin hardware. Registra que la ejecución física sigue pendiente.",
+      ],
+    },
     {
       symptom: "No entiendes qué significa un pin",
       checks: [

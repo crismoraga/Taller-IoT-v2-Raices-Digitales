@@ -2,9 +2,10 @@ import { Backdrop, Icon, type IconName } from "../brand/Graphics";
 import { useApp } from "../lib/context";
 import { useProgress } from "../lib/progress";
 import type { ThemePref } from "../lib/theme";
-import { SegmentedProgress } from "../ui/Progress";
+import { ProgressBar, SegmentedProgress } from "../ui/Progress";
 import { Segmented } from "../ui/Card";
 import { cx } from "../ui/cx";
+import { resumeWorkshop } from "../workshop/flow";
 import { Brand } from "./Brand";
 
 export interface NavEntry {
@@ -51,6 +52,9 @@ export function Sidebar({
 }) {
   const app = useApp();
   const progress = useProgress();
+  const next = resumeWorkshop(app.guided, progress.done);
+  const routeDone = app.guided ? progress.expressDone : progress.routeDone;
+  const routeTotal = app.guided ? progress.expressTotal : progress.routeTotal;
   const go = (path: string) => {
     app.navigate(path);
     onNavigate?.();
@@ -121,39 +125,48 @@ export function Sidebar({
       {!collapsed && (
         <div className="mx-3.5 mt-5 shrink-0 rounded-lg border border-accent-soft/15 bg-primary-soft/35 p-4">
           <p className="t-overline text-[10.5px] text-accent">
-            Ruta guiada · 60 min
+            {app.guided ? "Ruta guiada · 60 min" : "Ruta libre · a tu ritmo"}
           </p>
           <p className="mt-1 font-display text-[15px] font-bold leading-5 text-cream">
             {app.session
-              ? progress.expressDone === progress.expressTotal
-                ? "Actividades registradas"
-                : `${progress.expressDone} de ${progress.expressTotal} actividades`
+              ? routeDone === routeTotal
+                ? "Ruta completada"
+                : `${routeDone} de ${routeTotal} actividades`
               : "De cero a una planta conectada"}
           </p>
-          <SegmentedProgress
-            className="mt-3"
-            total={progress.expressTotal}
-            done={progress.expressDone}
-            current={progress.expressDone}
-            label="Avance de la ruta exprés"
-          />
-          {progress.next && (
-            <button
-              type="button"
-              onClick={() =>
-                app.session
-                  ? go(`/taller/${progress.next!.id}`)
-                  : app.openOnboarding()
-              }
-              className="pressable focus-ring mt-3.5 flex min-h-11 w-full items-center gap-2 rounded-sm bg-primary px-3 text-left text-[13px] font-bold text-accent-soft hover:text-cream"
-            >
-              <span className="min-w-0 flex-1 truncate">
-                {app.session ? "Seguir: " : "Empezar: "}
-                {progress.next.title}
-              </span>
-              <Icon name="arrowRight" size={16} />
-            </button>
+          {app.guided ? (
+            <SegmentedProgress
+              className="mt-3"
+              total={routeTotal}
+              done={routeDone}
+              current={routeDone}
+              label="Avance de la ruta guiada"
+            />
+          ) : (
+            <ProgressBar
+              className="mt-3"
+              value={routeDone}
+              max={routeTotal}
+              label="Avance de la ruta libre"
+              onDark
+            />
           )}
+          <button
+            type="button"
+            onClick={() =>
+              app.session
+                ? go(next ? `/taller/${next.id}` : "/planta")
+                : app.openOnboarding()
+            }
+            className="pressable focus-ring mt-3.5 flex min-h-11 w-full items-center gap-2 rounded-sm bg-primary px-3 py-2 text-left text-[13px] font-bold text-accent-soft hover:text-cream"
+          >
+            <span className="line-clamp-2 min-w-0 flex-1">
+              {next
+                ? `${app.session ? "Seguir: " : "Empezar: "}${next.title}`
+                : "Ver mi planta"}
+            </span>
+            <Icon name="arrowRight" size={16} />
+          </button>
         </div>
       )}
 
@@ -188,9 +201,10 @@ export function Sidebar({
                 ? "Expandir la barra lateral"
                 : "Plegar la barra lateral"
             }
+            aria-expanded={!collapsed}
             title={collapsed ? "Expandir" : "Plegar"}
             className={cx(
-              "pressable focus-ring mt-1 flex min-h-10 items-center gap-3 rounded-md text-[13px] font-bold text-accent-soft hover:bg-primary-soft hover:text-cream",
+              "pressable focus-ring mt-1 flex min-h-11 items-center gap-3 rounded-md text-[13px] font-bold text-accent-soft hover:bg-primary-soft hover:text-cream",
               collapsed ? "justify-center" : "px-3.5",
             )}
           >

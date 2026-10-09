@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Icon } from "../brand/Graphics";
 import { useApp } from "../lib/context";
-import { serial } from "../lib/serial";
 import { Button } from "../ui/Button";
 import { Segmented, Tag } from "../ui/Card";
 import { Callout } from "../ui/Feedback";
@@ -50,6 +49,7 @@ export function CalibrationTool() {
   const minimumGap = pico ? 500 : 8;
 
   const pick = (next: Target) => {
+    if (capturing || app.busy) return;
     setTarget(next);
     const saved = app.session?.calibrations[next];
     setLow(saved ? String(saved.dry) : "");
@@ -60,7 +60,7 @@ export function CalibrationTool() {
     setCapturing(which);
     try {
       // Veinte muestras del ADC, promediadas en la propia placa.
-      const output = await serial.exec(
+      const output = await app.queryPico(
         `from machine import ADC, Pin\nfrom time import sleep_ms\na=ADC(Pin(${info.pin}))\ns=[]\nfor _ in range(20):\n s.append(a.read_u16())\n sleep_ms(25)\nprint('RAW:',sum(s)//len(s))`,
       );
       const match = /RAW:\s*(\d+)/.exec(output);

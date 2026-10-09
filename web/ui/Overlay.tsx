@@ -159,12 +159,12 @@ export function Modal({
             )}
           </header>
           {children && (
-            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
               {children}
             </div>
           )}
           {footer && (
-            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6">
               {footer}
             </footer>
           )}
@@ -278,7 +278,9 @@ export function ToastHost({
                 {toast.title}
               </p>
             )}
-            <p className="text-sm font-semibold leading-5">{toast.message}</p>
+            <p className="wrap-anywhere text-sm font-semibold leading-5">
+              {toast.message}
+            </p>
           </div>
           <IconButton
             icon="close"

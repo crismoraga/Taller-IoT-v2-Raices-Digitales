@@ -350,7 +350,7 @@ export const soil = activity("soil", {
     ],
   },
   safety: [
-    "Desconecta USB para cablear. VCC de la sonda va a 3,3 V; AOUT nunca recibe 5 V en la Pico.",
+    "Desconecta USB para cablear. VCC de la sonda va a 3,3 V. En la Pico, AOUT nunca debe superar 3,3 V; no conectes AOUT al riel de alimentación.",
     "Entierra solo la zona sensora hasta su marca. El conector y la electrónica superior quedan secos, lejos de agua y tierra mojada.",
     "Retira LM35 o potenciómetro de GP26 si los probaste antes. Un ADC lee una sola salida en este montaje.",
   ],
@@ -366,7 +366,7 @@ export const soil = activity("soil", {
   },
   why: "VCC y GND alimentan la electrónica; AOUT lleva solo la señal al ADC. Mantener la misma sonda, profundidad y alimentación hace comparables tus referencias. Una entrada analógica puede entregar números aun sin sensor: provocar un cambio y revisar el montaje es indispensable.",
   expected:
-    "La terminal muestra JSON con raw una vez por segundo. value queda nulo y el estado es NEEDS_CALIBRATION: no es un fallo. Todavía no hemos definido qué significa el porcentaje de suelo.",
+    "La terminal muestra JSON con raw una vez por segundo. value queda nulo y el estado es NEEDS_CALIBRATION: faltan referencias. Anota diez lecturas con la sonda quieta, luego compara tierra seca y húmeda a la misma profundidad. Una diferencia repetible permite avanzar a Calibración; un número aislado no demuestra respuesta física.",
   sampleOutput:
     '{"sensor":"soil","value":null,"raw":42000,"unit":"%","status":"NEEDS_CALIBRATION"}\nEjemplo de formato, no una lectura de tu planta.',
   codeNotes: [

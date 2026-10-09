@@ -118,10 +118,34 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
   await page
     .getByRole("button", { name: "Empezar a cablear", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "Primero, sin energía", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Confirma esta preparación antes de empezar a cablear.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: /Retiré físicamente el USB y las fuentes externas/,
+    })
+    .press("Space");
+  await page
+    .getByRole("button", { name: "Empezar a cablear", exact: true })
+    .click();
   await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
   await expect(page.getByText("a3", { exact: true }).first()).toBeVisible();
   await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
   await expect(page.getByRole("img", { name: /^Lleva GND/ })).toBeVisible();
+  const future = page.getByRole("button", { name: /Coloca el LED/ });
+  await expect(future).toHaveAttribute("aria-disabled", "true");
+  // aria-disabled still requires the click handler to refuse a future step.
+  await future.click({ force: true });
+  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Avance del cableado" }),
+  ).toHaveAttribute("aria-valuenow", "0");
   await page.getByRole("checkbox").last().press("Space");
   await page
     .getByRole("button", { name: "Listo, siguiente", exact: true })
@@ -129,6 +153,18 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
   await expect(
     page.getByRole("heading", { name: /Coloca el LED/ }),
   ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: /Coloca el LED/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Paso anterior", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
+  await expect(page.getByRole("checkbox").last()).toBeChecked();
+  await page
+    .getByRole("button", { name: "Listo, siguiente", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Listo, siguiente", exact: true })
     .click();
@@ -458,6 +494,11 @@ test("WebGL unavailable keeps accessible explanations and real 2D wiring", async
   await expect(
     page.getByRole("img", { name: /Tu primera señal|LED|Protoboard/ }).first(),
   ).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: /Retiré físicamente el USB y las fuentes externas/,
+    })
+    .press("Space");
   await page
     .getByRole("button", { name: "Empezar a cablear", exact: true })
     .click();

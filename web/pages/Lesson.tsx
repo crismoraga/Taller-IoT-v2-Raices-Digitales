@@ -14,7 +14,6 @@ import type { Circuit } from "../circuit/model";
 import {
   lessonById,
   lessonsOf,
-  nextLesson,
   stageOf,
   type Lesson as LessonData,
 } from "../content";
@@ -34,6 +33,8 @@ import { Checkbox, Select } from "../ui/Form";
 import { Disclosure, Page } from "../ui/Layout";
 import { Modal } from "../ui/Overlay";
 import { cx } from "../ui/cx";
+import { FinalReview } from "../workshop/Preparation";
+import { lessonFlow, lessonIdFromRoute, workshopRoute } from "../workshop/flow";
 const CodeWorkbench = lazy(() =>
   import("../lesson/CodeWorkbench").then((module) => ({
     default: module.CodeWorkbench,
@@ -80,7 +81,7 @@ const EXPLORER: Circuit = {
 export default function Lesson() {
   const app = useApp();
   const progress = useProgress();
-  const id = decodeURIComponent(app.route.split("/")[2] ?? "");
+  const id = lessonIdFromRoute(app.route);
   const lesson = lessonById(id);
   const storage = `raices.lesson.${app.session?.id ?? "anon"}.${id}`;
   const [phase, setPhaseState] = useState<Phase>(() =>
@@ -142,14 +143,21 @@ export default function Lesson() {
   };
   const index = phases.indexOf(active);
   const done = progress.done.has(lesson.id);
-  const following =
-    nextLesson(lesson.id, Boolean(lesson.essential)) ?? nextLesson(lesson.id);
+  const flow = lessonFlow(lesson, app.guided);
+  const following = flow.following;
+  const closesGuidedRoute = flow.express && !following;
+  const guidedRouteFinishedAfter =
+    closesGuidedRoute &&
+    workshopRoute(true).every(
+      (item) => item.id === lesson.id || progress.done.has(item.id),
+    );
   const stageList = lessonsOf(stage);
   const stageFinishedAfter = stageList.every(
     (item) => item.id === lesson.id || progress.done.has(item.id),
   );
 
   const complete = async () => {
+    if (saving) return;
     if (!app.session) {
       app.openOnboarding(`/taller/${lesson.id}`);
       return;
@@ -239,7 +247,11 @@ export default function Lesson() {
         </Card>
         {lesson.safety?.map((rule) => (
           <Callout key={rule} tone="warning" compact title="Seguridad">
-            {rule}
+            {lesson.id === "welcome" &&
+            arduino &&
+            rule.startsWith("Los pines GP")
+              ? "Los pines digitales de Uno/Nano trabajan a 5 V. Alimenta cada sensor según su guía y mantén separados los rieles de 5 V y 3,3 V."
+              : rule}
           </Callout>
         ))}
       </div>
@@ -248,7 +260,60 @@ export default function Lesson() {
 
   const connect = (
     <div className="flex flex-col gap-4">
-      {lesson.id === "welcome" ? (
+      {lesson.id === "welcome" && arduino ? (
+        <Card as="section">
+          <p className="t-overline text-ink-accent">Reconoce tu placa</p>
+          <h2 className="t-heading mt-1 text-ink">
+            La protoboard y tu {BOARD_NAMES[app.board]}
+          </h2>
+          <p className="mt-2 max-w-3xl text-[15px] leading-6 text-ink-soft">
+            Con el USB desconectado, busca estos nombres impresos en tu placa.
+            Los números D y A identifican señales; no son posiciones de una
+            Pico. Compara cada etiqueta antes de usar la tabla de conexiones de
+            la actividad.
+          </p>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              [
+                "USB",
+                "Conecta al computador con un cable de datos. La página autoriza su puerto y permite programar.",
+              ],
+              [
+                "GND",
+                "Es la referencia eléctrica común. El riel azul de la protoboard se une a GND.",
+              ],
+              [
+                "5V y 3V3",
+                "Son alimentaciones diferentes. Usa la indicada por cada sensor; los pines digitales de Uno/Nano trabajan a 5 V.",
+              ],
+              [
+                "D2 y A0",
+                "D2 controla el LED del taller. A0 lee la señal analógica de la sonda de suelo en la guía Arduino.",
+              ],
+            ].map(([name, detail]) => (
+              <div key={name} className="rounded-md bg-surface-alt p-4">
+                <dt className="font-mono font-bold text-ink-accent">{name}</dt>
+                <dd className="mt-1 text-sm leading-6 text-ink">{detail}</dd>
+              </div>
+            ))}
+          </dl>
+          <Callout
+            tone="info"
+            title="Cómo se une la protoboard"
+            compact
+            className="mt-4"
+          >
+            Los cinco agujeros a–e de una fila están unidos; f–j forman otro
+            grupo. El canal central los separa. Los rieles laterales pueden
+            estar cortados a la mitad: revisa tu modelo antes de distribuir
+            alimentación.
+          </Callout>
+          <p className="mt-3 text-sm leading-6 text-ink-soft">
+            En la siguiente actividad, selecciona Conecta y sigue la guía de
+            pines de tu Arduino. Conecta el USB después de revisar el montaje.
+          </p>
+        </Card>
+      ) : lesson.id === "welcome" ? (
         <Card as="section" padded={false} className="overflow-hidden">
           <div className="p-[18px] pb-3">
             <p className="t-overline text-ink-accent">Explora</p>
@@ -566,7 +631,13 @@ export default function Lesson() {
                   size={18}
                   className="mt-0.5 shrink-0 text-ink-accent"
                 />
-                {item}
+                {lesson.id === "welcome" && arduino
+                  ? item.startsWith("En el explorador")
+                    ? "En tu protoboard desconectada, compara a26 con e26 y luego a26 con f26. Explica cuáles forman un mismo nodo."
+                    : item.startsWith("Localiza GP2")
+                      ? "Localiza D2, A0, 5V y GND en tu Arduino. Explica cuáles son señales y cuáles distribuyen alimentación."
+                      : item
+                  : item}
               </li>
             ))}
           </ul>
@@ -600,6 +671,7 @@ export default function Lesson() {
         />
       </Card>
       <div className="flex flex-col gap-4">
+        {closesGuidedRoute && <FinalReview />}
         <Card as="section">
           <p className="t-overline text-ink-accent">Problemas comunes</p>
           <Troubles lesson={lesson} />
@@ -632,14 +704,16 @@ export default function Lesson() {
             disabled={!done && !quizDone && !confirmed}
             onClick={() =>
               done
-                ? app.navigate(following ? `/taller/${following.id}` : "/")
+                ? app.navigate(
+                    following ? `/taller/${following.id}` : "/planta",
+                  )
                 : void complete()
             }
           >
             {done
               ? following
                 ? `Siguiente: ${following.title}`
-                : "Volver a mi taller"
+                : "Ver mi planta"
               : "Completar actividad"}
           </Button>
           {!done && !quizDone && !confirmed && (
@@ -686,6 +760,9 @@ export default function Lesson() {
                 {lesson.duration} min
               </Tag>
               {lesson.essential && <Tag tone="gold">Ruta exprés</Tag>}
+              <Tag tone="glass" icon="route">
+                Actividad {flow.index + 1} de {flow.total}
+              </Tag>
               {done && (
                 <Tag tone="success" icon="check">
                   Completada
@@ -700,6 +777,7 @@ export default function Lesson() {
               </span>
               <Select
                 value={app.board}
+                disabled={app.connected || app.connecting || app.busy}
                 onChange={(event) => app.setBoard(event.target.value as Board)}
                 className="h-11! border-secondary! bg-primary-input! text-cream!"
               >
@@ -736,6 +814,31 @@ export default function Lesson() {
         </div>
       </header>
 
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-soft">
+        <p className="flex min-w-0 flex-1 items-start gap-2">
+          <Icon
+            name={app.connected ? "usb" : "lightbulb"}
+            size={17}
+            className="mt-0.5 shrink-0 text-ink-accent"
+          />
+          {app.connected
+            ? `USB conectado a ${BOARD_NAMES[app.board]}. Compara el resultado de tu placa con la guía.`
+            : app.serialSupported
+              ? "Puedes leer y preparar el código ahora. Conecta tu placa por USB para ejecutar y comprobar el resultado físico."
+              : "Puedes leer y editar aquí. Para ejecutar en una placa usa Chrome o Edge de escritorio con USB."}
+        </p>
+        {flow.previous && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="arrowLeft"
+            onClick={() => app.navigate(`/taller/${flow.previous!.id}`)}
+          >
+            Actividad anterior
+          </Button>
+        )}
+      </div>
+
       {app.guided ? (
         <>
           {/* Fases: una cosa a la vez */}
@@ -759,7 +862,7 @@ export default function Lesson() {
                         current
                           ? "bg-action text-action-ink"
                           : past
-                            ? "bg-success-soft text-success-ink hover:brightness-95"
+                            ? "bg-highlight text-ink-accent hover:brightness-95"
                             : "bg-surface-alt text-ink-soft hover:text-ink",
                       )}
                     >
@@ -769,15 +872,11 @@ export default function Lesson() {
                           current
                             ? "bg-action-ink/15"
                             : past
-                              ? "bg-success text-white"
+                              ? "bg-surface text-ink-soft"
                               : "bg-surface",
                         )}
                       >
-                        {past ? (
-                          <Icon name="check" size={14} strokeWidth={3} />
-                        ) : (
-                          itemIndex + 1
-                        )}
+                        {itemIndex + 1}
                       </span>
                       <span className="truncate">{PHASES[item].label}</span>
                     </button>
@@ -787,6 +886,12 @@ export default function Lesson() {
             </ol>
           </nav>
           <div key={`${lesson.id}:${active}`} className="mt-4 animate-fade">
+            <p
+              className="mb-3 text-sm font-semibold text-ink-soft"
+              role="status"
+            >
+              Paso {index + 1} de {phases.length}: {PHASES[active].hint}
+            </p>
             {content[active]}
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -796,7 +901,9 @@ export default function Lesson() {
               disabled={index === 0}
               onClick={() => setPhase(phases[index - 1])}
             >
-              {index > 0 ? PHASES[phases[index - 1]].label : "Atrás"}
+              {index > 0
+                ? `Anterior: ${PHASES[phases[index - 1]].label}`
+                : "Atrás"}
             </Button>
             {index < phases.length - 1 && (
               <Button
@@ -864,14 +971,18 @@ export default function Lesson() {
         onClose={() => setCelebrate(false)}
         tone="navy"
         kicker={
-          stageFinishedAfter
-            ? `${stage.label} completada`
-            : "Actividad completada"
+          guidedRouteFinishedAfter
+            ? "Ruta guiada completada"
+            : stageFinishedAfter
+              ? `${stage.label} completada`
+              : "Actividad completada"
         }
         title={
-          stageFinishedAfter
-            ? `¡Ganaste la medalla «${stage.title}»!`
-            : "¡Bien hecho!"
+          guidedRouteFinishedAfter
+            ? "¡Tu ruta guiada está completa!"
+            : stageFinishedAfter
+              ? `¡Ganaste la medalla «${stage.title}»!`
+              : "¡Bien hecho!"
         }
         footer={
           <>
@@ -917,8 +1028,16 @@ export default function Lesson() {
             <strong className="font-extrabold">«{lesson.title}»</strong>.{" "}
             {lesson.essential
               ? `Llevas ${Math.min(progress.expressDone + (done ? 0 : 1), progress.expressTotal)} de ${progress.expressTotal} actividades de la ruta exprés.`
-              : "Cada actividad suma un sensor más a tu planta."}
+              : "Cada actividad suma una nueva idea a tu proyecto."}
           </p>
+          {closesGuidedRoute && (
+            <p className="max-w-sm text-sm leading-6 text-ink-soft">
+              Lleva a Mi planta tu demostración: dos lecturas recientes, origen
+              Hardware, umbral y recuperación. Conserva tus datos en CSV antes
+              de cerrar el taller. Si practicaste con Simulación, indícalo al
+              presentar el resultado.
+            </p>
+          )}
         </div>
       </Modal>
     </Page>

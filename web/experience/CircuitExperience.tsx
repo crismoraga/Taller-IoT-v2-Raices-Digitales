@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { Html } from "@react-three/drei";
 import {
   Box,
   Pause,
@@ -52,6 +51,7 @@ import {
 } from "./Primitives";
 import {
   SafeCanvas,
+  SceneHtml as Html,
   SceneCamera,
   useReducedMotion,
   useSceneActive,
@@ -807,7 +807,11 @@ export function CircuitExperience({
     type: "reset",
     sequence: 0,
   });
-  const stepIndex = Math.max(0, Math.min(circuit.steps.length - 1, activeStep));
+  // -1 is the preparation screen: neither view has placed any component yet.
+  const stepIndex = Math.max(
+    -1,
+    Math.min(circuit.steps.length - 1, activeStep),
+  );
   const step = circuit.steps[stepIndex];
   const bounds = useMemo<SceneBounds>(() => {
     // Keep the complete physical board in view, including its unused half.
@@ -1020,12 +1024,15 @@ export function CircuitExperience({
         <div className="rdx-inspect-description" aria-live="polite">
           <strong>
             {selection?.title ??
-              (mode === "step" ? step?.title : circuit.title)}
+              (mode === "step"
+                ? (step?.title ?? "Antes de cablear")
+                : circuit.title)}
           </strong>
           <p>
             {selection?.text ??
               (mode === "step"
-                ? step?.detail
+                ? (step?.detail ??
+                  "Desconecta USB y otras fuentes. Prepara las piezas y sigue el primer paso antes de conectar.")
                 : "Gira el montaje y selecciona cualquier pieza. Todas las conexiones provienen del mismo plano que la vista 2D.")}
           </p>
           {selection?.detail && <p>{selection.detail}</p>}

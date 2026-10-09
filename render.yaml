@@ -1,0 +1,53 @@
+# Review the billable plans and disk in Render before creating this Blueprint.
+# SQLite requires this persistent disk; do not switch the web service to free.
+services:
+  - type: pserv
+    name: raices-compiler
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile.compiler
+    envVars:
+      - key: ARDUINO_SERVICE_TOKEN
+        generateValue: true
+
+  - type: web
+    name: raices-taller
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    disk:
+      name: raices-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: '3001'
+      - key: DATABASE_PATH
+        value: /app/data/raices.sqlite
+      - key: TEACHER_PASSWORD
+        sync: false
+      # Exactly 32 random bytes, encoded as base64. Render generateValue is not
+      # used here because its generated representation is not this contract.
+      - key: SECRETS_KEY
+        sync: false
+      - key: ARDUINO_SERVICE_HOST
+        fromService:
+          type: pserv
+          name: raices-compiler
+          property: host
+      - key: ARDUINO_SERVICE_TOKEN
+        fromService:
+          type: pserv
+          name: raices-compiler
+          envVarKey: ARDUINO_SERVICE_TOKEN
+      - key: SESSION_DAYS
+        value: '7'
+      - key: RETENTION_DAYS
+        value: '30'

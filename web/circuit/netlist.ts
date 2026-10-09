@@ -48,7 +48,8 @@ const SPAN: Partial<Record<PartInstance["type"], [number, number]>> = {
   buzzer: [2, 4],
   tilt: [1, 3],
 };
-const GPIO_ABS_MAX = 3.6;
+// The workshop uses the nominal GPIO operating limit, never the damage threshold.
+const GPIO_MAX_VOLTS = 3.3;
 const GPIO_SAFE_MA = 12;
 
 class Union {
@@ -332,7 +333,7 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
     const value = volts.get(net);
     if (value === undefined) continue;
     gpioVolts[pin.name] = Math.round(value * 100) / 100;
-    if (value > GPIO_ABS_MAX)
+    if (value > GPIO_MAX_VOLTS + 1e-9)
       error(
         "gpio-overvoltage",
         `${pin.name} recibiría ${value.toFixed(2).replace(".", ",")} V. Los pines de la Pico soportan 3,3 V: falta un divisor de voltaje.`,

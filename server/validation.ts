@@ -115,6 +115,18 @@ export const sessionCreateSchema = sessionPatchSchema.pick({
   name: true,
   groupNumber: true,
 });
+export const sessionImportSchema = z
+  .object({
+    session: sessionPatchSchema.required({
+      name: true,
+      groupNumber: true,
+      progress: true,
+      drafts: true,
+      calibrations: true,
+      sensorEnabled: true,
+    }),
+  })
+  .strict();
 export const ruleSchema = z
   .object({
     sensor,

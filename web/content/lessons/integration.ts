@@ -47,7 +47,7 @@ export const calibration = activity("calibration", {
   },
   why: "El ADC mide voltaje, no humedad. Dos condiciones físicas registradas crean una escala para ese montaje. Capturar en Pico promedia veinte muestras; guardar conserva las referencias del grupo, y reinstalar la estación las incorpora al programa que calcula los porcentajes.",
   expected:
-    "La herramienta guarda seco y húmedo si tienen separación suficiente: al menos 500 unidades en Pico o 8 en el sketch. Después instala o reinstala la estación. El ejemplo individual de esta página continúa entregando raw, sin porcentaje; guardar no modifica ese ejemplo automáticamente.",
+    "Selecciona Suelo. La herramienta guarda seco y húmedo si difieren al menos 500 unidades en Pico. En Uno/Nano escribe los raw observados en la terminal; deben diferir al menos 8. La captura de Pico detiene el programa actual. Guarda y después instala o reinstala la estación para aplicar las referencias; el ejemplo individual sigue mostrando raw.",
   codeNotes: [
     {
       line: '"status": "NEEDS_CALIBRATION"',
@@ -58,16 +58,22 @@ export const calibration = activity("calibration", {
     {
       title: "Define tus dos marcas",
       instruction:
-        "En la herramienta captura Seco, cambia a tierra húmeda, espera estabilidad y captura Húmedo. Guarda las referencias. Si usaste aire para seco, deja constancia: no equivale a tierra seca.",
+        "En la herramienta selecciona Suelo y captura Seco. Cambia a tierra húmeda, conserva profundidad, espera estabilidad y captura Húmedo. Guarda las referencias. Si usaste aire para seco, deja constancia: no equivale a tierra seca.",
       observe:
         "Aparecen dos números de tu montaje y la calibración queda guardada solo para tu grupo.",
+      arduino: {
+        instruction:
+          "Ejecuta el ejemplo de suelo y anota raw en tierra seca y húmeda, con la misma profundidad. Escribe ambos números en Seco y Húmedo y pulsa Guardar calibración. En Uno/Nano Capturar 20 muestras permanece desactivado; la captura automática usa MicroPython.",
+        observe:
+          "Guardas dos referencias de 0–1023 tomadas en tu propia placa, sin copiar las de otro grupo.",
+      },
     },
     {
       title: "Comprueba un punto intermedio",
       instruction:
         "Instala la estación desde Estación para aplicar referencias. Prueba una condición intermedia y comprueba el valor recibido en Mi planta.",
       observe:
-        "El porcentaje queda entre tus dos referencias; fuera de ellas se limita al rango 0–100.",
+        "En una condición intermedia aparece un porcentaje entre 0 y 100. Al regresar a las referencias, seco se aproxima a 0 y húmedo a 100. Un valor muy alejado de tus referencias se rotula OUT_OF_RANGE, aunque el porcentaje mostrado esté limitado.",
     },
   ],
   experiment: [
@@ -105,6 +111,13 @@ export const calibration = activity("calibration", {
     ),
   ],
   troubleshooting: [
+    {
+      symptom: "Capturar está desactivado o la consola dejó de imprimir",
+      checks: [
+        "Capturar requiere Pico conectada y sin otra operación en curso. La captura detiene el bucle anterior; vuelve a ejecutar si necesitas observarlo.",
+        "En Uno/Nano ejecuta el ejemplo de suelo y escribe manualmente cada raw. No cambies de placa para capturar: las referencias pertenecen al montaje original.",
+      ],
+    },
     {
       symptom: "No permite guardar los extremos",
       checks: [
@@ -289,10 +302,11 @@ export const cloud = activity("cloud", {
   safety: [
     "No compartas contraseña Wi-Fi ni credencial del dispositivo en capturas o mensajes.",
     "La URL debe ser accesible desde la placa. localhost desde Pico nombra a la propia Pico, no al computador del docente.",
+    "Para comprobar una alerta cambia entre tierra seca y húmeda conocidas, sin añadir agua cerca de la electrónica. Este taller observa y avisa; el kit no incluye un sistema de riego automático.",
   ],
   why: "El firmware instalado contiene selección de sensores, referencias y vinculación de tu grupo. HTTPS verifica el servidor y protege el mensaje. El bridge USB necesita la página abierta; el envío Wi-Fi de Pico puede continuar sin ella mientras tenga alimentación y red.",
   expected:
-    "Abre Estación, conecta USB, activa los sensores realmente montados e instala. Para Pico W usa la red y URL HTTPS indicadas por el docente. Para Uno/Nano compila e instala la estación USB y mantén la página abierta. Luego Mi planta muestra hardware, hora reciente y tus valores calibrados; crea allí una regla de suelo y comprueba una alerta con un cambio físico.",
+    "Abre Configuración, conecta USB, activa solo Suelo e instala la estación con tus referencias. Para Pico W autónoma usa la red y el endpoint HTTPS completo del docente, terminado en /api/device/ingest. Para Uno/Nano compila e instala la estación USB y conserva la página abierta. En Mi planta confirma dos lecturas recientes de tu dispositivo con origen hardware. Crea una regla de suelo, comprueba alerta y recuperación y exporta CSV antes del cierre.",
   modify: [
     {
       title: "Elige tu camino de red",
@@ -304,14 +318,15 @@ export const cloud = activity("cloud", {
     {
       title: "Del dato a una decisión",
       instruction:
-        "En Mi planta agrega un umbral acorde a tu escala de suelo. Provoca una condición por debajo del mínimo y después vuelve a una condición normal.",
+        "En Mi planta crea una regla de alerta con mínimo acorde a tu escala de suelo. Como ensayo reversible, puedes usar mínimo 30 e histéresis 3: mide tu referencia seca y luego la húmeda a la misma profundidad. Después ajusta el umbral a la pregunta de tu grupo; 30 no es una receta de riego.",
       observe:
-        "Aparece una alerta y luego una recuperación. La simulación se identifica aparte y no se envía al bot.",
+        "Una lectura válida bajo 30 genera alerta; la recuperación exige llegar al menos a 33. Comprueba origen y hora de ambas. La simulación se identifica aparte y no se envía al bot.",
     },
   ],
   experiment: [
     "Señala cada salto de tu camino real: sensor, placa, USB o Wi-Fi, servidor y dashboard. No basta nombrar nube.",
     "Compara la hora y el origen de dos lecturas. ¿Cómo detectarías que la curva que estás mirando dejó de actualizarse?",
+    "Antes de cerrar, explica una conexión, una línea modificada y tu transporte real. Exporta CSV, detén la transmisión y desconecta USB. Si la estación usó Wi-Fi, el docente revoca la credencial antes de reutilizarla.",
   ],
   challenge: {
     prompt:
@@ -356,6 +371,13 @@ export const cloud = activity("cloud", {
       checks: [
         "Confirma URL accesible, certificado HTTPS, vinculación y sensores habilitados.",
         "Para el puente mantén página y USB conectados. Mira hora, origen y dispositivo en lugar de asumir que una curva anterior sigue en vivo.",
+      ],
+    },
+    {
+      symptom: "El hardware falló y quedan pocos minutos",
+      checks: [
+        "Pide un repuesto al docente. Si no llega a tiempo, abre Practicar sin hardware en Mi planta y ensaya la regla con datos marcados Simulación.",
+        "Registra qué tramo real verificaste y cuál quedó pendiente. Conserva alerta y recuperación simuladas como práctica de la regla, sin presentarlas como mediciones de la planta.",
       ],
     },
   ],

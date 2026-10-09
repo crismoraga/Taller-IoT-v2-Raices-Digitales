@@ -15,7 +15,6 @@ import { useApp } from "../lib/context";
 import { Icon } from "../brand/Graphics";
 import { PageHeader } from "../ui/Layout";
 import { api, download, sensorLabels, statusLabels } from "../lib/api";
-import { serial } from "../lib/serial";
 import { Button, Notice, Badge } from "../components/Common";
 export default function Diagnostics() {
   const app = useApp();
@@ -34,7 +33,7 @@ export default function Diagnostics() {
         throw new Error(
           "La consulta de MicroPython requiere Pico conectada por USB. Arduino reporta diagnósticos con el sketch de estación.",
         );
-      const result = await serial.exec(
+      const result = await app.queryPico(
         "import sys, gc, machine, json, time\nd={'micropython':sys.version,'board':sys.implementation._machine,'freeMemory':gc.mem_free(),'uptime':time.ticks_ms(),'adc0':machine.ADC(26).read_u16(),'adc1':machine.ADC(27).read_u16(),'adc2':machine.ADC(28).read_u16()}\ntry:\n import network\n w=network.WLAN(network.STA_IF)\n d['wifi']=w.isconnected()\n d['rssi']=w.status('rssi') if w.isconnected() else None\nexcept Exception:\n d['wifi']=False\nprint('DIAG:'+json.dumps(d))",
       );
       const m = result.match(/DIAG:(\{[^\r\n]+\})/);
@@ -86,7 +85,7 @@ export default function Diagnostics() {
       title: "Compilador Arduino",
       detail: health.arduinoAvailable
         ? "Compilador disponible en el servidor."
-        : "Ejecuta scripts/setup-arduino.ps1 en el servidor del taller; alternativa: Arduino IDE.",
+        : "El servidor del taller necesita el compilador AVR. Avísale al docente; también puedes descargar el código y usar Arduino IDE.",
       ok: !!health.arduinoAvailable,
       Icon: Activity,
     },
@@ -169,7 +168,7 @@ export default function Diagnostics() {
         <Button
           variant="secondary"
           onClick={() => void probe()}
-          disabled={!app.connected || app.board !== "pico"}
+          disabled={!app.connected || app.board !== "pico" || app.busy}
           loading={testing}
         >
           <Stethoscope size={16} />

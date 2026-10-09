@@ -96,14 +96,22 @@ export function WiringGuide({
   const app = useApp();
   const total = circuit.steps.length;
   // −1 = preparación · 0…n−1 = pasos · n = revisión final
+  const signature = `${app.board}:${circuit.id}:${circuit.steps.map((item) => item.id).join(",")}`;
+  const [saved] = useState(() => {
+    const value = readLocal<{ version?: number; signature?: string; position?: number; verified?: Record<string, boolean>; completed?: Record<string, boolean> }>(storageKey, {});
+    return value?.version === 1 && value.signature === signature ? value : {};
+  });
   const [position, setPosition] = useState(() =>
-    Math.max(-1, Math.min(total, readLocal<number>(storageKey, -1))),
+    typeof saved.position === "number" && Number.isFinite(saved.position)
+      ? Math.max(-1, Math.min(total, Math.trunc(saved.position))) : -1,
   );
-  const [verified, setVerified] = useState<Record<string, boolean>>({});
+  const [verified, setVerified] = useState<Record<string, boolean>>(saved.verified ?? {});
+  const [completed, setCompleted] = useState<Record<string, boolean>>(saved.completed ?? {});
+  const [unpowered, setUnpowered] = useState(false);
   const [nudge, setNudge] = useState(false);
   const [view, setView] = useState<"step" | "all">("step");
   const [dimension, setDimension] = useState<"3d" | "2d">("3d");
-  useEffect(() => writeLocal(storageKey, position), [storageKey, position]);
+  useEffect(() => writeLocal(storageKey, { version: 1, signature, position, verified, completed }), [storageKey, signature, position, verified, completed]);
   useEffect(() => setNudge(false), [position]);
 
   const step =
@@ -113,14 +121,33 @@ export function WiringGuide({
     [circuit],
   );
 
-  const go = (next: number) => setPosition(Math.max(-1, Math.min(total, next)));
+  const reviewed = (item: WiringStep) => completed[item.id] && (!item.verify || verified[item.id]);
+  const frontier = circuit.steps.findIndex((item) => !reviewed(item));
+  const reviewedCount = circuit.steps.filter(reviewed).length;
+  const go = (next: number) => {
+    const target = Math.max(-1, Math.min(total, next));
+    if (app.guided && target > position && ((position < 0 && !unpowered) || (frontier >= 0 && target > frontier))) {
+      setNudge(true);
+      return;
+    }
+    setPosition(target);
+  };
   const advance = () => {
+    if (position < 0 && !unpowered) {
+      setNudge(true);
+      return;
+    }
     if (app.guided && step?.verify && !verified[step.id]) {
       setNudge(true);
       return;
     }
-    if (position === total) onDone?.();
-    else go(position + 1);
+    if (position === total) {
+      if (app.guided && frontier >= 0) { setPosition(frontier); return; }
+      onDone?.();
+    } else {
+      if (step) setCompleted((all) => ({ ...all, [step.id]: true }));
+      setPosition(position + 1);
+    }
   };
 
   const wire = step?.wires?.length
@@ -236,14 +263,14 @@ export function WiringGuide({
             <SegmentedProgress
               className="mt-2.5"
               total={total}
-              done={Math.max(0, position)}
+              done={reviewedCount}
               current={position}
               onDark={false}
               label="Avance del cableado"
             />
           </div>
 
-          {position < 0 && <Intro />}
+          {position < 0 && <Intro checked={unpowered} onChange={setUnpowered} nudge={nudge} />}
 
           {step && (
             <>
@@ -403,6 +430,7 @@ export function WiringGuide({
               <button
                 type="button"
                 onClick={() => go(index)}
+                aria-disabled={app.guided && frontier >= 0 && index > frontier}
                 aria-current={index === position ? "step" : undefined}
                 className={cx(
                   "focus-ring flex min-h-10 w-full items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left text-[13px] leading-[18px]",
@@ -414,14 +442,14 @@ export function WiringGuide({
                 <span
                   className={cx(
                     "flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold",
-                    index < position
+                    reviewed(item)
                       ? "bg-success text-white"
                       : index === position
                         ? "bg-action text-action-ink"
                         : "bg-surface-alt text-ink-soft",
                   )}
                 >
-                  {index < position ? (
+                  {reviewed(item) ? (
                     <Icon name="check" size={13} strokeWidth={3} />
                   ) : (
                     index + 1
@@ -437,28 +465,20 @@ export function WiringGuide({
   );
 }
 
-function Intro() {
+function Intro({ checked, onChange, nudge }: { checked: boolean; onChange: (value: boolean) => void; nudge: boolean }) {
   const app = useApp();
   return (
     <>
       <h3 className="t-heading text-ink">Primero, sin energía</h3>
-      {app.connected ? (
-        <Callout tone="danger" title="Tu placa está conectada">
-          Desconecta el cable USB antes de mover cables o piezas. Con energía,
-          un cable mal puesto puede hacer un cortocircuito.
-          <div className="mt-2.5">
-            <ConnectButton />
-          </div>
-        </Callout>
-      ) : (
-        <Callout
-          tone="success"
-          title="Placa sin conectar: así se cablea"
-          compact
-        >
-          Vuelve a conectar el USB solo cuando termines y hayas revisado todo.
-        </Callout>
-      )}
+      <Callout tone="warning" title="Retira físicamente la alimentación" compact>
+        Retira el cable USB y cualquier fuente externa antes de mover cables o piezas.
+        Desconectar en la web sólo cierra los datos: no apaga la placa. El navegador no puede comprobar si tiene energía.
+        {app.connected && <div className="mt-2.5"><ConnectButton /></div>}
+      </Callout>
+      <Checkbox checked={checked} onChange={onChange}>
+        Retiré físicamente el USB y las fuentes externas, o estoy revisando sólo el plano sin una placa.
+      </Checkbox>
+      {nudge && !checked && <p role="alert" className="text-sm font-bold text-warning-ink">Confirma esta preparación antes de empezar a cablear.</p>}
       <ul className="flex flex-col gap-2 text-[15px] leading-[22px] text-ink">
         {[
           "Pon la protoboard con el número 1 a tu izquierda.",
@@ -526,7 +546,7 @@ function Final({
         {issues
           ? "Este plano tiene observaciones. Avísale a tu docente."
           : [
-              "Sin cortocircuitos.",
+              "El plano de referencia no presenta cortocircuitos; revisa tu montaje físico por separado.",
               peak !== null
                 ? `Ningún pin GP recibe más de ${peak.toFixed(1).replace(".", ",")} V.`
                 : null,
@@ -540,7 +560,7 @@ function Final({
       {!app.connected && (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-surface-alt p-3">
           <p className="min-w-0 flex-1 text-sm font-bold leading-5 text-ink">
-            Todo en orden: ahora sí, conecta el cable USB.
+            Tras revisar cada conexión física con tu docente, vuelve a conectar el cable USB.
           </p>
           <ConnectButton />
         </div>

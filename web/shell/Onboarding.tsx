@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Rutix } from "../brand/Graphics";
-import { useApp } from "../lib/context";
+import { BOARD_NAMES, useApp, type Board } from "../lib/context";
 import { Button } from "../ui/Button";
 import { Callout } from "../ui/Feedback";
 import { Field, Input, Select } from "../ui/Form";
@@ -46,7 +46,7 @@ export function Onboarding({
       tone="navy"
       kicker="Antes de empezar"
       title="Armen su equipo"
-      description="Una planta, una placa y su propio espacio de trabajo. Elijan la estación y empiecen a construir."
+      description="Elijan su placa y recorrido. Su equipo tendrá un espacio para guardar código, progreso y mediciones."
       dismissable={!saving}
       footer={
         <Button
@@ -96,6 +96,45 @@ export function Onboarding({
             />
           )}
         </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Placa del equipo"
+            hint="La guía y el código se adaptan a este modelo."
+          >
+            {(props) => (
+              <Select
+                {...props}
+                value={app.board}
+                disabled={saving}
+                onChange={(event) => app.setBoard(event.target.value as Board)}
+              >
+                {(Object.keys(BOARD_NAMES) as Board[]).map((board) => (
+                  <option key={board} value={board}>
+                    {BOARD_NAMES[board]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field
+            label="Recorrido del equipo"
+            hint="Puedes cambiarlo durante el taller."
+          >
+            {(props) => (
+              <Select
+                {...props}
+                value={app.guided ? "guided" : "full"}
+                disabled={saving}
+                onChange={(event) =>
+                  app.setGuided(event.target.value === "guided")
+                }
+              >
+                <option value="guided">Guiado · 6 actividades · 60 min</option>
+                <option value="full">Completo · a tu ritmo</option>
+              </Select>
+            )}
+          </Field>
+        </div>
         <Field
           label="Número de estación"
           hint="Es el número que tiene su mesa o su kit."
@@ -124,6 +163,23 @@ export function Onboarding({
           Este navegador recupera el avance, el código y los datos de su grupo.
           El docente puede acompañarlos; otros grupos tienen su propio espacio.
         </Callout>
+        <Callout
+          tone={app.serialSupported ? "info" : "warning"}
+          title="Con kit o con práctica"
+          compact
+        >
+          Para programar la placa, usa Chrome o Edge de escritorio y un cable
+          USB de datos. Sin kit puedes seguir la guía, editar código y practicar
+          en el simulador de Mi planta; sus datos se identifican como
+          Simulación.
+        </Callout>
+        {app.board !== "pico" && app.health && !app.health.arduinoAvailable && (
+          <Callout tone="info" title="Carga del código Arduino" compact>
+            En esta instalación, descarga el sketch y cárgalo con Arduino IDE.
+            Después puedes conectar USB para ver y enviar las lecturas de tu
+            placa.
+          </Callout>
+        )}
       </form>
     </Modal>
   );

@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, describe, it, expect } from "vitest";
+import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, sep, basename } from "node:path";
@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { X509Certificate } from "node:crypto";
 import { buildApp } from "../server/app.ts";
 import { hash } from "../server/database.ts";
+import { configuration } from "../server/config.ts";
 
 const origin = "http://localhost:5173";
 const reading = (value: number | null, status = "READING") => ({
@@ -103,7 +104,330 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
+describe("Configuración para acceso remoto", () => {
+  it("normaliza URLs copiadas del navegador y conserva protección de Origin", async () => {
+    expect(
+      configuration({
+        origins: ["https://raices.example/", "https://raices.example"],
+      }).origins,
+    ).toEqual(["https://raices.example"]);
+    await app.close();
+    app = await buildApp({ ...app.rdConfig, origins: [`${origin}/`] });
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/session",
+          headers: headers(),
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/session",
+          headers: { origin: "https://otro.example" },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(403);
+  });
+  it("rechaza orígenes que jamás pueden coincidir y temporizadores que se desbordan", () => {
+    for (const invalid of [
+      "https://",
+      "https://raices.example/taller",
+      "https://raices.example?admin=true",
+      "https://raices.example#taller",
+      "https://usuario:clave@raices.example",
+      "file:///workspace",
+    ])
+      expect(() => configuration({ origins: [invalid] })).toThrow("APP_ORIGIN");
+    expect(() => configuration({ deviceAuditSeconds: 2147484 })).toThrow(
+      "temporizador",
+    );
+  });
+});
+
 describe("API real: aislamiento, persistencia y seguridad", () => {
+  it("recupera un respaldo en una identidad nueva sin copiar hardware, lecturas, umbrales ni acceso docente", async () => {
+    const original = await session(2);
+    const device = await pair(original.cookie);
+    await addRule(original.cookie);
+    await ingest(device.token, 45);
+    const saved = {
+      name: "Equipo recuperado",
+      groupNumber: 2,
+      progress: ["welcome", "led"],
+      drafts: { "led.python": "print('avance del taller')" },
+      calibrations: { soil: { dry: 52000, wet: 24000 } },
+      sensorEnabled: { soil: true },
+      lastRun: {
+        lessonId: "led",
+        board: "pico",
+        code: "print('último programa')",
+        at: new Date(now).toISOString(),
+      },
+    };
+    expect(
+      (
+        await app.inject({
+          method: "PATCH",
+          url: "/api/session",
+          headers: headers(original.cookie),
+          payload: saved,
+        })
+      ).statusCode,
+    ).toBe(200);
+    const exported = await app.inject({
+      url: "/api/session/export",
+      headers: headers(original.cookie),
+    });
+    const {
+      id: previousId,
+      createdAt: previousDate,
+      ...editable
+    } = exported.json().session;
+    now += 5000;
+    const recovered = await app.inject({
+      method: "POST",
+      url: "/api/session/import",
+      headers: headers(),
+      payload: { session: editable },
+    });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.json().session).toMatchObject(saved);
+    expect(recovered.json().session.id).not.toBe(previousId);
+    expect(recovered.json().session.createdAt).not.toBe(previousDate);
+    expect(recovered.headers["set-cookie"]).toContain("HttpOnly");
+    expect(recovered.headers["set-cookie"]).not.toContain("rd_teacher");
+    expect(recovered.payload).not.toContain(device.token);
+    const cookie = String(recovered.headers["set-cookie"]).split(";")[0];
+    const data = await dashboard(cookie);
+    expect(data.devices).toEqual([]);
+    expect(data.latest).toEqual([]);
+    expect(data.history).toEqual([]);
+    expect(data.rules).toEqual([]);
+    expect(data.alerts).toEqual([]);
+    expect(
+      (
+        await app.inject({
+          url: "/api/teacher/groups",
+          headers: headers(cookie),
+        })
+      ).statusCode,
+    ).toBe(403);
+    // Existing device credentials keep writing only into their original group.
+    expect((await ingest(device.token, 47)).statusCode).toBe(200);
+    expect((await dashboard(original.cookie)).latest[0].value).toBe(47);
+    expect((await dashboard(cookie)).latest).toEqual([]);
+  });
+  it("rechaza la recuperación sobre una sesión activa y conserva todos sus datos", async () => {
+    const current = await session();
+    app.store.patchSession(current.session, {
+      drafts: { "led.python": "conservar" },
+      progress: ["led"],
+    });
+    const before = app.store.byId(current.session.id);
+    const restored = await app.inject({
+      method: "POST",
+      url: "/api/session/import",
+      headers: headers(current.cookie),
+      payload: { session: { name: "Otro grupo" } },
+    });
+    expect(restored.statusCode).toBe(409);
+    expect(restored.headers["set-cookie"]).toBeUndefined();
+    expect(app.store.byId(current.session.id)).toEqual(before);
+    expect(
+      app.store.db.prepare("SELECT COUNT(*) AS count FROM sessions").get()!
+        .count,
+    ).toBe(1);
+  });
+  it("valida límites y origen antes de importar sin dejar sesiones vacías ni aceptar identidades externas", async () => {
+    const saved = {
+      name: "Respaldo",
+      groupNumber: 1,
+      progress: [],
+      drafts: {},
+      calibrations: {},
+      sensorEnabled: {},
+    };
+    for (const originHeaders of [{}, { origin: "https://otro.example" }]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/session/import",
+        headers: originHeaders,
+        payload: { session: saved },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.headers["set-cookie"]).toBeUndefined();
+    }
+    const invalid = [
+      { session: { name: "incompleto" } },
+      { session: { ...saved, id: "00000000-0000-4000-8000-000000000000" } },
+      { session: { ...saved, createdAt: new Date(now).toISOString() } },
+      { session: { ...saved, token: "no-puede-restaurar-un-token" } },
+      { session: saved, devices: [] },
+      { session: { ...saved, groupNumber: 11 } },
+      { session: { ...saved, progress: Array(101).fill("led") } },
+      { session: { ...saved, drafts: { "led.python": "x".repeat(100001) } } },
+      {
+        session: {
+          ...saved,
+          drafts: Object.fromEntries(
+            Array.from({ length: 6 }, (_, i) => [
+              `sketch${i}`,
+              "x".repeat(90000),
+            ]),
+          ),
+        },
+      },
+      { session: { ...saved, calibrations: { soil: { dry: 100, wet: 100 } } } },
+      { session: { ...saved, sensorEnabled: { unknown: true } } },
+    ];
+    for (const payload of invalid) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/session/import",
+        headers: headers(),
+        payload,
+      });
+      expect(response.statusCode, response.payload).toBe(400);
+      expect(response.headers["set-cookie"]).toBeUndefined();
+    }
+    expect(
+      app.store.db.prepare("SELECT COUNT(*) AS count FROM sessions").get()!
+        .count,
+    ).toBe(0);
+  });
+  it("revierte una recuperación fallida durante la escritura para no crear sesiones parciales", async () => {
+    const saved = {
+      name: "Respaldo",
+      groupNumber: 1,
+      progress: [],
+      drafts: {},
+      calibrations: {},
+      sensorEnabled: {},
+    };
+    app.store.db.exec(
+      "CREATE TRIGGER reject_import BEFORE UPDATE ON sessions BEGIN SELECT RAISE(ABORT,'test write failure'); END;",
+    );
+    const failed = await app.inject({
+      method: "POST",
+      url: "/api/session/import",
+      headers: headers(),
+      payload: { session: saved },
+    });
+    expect(failed.statusCode).toBe(500);
+    expect(failed.headers["set-cookie"]).toBeUndefined();
+    expect(
+      app.store.db.prepare("SELECT COUNT(*) AS count FROM sessions").get()!
+        .count,
+    ).toBe(0);
+    app.store.db.exec("DROP TRIGGER reject_import");
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/session/import",
+          headers: headers(),
+          payload: { session: saved },
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+  it("limita la creación de sesiones por recuperación desde una IP", async () => {
+    const saved = {
+      name: "Respaldo",
+      groupNumber: 1,
+      progress: [],
+      drafts: {},
+      calibrations: {},
+      sensorEnabled: {},
+    };
+    for (let i = 0; i < 60; i++)
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/session/import",
+            headers: headers(),
+            payload: { session: saved },
+          })
+        ).statusCode,
+      ).toBe(200);
+    const limited = await app.inject({
+      method: "POST",
+      url: "/api/session/import",
+      headers: headers(),
+      payload: { session: saved },
+    });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["set-cookie"]).toBeUndefined();
+    expect(
+      app.store.db.prepare("SELECT COUNT(*) AS count FROM sessions").get()!
+        .count,
+    ).toBe(60);
+  });
+  it("admite el inicio de diez grupos y sus dispositivos detrás de una IP de aula compartida", async () => {
+    // Two attempts per group exceed the previous 15/min creation limit;
+    // three devices per group exceed the previous 20/min pairing limit.
+    for (let groupNumber = 1; groupNumber <= 10; groupNumber++) {
+      const a = await session(groupNumber);
+      const retry = await app.inject({
+        method: "POST",
+        url: "/api/session",
+        headers: headers(a.cookie),
+        payload: { groupNumber },
+      });
+      expect(retry.statusCode).toBe(200);
+      expect(retry.json().session.id).toBe(a.session.id);
+      for (let device = 0; device < 3; device++) await pair(a.cookie);
+      expect(app.store.devices(a.session.id)).toHaveLength(3);
+    }
+  });
+  it("aplica el límite del profesor a la IP real solo cuando el proxy es confiable", async () => {
+    await app.close();
+    vi.stubEnv("TRUST_PROXY", "127.0.0.1/32");
+    try {
+      app = await buildApp({ ...app.rdConfig, logger: false });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const login = (
+      remoteAddress: string,
+      forwarded: string,
+      password: string,
+    ) =>
+      app.inject({
+        method: "POST",
+        url: "/api/teacher/login",
+        remoteAddress,
+        headers: { ...headers(), "x-forwarded-for": forwarded },
+        payload: { password },
+      });
+    for (let i = 0; i < 5; i++)
+      expect(
+        (await login("127.0.0.1", "198.51.100.10", "wrong")).statusCode,
+      ).toBe(401);
+    expect(
+      (await login("127.0.0.1", "198.51.100.10", "wrong")).statusCode,
+    ).toBe(429);
+    expect(
+      (await login("127.0.0.1", "198.51.100.11", "test-only-password-123"))
+        .statusCode,
+    ).toBe(200);
+    // A direct caller cannot reset its bucket by forging X-Forwarded-For.
+    for (let i = 0; i < 5; i++)
+      expect(
+        (await login("192.0.2.50", `198.51.100.${20 + i}`, "wrong")).statusCode,
+      ).toBe(401);
+    expect(
+      (await login("192.0.2.50", "198.51.100.99", "test-only-password-123"))
+        .statusCode,
+    ).toBe(429);
+  });
   it("combina escrituras desde un snapshot obsoleto y PATCH simultáneos sin perder claves", async () => {
     const a = await session(1),
       b = await session(2);
@@ -608,6 +932,54 @@ describe("API real: aislamiento, persistencia y seguridad", () => {
 });
 
 describe("alertas reales y transporte SSE", () => {
+  it("libera conexiones SSE al desconectarse sin agotar el cupo después de reconectar", async () => {
+    const a = await session();
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address() as { port: number };
+    const url = `http://127.0.0.1:${address.port}/api/events`;
+    const controllers: AbortController[] = [];
+    const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
+    const connect = async () => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      const response = await fetch(url, {
+        headers: { cookie: a.cookie },
+        signal: controller.signal,
+      });
+      expect(response.status).toBe(200);
+      const reader = response.body!.getReader();
+      readers.push(reader);
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+        "connected",
+      );
+    };
+    try {
+      await connect();
+      await connect();
+      await connect();
+      expect((await fetch(url, { headers: { cookie: a.cookie } })).status).toBe(
+        429,
+      );
+      await readers[0].cancel();
+      controllers[0].abort();
+      // Wait for the server to receive the disconnect, then use the freed slot.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      await connect();
+      await app.inject({
+        method: "POST",
+        url: "/api/simulation",
+        headers: headers(a.cookie),
+        payload: { readings: [reading(40)] },
+      });
+      for (const reader of readers.slice(1))
+        expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+          "event: update",
+        );
+    } finally {
+      await Promise.allSettled(readers.map((reader) => reader.cancel()));
+      for (const controller of controllers) controller.abort();
+    }
+  });
   it("audita ausencia de telemetría, persiste transición, deduplica y detecta recuperación real", async () => {
     const a = await session();
     const b = await session(2);

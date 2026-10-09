@@ -48,9 +48,9 @@ const variants: Record<ButtonVariant, string> = {
   ghostLight: "bg-transparent text-accent-soft hover:bg-primary-soft",
 };
 const sizes: Record<ButtonSize, string> = {
-  sm: "min-h-11 rounded-sm px-4 gap-2 text-sm font-body font-bold",
-  md: "min-h-12 rounded-md px-5 gap-2.5 text-base font-display font-bold",
-  lg: "min-h-14 rounded-md px-7 gap-3 text-[1.0625rem] font-display font-bold",
+  sm: "min-h-11 rounded-sm px-4 py-2 gap-2 text-sm font-body font-bold",
+  md: "min-h-12 rounded-md px-5 py-2.5 gap-2.5 text-base font-display font-bold",
+  lg: "min-h-14 rounded-md px-7 py-3 gap-3 text-[1.0625rem] font-display font-bold",
 };
 
 interface Shared {
@@ -83,7 +83,7 @@ export function DotsLoader({ className }: { className?: string }) {
 }
 
 const base =
-  "pressable focus-ring inline-flex select-none items-center justify-center whitespace-nowrap text-center leading-5 disabled:bg-border disabled:text-ink-soft disabled:border-transparent disabled:hover:brightness-100 aria-disabled:pointer-events-none aria-disabled:bg-border aria-disabled:text-ink-soft";
+  "pressable focus-ring relative inline-flex max-w-full select-none items-center justify-center whitespace-normal text-center leading-5 disabled:bg-border disabled:text-ink-soft disabled:border-transparent disabled:hover:brightness-100 aria-disabled:pointer-events-none aria-disabled:bg-border aria-disabled:text-ink-soft";
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
@@ -118,15 +118,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...rest}
       >
-        {loading ? (
-          <DotsLoader />
-        ) : (
-          <>
-            {icon && <Icon name={icon} size={iconSize} />}
-            {children}
-            {iconRight && <Icon name={iconRight} size={iconSize} />}
-          </>
+        {loading && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <DotsLoader />
+          </span>
         )}
+        <span
+          className={cx(
+            "inline-flex min-w-0 items-center justify-center",
+            loading && "opacity-0",
+          )}
+          style={{ gap: "inherit" }}
+        >
+          {icon && <Icon name={icon} size={iconSize} className="shrink-0" />}
+          {children}
+          {iconRight && (
+            <Icon name={iconRight} size={iconSize} className="shrink-0" />
+          )}
+        </span>
       </button>
     );
   },

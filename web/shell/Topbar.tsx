@@ -2,11 +2,12 @@ import { Icon } from "../brand/Graphics";
 import { lessonById, stageOf } from "../content";
 import { useApp } from "../lib/context";
 import { IconButton } from "../ui/Button";
+import { lessonIdFromRoute } from "../workshop/flow";
 import { ConnectButton, ConnectionChip } from "./ConnectButton";
 
 function useCrumbs(route: string): { section: string; page?: string } {
   if (route.startsWith("/taller/")) {
-    const lesson = lessonById(decodeURIComponent(route.split("/")[2] ?? ""));
+    const lesson = lessonById(lessonIdFromRoute(route));
     if (lesson) {
       const stage = stageOf(lesson);
       return { section: `${stage.label} · ${stage.title}`, page: lesson.title };

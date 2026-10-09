@@ -33,6 +33,7 @@ import {
   type DashboardData,
 } from "../lib/api";
 import { Button, Badge, EmptyState, Notice, Modal } from "../components/Common";
+import { downloadExport } from "../lib/export";
 const initial: DashboardData = {
   devices: [],
   latest: [],
@@ -108,6 +109,7 @@ export default function Dashboard() {
     [hysteresis, setHysteresis] = useState("3"),
     [cooldown, setCooldown] = useState("60"),
     [loading, setLoading] = useState(false),
+    [exporting, setExporting] = useState(false),
     [eventState, setEventState] = useState("Conectando"),
     [, setTick] = useState(0);
   const valuesRef = useRef(values),
@@ -215,6 +217,26 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+  const exportCSV = async () => {
+    if (!app.session || exporting) return;
+    setExporting(true);
+    try {
+      await downloadExport(
+        "/export",
+        `raices-grupo-${app.session.groupNumber}.csv`,
+      );
+      app.notify("Lecturas descargadas en CSV.");
+    } catch (problem) {
+      app.notify(
+        problem instanceof Error
+          ? problem.message
+          : "No se pudieron descargar las lecturas. Vuelve a intentar.",
+        true,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <div className="dashboard-page">
       <PageHeader
@@ -232,7 +254,8 @@ export default function Dashboard() {
         actions={
           <Button
             variant="hero"
-            onClick={() => window.location.assign("/api/export")}
+            loading={exporting}
+            onClick={() => void exportCSV()}
             disabled={!app.session}
           >
             <Download size={15} />

@@ -97,7 +97,7 @@ void loop() {}
   ],
 
   expected:
-    "Al presionar Ejecutar, el LED se enciende y queda encendido. En la terminal aparece el mensaje del programa.",
+    "Al presionar Ejecutar, el LED físico se enciende y queda encendido. En la terminal aparece el mensaje del programa. La comprobación termina cuando cambias el estado desde el código y ves apagarse ese mismo LED; cambiar solo el mensaje no cambia la luz.",
   sampleOutput: "LED encendido en GP2",
 
   modify: [
@@ -215,6 +215,7 @@ void loop() {}
     {
       symptom: "El LED no enciende",
       checks: [
+        "Desconecta USB antes de revisar o corregir cualquiera de estas conexiones. Si usas Uno/Nano, sigue su tabla D2 → 220 Ω → ánodo → cátodo → GND.",
         "El LED está al revés: la pata larga va en d26, junto a la resistencia.",
         "El cable verde no está en a4. Cuenta desde el USB: a1 es GP0, a2 es GP1, a3 es GND y a4 es GP2.",
         "Falta el cable negro entre a27 y el riel azul, o el cable entre a3 y el riel azul.",

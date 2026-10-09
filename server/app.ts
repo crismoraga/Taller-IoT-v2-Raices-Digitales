@@ -7,6 +7,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { Readable } from "node:stream";
+import type { ServerResponse } from "node:http";
 import { z, ZodError } from "zod";
 import { configuration, type Config } from "./config.ts";
 import { Store, hash, token, type Session, type Row } from "./database.ts";
@@ -15,6 +16,7 @@ import { ArduinoCompiler, CompileError } from "./arduino.ts";
 import {
   sessionCreateSchema,
   sessionPatchSchema,
+  sessionImportSchema,
   readingBatchSchema,
   ingestSchema,
   ruleSchema,
@@ -61,9 +63,13 @@ export async function buildApp(
   });
   const store = new Store(config);
   const sessions = new WeakMap<FastifyRequest, Session>();
-  const streams = new Map<string, Set<NodeJS.WritableStream>>();
+  const streams = new Map<string, Set<ServerResponse>>();
   const notify = (sessionId: string) => {
     for (const stream of streams.get(sessionId) || []) {
+      if (stream.destroyed || stream.writableEnded) {
+        streams.get(sessionId)?.delete(stream);
+        continue;
+      }
       if (
         !stream.write(
           `event: update\ndata: ${JSON.stringify({ at: new Date(config.now()).toISOString() })}\n\n`,
@@ -182,7 +188,11 @@ export async function buildApp(
       ].includes(path)
     )
       return;
-    if (path === "/api/session" && request.method === "POST") return;
+    if (
+      ["/api/session", "/api/session/import"].includes(path) &&
+      request.method === "POST"
+    )
+      return;
     authSession(request);
   });
   app.setErrorHandler(
@@ -218,7 +228,8 @@ export async function buildApp(
     {
       config: {
         rateLimit: {
-          max: 15,
+          // Ten groups can start and retry behind the same classroom Wi-Fi.
+          max: 60,
           timeWindow: 60000,
           keyGenerator: (req: FastifyRequest) => req.ip,
         },
@@ -239,6 +250,40 @@ export async function buildApp(
   app.get("/api/session", async (request) => ({
     session: sessions.get(request)!,
   }));
+  app.post(
+    "/api/session/import",
+    {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: 60000,
+          keyGenerator: (req: FastifyRequest) => req.ip,
+        },
+      },
+    },
+    async (request, reply) => {
+      if (store.byCookie(request.cookies[SESSION_COOKIE]))
+        throw new HttpError(
+          409,
+          "Ya hay una sesión activa. Usa un navegador sin sesión para recuperar este respaldo sin reemplazar el grupo actual.",
+        );
+      const { session: saved } = sessionImportSchema.parse(request.body);
+      // A backup restores editable learning data, never identities or access.
+      // Commit both creation and restoration before issuing its new cookie.
+      const restored = store.transaction(() => {
+        const created = store.createSession(saved.name, saved.groupNumber);
+        return {
+          secret: created.secret,
+          session: store.patchSession(created.session, saved),
+        };
+      });
+      reply.setCookie(SESSION_COOKIE, restored.secret, {
+        ...cookieOptions,
+        maxAge: config.sessionDays * 86400,
+      });
+      return { session: restored.session };
+    },
+  );
   app.patch("/api/session", async (request) => {
     const updated = store.patchSession(
       sessions.get(request)!,
@@ -278,7 +323,8 @@ export async function buildApp(
     {
       config: {
         rateLimit: {
-          max: 20,
+          // Five devices per group, ten groups behind one public IP.
+          max: 60,
           timeWindow: 60000,
           keyGenerator: (req: FastifyRequest) => req.ip,
         },
@@ -485,7 +531,7 @@ export async function buildApp(
   });
   app.get("/api/events", async (request, reply) => {
     const id = sessions.get(request)!.id;
-    const open = streams.get(id) || new Set<NodeJS.WritableStream>();
+    const open = streams.get(id) || new Set<ServerResponse>();
     if (open.size >= 3)
       throw new HttpError(
         429,
@@ -512,11 +558,15 @@ export async function buildApp(
       if (!reply.raw.write(": heartbeat\n\n")) reply.raw.end();
     }, 15000);
     interval.unref();
-    request.raw.on("close", () => {
+    // The response owns a long-lived SSE connection. IncomingMessage.close
+    // can mean the request finished, before the response has disconnected.
+    const release = () => {
       clearInterval(interval);
       open.delete(reply.raw);
       if (!open.size) streams.delete(id);
-    });
+    };
+    reply.raw.once("close", release);
+    reply.raw.once("error", release);
   });
   app.get("/api/export", async (request, reply) => {
     const id = sessions.get(request)!.id;

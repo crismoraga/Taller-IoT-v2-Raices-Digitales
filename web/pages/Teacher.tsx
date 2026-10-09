@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   GraduationCap,
   LockKeyhole,
@@ -18,6 +18,7 @@ import { essentials, normalizeProgress } from "../content";
 import { PageHeader } from "../ui/Layout";
 import {
   api,
+  ApiError,
   post,
   sensorLabels,
   statusLabels,
@@ -60,10 +61,18 @@ export default function Teacher() {
     [detail, setDetail] = useState<Detail | null>(null),
     [botToken, setBotToken] = useState(""),
     [chatId, setChatId] = useState(""),
-    [telegram, setTelegram] = useState(false);
+    [telegram, setTelegram] = useState(false),
+    [connectionIssue, setConnectionIssue] = useState("");
+  const refreshing = useRef(false);
+  const generation = useRef(0);
   const refresh = async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
+    const requestedGeneration = generation.current;
     try {
       const d = await api<{ groups: Group[] }>("/teacher/groups");
+      if (requestedGeneration !== generation.current) return;
+      setConnectionIssue("");
       setGroups(
         d.groups.map((g) => ({
           ...g,
@@ -78,12 +87,22 @@ export default function Teacher() {
       const t = await api<{ configured: boolean; chatId?: string }>(
         "/telegram",
       ).catch(() => null);
+      if (requestedGeneration !== generation.current) return;
       if (t) {
         setTelegram(t.configured);
         if (t.chatId) setChatId(t.chatId);
       }
-    } catch {
-      setAuthed(false);
+    } catch (error) {
+      if (requestedGeneration !== generation.current) return;
+      if (error instanceof ApiError && [401, 403].includes(error.status)) {
+        setAuthed(false);
+        setGroups([]);
+        setDetail(null);
+      } else {
+        setConnectionIssue("El servidor no está respondiendo. Conservamos la última consulta y volveremos a intentar; los datos pueden estar desactualizados.");
+      }
+    } finally {
+      refreshing.current = false;
     }
   };
   useEffect(() => {
@@ -99,6 +118,8 @@ export default function Teacher() {
     setLoading(true);
     try {
       await post("/teacher/login", { password });
+      generation.current += 1;
+      setAuthed(true);
       setPassword("");
       await refresh();
     } catch (e) {
@@ -141,7 +162,8 @@ export default function Teacher() {
           authed ? (
             <Button
               variant="hero"
-              onClick={() =>
+              onClick={() => {
+                generation.current += 1;
                 void post("/teacher/logout", {})
                   .then(() => {
                     setAuthed(false);
@@ -150,8 +172,8 @@ export default function Teacher() {
                     setTelegram(false);
                     setChatId("");
                   })
-                  .catch((error) => app.notify(error.message, true))
-              }
+                  .catch((error) => app.notify(error.message, true));
+              }}
             >
               <LogOut size={15} />
               Cerrar sesión docente
@@ -200,6 +222,7 @@ export default function Teacher() {
         </section>
       ) : (
         <>
+          {connectionIssue && <Notice tone="warning">{connectionIssue}</Notice>}
           <div className="teacher-stats">
             <div>
               <strong>{groups.length}</strong>

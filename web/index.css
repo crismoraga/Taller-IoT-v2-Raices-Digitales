@@ -321,8 +321,8 @@
   outline: 2px solid transparent;
   outline-offset: 2px;
   &:focus-visible {
-    outline-color: var(--accent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+    outline-color: var(--primary-deep);
+    box-shadow: 0 0 0 4px var(--accent);
   }
 }
 /* Presionar encoge a 0,96 con resorte (regla de movimiento de la marca). */
@@ -369,6 +369,7 @@
   select,
   textarea {
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   h1,
   h2,
@@ -395,8 +396,9 @@
     background: color-mix(in srgb, var(--accent) 45%, transparent);
   }
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--primary-deep);
     outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--accent);
   }
   code,
   kbd,
@@ -429,6 +431,14 @@
 }
 
 @layer components {
+  .legacy-page .notice.error {
+    background: var(--danger-soft);
+    color: var(--danger-ink);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  }
+  .legacy-page .notice.error > svg {
+    color: var(--danger-ink);
+  }
   .living-hero {
     border: 1px solid color-mix(in srgb, var(--accent-soft) 18%, transparent);
     box-shadow: var(--elev-card);
@@ -650,6 +660,7 @@
     font-size: 1rem;
     line-height: 1.625rem;
     color: var(--ink);
+    overflow-wrap: anywhere;
   }
   .prose-rd > * + * {
     margin-top: 0.75rem;
@@ -665,7 +676,7 @@
     font-size: 0.875em;
     font-weight: 600;
     color: var(--ink-accent);
-    white-space: nowrap;
+    white-space: normal;
   }
   .prose-rd a {
     color: var(--ink-accent);

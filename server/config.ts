@@ -55,6 +55,28 @@ export function configuration(overrides: Partial<Config> = {}): Config {
     logger: true,
     ...overrides,
   };
+  // Origin headers never include a trailing slash. Accept the URL copied from
+  // a browser, while rejecting paths and credentials that cannot match them.
+  config.origins = config.origins.map((value) => {
+    try {
+      const url = new URL(value.trim());
+      if (
+        !["http:", "https:"].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.pathname !== "/" ||
+        url.search ||
+        url.hash
+      )
+        throw new Error("Invalid origin");
+      return url.origin;
+    } catch {
+      throw new Error(
+        "APP_ORIGIN debe contener orígenes HTTP o HTTPS completos, sin rutas, consultas ni credenciales.",
+      );
+    }
+  });
+  config.origins = [...new Set(config.origins)];
   for (const field of [
     "sessionDays",
     "retentionDays",
@@ -65,6 +87,10 @@ export function configuration(overrides: Partial<Config> = {}): Config {
     if (!Number.isFinite(config[field]) || config[field] <= 0)
       throw new Error(`Configuración inválida: ${field}`);
   }
+  if (config.deviceAuditSeconds * 1000 > 2147483647)
+    throw new Error(
+      "Configuración inválida: deviceAuditSeconds excede el límite del temporizador.",
+    );
   if (
     config.encryptionKey &&
     Buffer.from(config.encryptionKey, "base64").length !== 32

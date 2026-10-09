@@ -22,6 +22,11 @@ async function protocolPeer(page: Page) {
     let requests = 0,
       opens = 0,
       stops = 0;
+    let requestGate: Promise<void> | null = null;
+    let releaseRequest: (() => void) | null = null;
+    let requestCancelled = false;
+    let deferExecution = false;
+    let pendingExecution: (() => void) | null = null;
     const emit = (value: string | number[]) =>
       controller.enqueue(
         typeof value === "string"
@@ -48,16 +53,27 @@ async function protocolPeer(page: Page) {
         files[to] = decoder.decode(Uint8Array.from(temporary[from]));
         delete temporary[from];
       }
-      emit([4]); // raw-paste end-of-input acknowledgement
-      if (source.includes("CAMBIO_UTF8")) emit("CAMBIO_UTF8: raíces 🌱\r\n");
-      else if (source.includes("led.value(1)")) emit("LED encendido\r\n");
-      else if (source.includes("while True")) emit("LED: 1\r\n");
-      if (source.includes("while True") && !source.includes("_rdfile"))
-        mode = "running";
-      else {
-        emit([4, 4, 62]);
-        mode = "raw";
-      }
+      const respond = () => {
+        emit([4]); // raw-paste end-of-input acknowledgement
+        if (source.includes("print('DIAG:'"))
+          emit(
+            'DIAG:{"board":"Pico protocol peer","freeMemory":100000,"adc0":35000}\r\n',
+          );
+        else if (source.includes("CAMBIO_UTF8"))
+          emit("CAMBIO_UTF8: raíces 🌱\r\n");
+        else if (source.includes("led.value(1)")) emit("LED encendido\r\n");
+        else if (source.includes("while True")) emit("LED: 1\r\n");
+        if (source.includes("while True") && !source.includes("_rdfile"))
+          mode = "running";
+        else {
+          emit([4, 4, 62]);
+          mode = "raw";
+        }
+      };
+      if (deferExecution) {
+        deferExecution = false;
+        pendingExecution = respond;
+      } else respond();
     };
     const port = {
       readable: null as ReadableStream<Uint8Array> | null,
@@ -118,6 +134,9 @@ async function protocolPeer(page: Page) {
     };
     serial.requestPort = async () => {
       requests++;
+      if (requestGate) await requestGate;
+      if (requestCancelled)
+        throw new DOMException("QA cancelled port selection", "NotFoundError");
       return port;
     };
     Object.defineProperty(navigator, "serial", {
@@ -131,11 +150,30 @@ async function protocolPeer(page: Page) {
       unplug: () =>
         controller.error(new DOMException("Test USB unplug", "NetworkError")),
       stats: () => ({ requests, opens, stops }),
+      delayNextRequest: () => {
+        requestCancelled = false;
+        requestGate = new Promise<void>((resolve) => {
+          releaseRequest = resolve;
+        });
+      },
+      cancelRequest: () => {
+        requestCancelled = true;
+        releaseRequest?.();
+        requestGate = null;
+        releaseRequest = null;
+      },
+      delayNextExecution: () => {
+        deferExecution = true;
+      },
+      releaseExecution: () => {
+        pendingExecution?.();
+        pendingExecution = null;
+      },
     };
   });
 }
 
-async function groupAndConnect(page: Page) {
+async function groupAndConnect(page: Page, deferPortSelection = false) {
   await protocolPeer(page);
   await page.goto("/");
   await page
@@ -154,10 +192,17 @@ async function groupAndConnect(page: Page) {
     .getByRole("button", { name: /Programa/ })
     .click();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
+  if (deferPortSelection)
+    await page.evaluate(() =>
+      (
+        window as unknown as { __usbPeer: { delayNextRequest: () => void } }
+      ).__usbPeer.delayNextRequest(),
+    );
   await page
     .getByRole("button", { name: "Conectar placa", exact: true })
     .first()
     .click();
+  if (deferPortSelection) return;
   await expect(
     page.getByText("Placa conectada", { exact: true }),
   ).toBeVisible();
@@ -172,6 +217,102 @@ async function groupAndConnect(page: Page) {
     )
     .toBe(1);
 }
+
+test("pending USB selection prevents a board change and cancellation restores it", async ({
+  page,
+}) => {
+  await groupAndConnect(page, true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __usbPeer: { stats: () => { requests: number } };
+            }
+          ).__usbPeer.stats().requests,
+      ),
+    )
+    .toBe(1);
+  const board = page.getByLabel("Tu placa");
+  await expect(board).toBeDisabled();
+  await expect(board).toHaveValue("pico");
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as { __usbPeer: { stats: () => { opens: number } } }
+        ).__usbPeer.stats().opens,
+    ),
+  ).toBe(0);
+  await page.evaluate(() =>
+    (
+      window as unknown as { __usbPeer: { cancelRequest: () => void } }
+    ).__usbPeer.cancelRequest(),
+  );
+  await expect(board).toBeEnabled();
+  await board.selectOption("uno");
+  await expect(board).toHaveValue("uno");
+  const dashboard = await (await page.request.get("/api/dashboard")).json();
+  expect(dashboard.devices).toEqual([]);
+});
+
+test("a pending Pico diagnostic blocks concurrent calibration until the protocol operation completes", async ({
+  page,
+}) => {
+  await groupAndConnect(page);
+  await page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("button", { name: "Diagnóstico", exact: true })
+    .click();
+  await page.evaluate(() =>
+    (
+      window as unknown as { __usbPeer: { delayNextExecution: () => void } }
+    ).__usbPeer.delayNextExecution(),
+  );
+  await page
+    .getByRole("button", { name: "Consultar Pico", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as { __usbPeer: { programs: string[] } }
+          ).__usbPeer.programs.filter((code) => code.includes("print('DIAG:'"))
+            .length,
+      ),
+    )
+    .toBe(1);
+  await page
+    .getByRole("navigation", { name: "Navegación principal" })
+    .getByRole("button", { name: "Estación", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Calibrar suelo y agua", exact: true })
+    .click();
+  const capture = page.getByRole("button", {
+    name: "Capturar 20 muestras",
+    exact: true,
+  });
+  await expect(capture).toHaveCount(2);
+  await expect(capture.nth(0)).toBeDisabled();
+  await expect(capture.nth(1)).toBeDisabled();
+  await page.evaluate(() =>
+    (
+      window as unknown as { __usbPeer: { releaseExecution: () => void } }
+    ).__usbPeer.releaseExecution(),
+  );
+  await expect(capture.nth(0)).toBeEnabled();
+  await expect(capture.nth(1)).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __usbPeer: { programs: string[] } }).__usbPeer
+          .programs.length,
+    ),
+  ).toBe(1);
+});
 
 async function replaceCode(page: Page, code: string) {
   await page.locator(".monaco-editor textarea.inputarea").first().focus();

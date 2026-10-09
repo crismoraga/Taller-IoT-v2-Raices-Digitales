@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Droplets, Sun, Check, ArrowRight } from "lucide-react";
 import { useApp } from "../lib/context";
-import { serial } from "../lib/serial";
 import { Button, Notice } from "./Common";
 export default function CalibrationWizard() {
   const app = useApp();
@@ -19,7 +18,7 @@ export default function CalibrationWizard() {
         throw new Error(
           "Captura automática disponible con Pico conectada. También puedes introducir lecturas RAW reales desde la terminal.",
         );
-      const out = await serial.exec(
+      const out = await app.queryPico(
         `from machine import ADC, Pin\nfrom time import sleep_ms\na=ADC(Pin(${pin}))\ns=[]\nfor _ in range(20):\n s.append(a.read_u16())\n sleep_ms(25)\nprint('RAW:',sum(s)//len(s))`,
       );
       const m = out.match(/RAW:\s*(\d+)/);
@@ -80,6 +79,7 @@ export default function CalibrationWizard() {
       <label>
         Sensor a calibrar
         <select
+          disabled={capturing || app.busy}
           value={sensor}
           onChange={(e) => {
             setSensor(e.target.value);
@@ -113,7 +113,7 @@ export default function CalibrationWizard() {
           <Button
             variant="secondary"
             onClick={() => void capture("dry")}
-            disabled={!app.connected || app.board !== "pico"}
+            disabled={!app.connected || app.board !== "pico" || app.busy || capturing}
             loading={capturing && phase === "dry"}
           >
             Capturar 20 muestras
@@ -139,7 +139,7 @@ export default function CalibrationWizard() {
           <Button
             variant="secondary"
             onClick={() => void capture("wet")}
-            disabled={!app.connected || app.board !== "pico"}
+            disabled={!app.connected || app.board !== "pico" || app.busy || capturing}
             loading={capturing && phase === "wet"}
           >
             Capturar 20 muestras

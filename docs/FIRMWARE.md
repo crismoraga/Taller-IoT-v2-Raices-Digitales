@@ -13,19 +13,43 @@ La estación principal utiliza Pico W con el firmware oficial MicroPython para *
 
 `config.example.json` documenta el formato y lleva credenciales vacías. `config.json` admite `ssid`, `password`, `endpoint`, `deviceId`, `token`, `enabled`, `calibration`, `rtc` y `caFile`. Por compatibilidad también acepta `sensorEnabled` y `calibrations`. `rtc` es `[año,mes,día,hora,minuto,segundo]` **UTC**, tomado del reloj del navegador al instalar. Los nombres de sensores coinciden con el contrato API; DHT11 se habilita con `dht11` o `air_temperature`/`air_humidity`. Sin mapa de habilitación todos los sensores quedan desactivados.
 
+## Ensayo mínimo antes de la clase
+
+1. En una Pico W real ejecuta el LED integrado y luego el externo. En Uno/Nano carga el sketch equivalente con la variante correcta. Las pruebas automáticas no sustituyen esta comprobación de puerto, bootloader y cable.
+2. Ejecuta Suelo y observa respuesta de raw entre dos condiciones conocidas. Pico mide 0–65535; AVR mide 0–1023. Mantén alimentación y profundidad para ambas referencias.
+3. Guarda calibración. En Pico la herramienta captura veinte muestras y detiene el programa anterior. En Uno/Nano escribe los raw observados: la captura MicroPython no se aplica a C++.
+4. Instala la estación con **solo Suelo habilitado**. Revisa referencias y recibe dos lotes nuevos por USB. Para Wi-Fi autónomo, verifica también un envío HTTPS real desde esa Pico W a la API prevista para hoy.
+5. En Mi planta confirma origen Hardware, dispositivo, unidad, estado y hora de dos lecturas. Comprueba alerta y recuperación con una regla temporal; exporta CSV.
+
+Si Wi-Fi falla pero el computador alcanza la API, el puente USB permite continuar con la estación instalada, la página abierta y la placa conectada. Anota ese transporte como USB; no equivale a haber validado Wi-Fi autónomo. No hay reenvío de una cola histórica de lecturas perdidas durante un corte.
+
+## Dejar una Pico W lista para otro grupo
+
+Desde **Configuración → Dispositivos vinculados**, revoca el acceso de la estación antes de entregarla a otra persona. Después pulsa Detener código. Para borrar las credenciales guardadas, ejecuta este programa breve en el editor de una actividad con Pico W seleccionada:
+
+```python
+import os
+
+if "config.json" in os.listdir():
+    os.remove("config.json")
+print("Configuración privada eliminada. Desconecta USB antes de guardar la placa.")
+```
+
+Confirma el mensaje y desconecta USB. El programa borra únicamente la configuración privada de esa Pico; no formatea la placa ni borra archivos del computador. Si hubo un error de ejecución, no declares terminada la limpieza. Una futura instalación vuelve a generar la configuración del grupo que corresponda. Restaurar los archivos de estación no equivale a borrar las credenciales antiguas; la revocación y esta eliminación tienen propósitos distintos.
+
 ## Drivers de la estación
 
-| Driver | Pico W GPIO | Pin físico | Uno/Nano | Lectura |
-|---|---:|---:|---|---|
-| Sonda suelo capacitiva v1.2 | GP26 / ADC0 | 31 | A0 | Porcentaje relativo + ADC crudo |
-| LDR 5549 con divisor | GP27 / ADC1 | 32 | A1 | Luz relativa, no lux |
-| Water Level Sensor | GP28 / ADC2 | 34 | A2 | Porcentaje relativo + ADC crudo |
-| FC-37 + LM393 DO | GP14 | 19 | D6 | Activo en bajo; 1 = gotas |
-| DHT11 | GP15 | 20 | D4 | `air_temperature`, `air_humidity` |
-| DS18B20 | GP16 | 21 | D5 | `soil_temperature`, ROM + CRC |
-| HC-SR04 | TRIG GP17, ECHO GP18 | 22, 24 | D7, D8 | Tiempo de eco; límite 30 ms |
-| HC-SR501 | GP19 | 25 | D9 | PIR; espera 60 s de estabilización |
-| LED / buzzer | GP2 / GP3 | 4 / 5 | D2 / D3 | Actuadores para actividades |
+| Driver                      |          Pico W GPIO | Pin físico | Uno/Nano | Lectura                            |
+| --------------------------- | -------------------: | ---------: | -------- | ---------------------------------- |
+| Sonda suelo capacitiva v1.2 |          GP26 / ADC0 |         31 | A0       | Porcentaje relativo + ADC crudo    |
+| LDR 5549 con divisor        |          GP27 / ADC1 |         32 | A1       | Luz relativa, no lux               |
+| Water Level Sensor          |          GP28 / ADC2 |         34 | A2       | Porcentaje relativo + ADC crudo    |
+| FC-37 + LM393 DO            |                 GP14 |         19 | D6       | Activo en bajo; 1 = gotas          |
+| DHT11                       |                 GP15 |         20 | D4       | `air_temperature`, `air_humidity`  |
+| DS18B20                     |                 GP16 |         21 | D5       | `soil_temperature`, ROM + CRC      |
+| HC-SR04                     | TRIG GP17, ECHO GP18 |     22, 24 | D7, D8   | Tiempo de eco; límite 30 ms        |
+| HC-SR501                    |                 GP19 |         25 | D9       | PIR; espera 60 s de estabilización |
+| LED / buzzer                |            GP2 / GP3 |      4 / 5 | D2 / D3  | Actuadores para actividades        |
 
 Pico admite entradas de **3.3 V**, nunca 5 V. HC-SR04 requiere 5 V de alimentación y divisor en ECHO: dos resistencias de 1 kΩ en serie entre ECHO y nodo, tres de 1 kΩ en serie del nodo a GND; el nodo entrega aproximadamente 3 V. Arduino Uno/Nano de 5 V admite ECHO directo. DS18B20 necesita pull-up: dos resistencias de 10 kΩ en paralelo = 5 kΩ entre DATA y 3V3. No requiere comprar 4.7 kΩ. LDR usa 10 kΩ del nodo a GND y LDR del nodo a 3V3. DHT11 desnudo necesita un pull-up adicional de 10 kΩ; confirma que la variante comprada admita 3.3 V antes de conectar a Pico. Mantén electrónica y conectores secos.
 

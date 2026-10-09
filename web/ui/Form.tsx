@@ -11,7 +11,7 @@ import { Icon } from "../brand/Graphics";
 import { cx } from "./cx";
 
 const control =
-  "focus-ring w-full rounded-sm border-[1.5px] border-border bg-surface px-3.5 text-[15px] font-semibold text-ink placeholder:font-normal placeholder:text-ink-soft/80 transition-colors hover:border-border-strong focus:border-ink-accent disabled:bg-surface-alt disabled:text-ink-soft aria-invalid:border-danger";
+  "focus-ring w-full min-w-0 rounded-sm border-[1.5px] border-border bg-surface px-3.5 text-base font-semibold text-ink placeholder:font-normal placeholder:text-ink-soft/80 transition-colors hover:border-border-strong focus:border-ink-accent disabled:bg-surface-alt disabled:text-ink-soft aria-invalid:border-danger";
 
 /** Etiqueta + control + ayuda/errores enlazados por id. Toda entrada lleva etiqueta visible. */
 export function Field({
@@ -148,17 +148,23 @@ export function Switch({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
-          "focus-ring relative mt-0.5 h-7 w-12 shrink-0 rounded-pill transition-colors duration-200 disabled:opacity-50",
-          checked ? "bg-success" : "bg-border-strong",
+          "focus-ring relative -mt-1.5 h-11 w-12 shrink-0 rounded-pill disabled:opacity-50",
         )}
       >
         <span
           className={cx(
-            "absolute left-1 top-1 flex size-5 items-center justify-center rounded-full bg-white text-success shadow-soft transition-transform duration-200 ease-spring",
-            checked && "translate-x-5",
+            "absolute inset-x-0 top-2 h-7 rounded-pill transition-colors duration-200",
+            checked ? "bg-success" : "bg-border-strong",
           )}
         >
-          {checked && <Icon name="check" size={12} strokeWidth={3} />}
+          <span
+            className={cx(
+              "absolute left-1 top-1 flex size-5 items-center justify-center rounded-full bg-white text-success shadow-soft transition-transform duration-200 ease-spring",
+              checked && "translate-x-5",
+            )}
+          >
+            {checked && <Icon name="check" size={12} strokeWidth={3} />}
+          </span>
         </span>
       </button>
       <label htmlFor={id} className="min-w-0 flex-1">
@@ -205,7 +211,7 @@ export function Checkbox({
       />
       <span
         className={cx(
-          "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] border-2 transition-colors peer-focus-visible:ring-4 peer-focus-visible:ring-accent/35",
+          "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] border-2 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-deep peer-focus-visible:ring-4 peer-focus-visible:ring-accent",
           checked
             ? "border-success bg-success text-white"
             : onDark
@@ -279,7 +285,7 @@ export function Slider({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="rd-slider focus-ring h-7 w-full cursor-pointer appearance-none rounded-pill bg-transparent disabled:opacity-50"
+        className="rd-slider focus-ring h-11 w-full cursor-pointer appearance-none rounded-pill bg-transparent disabled:opacity-50"
         style={{ "--fill": `${percent}%` } as CSSProperties}
       />
       {(minLabel || maxLabel) && (

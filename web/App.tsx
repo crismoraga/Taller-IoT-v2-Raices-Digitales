@@ -93,6 +93,10 @@ export default function App() {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const sessionUpdates = useRef<Promise<void>>(Promise.resolve());
+  const recoveryPending = useRef(false);
+  const usbBusy = useRef(false);
+  const usbConnecting = useRef(false);
+  const usbGeneration = useRef(0);
   const stream = useRef("");
   const pendingUSB = useRef(new Map<string, Reading>());
   const pendingDiagnostics = useRef<Record<string, unknown>>({});
@@ -240,6 +244,26 @@ export default function App() {
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
   }, [refreshSession]);
+
+  // El servidor puede volver sin que cambie la conexión de red del navegador.
+  useEffect(() => {
+    if (!offline) return;
+    const retry = () => {
+      if (!navigator.onLine || document.visibilityState === "hidden" || recoveryPending.current)
+        return;
+      recoveryPending.current = true;
+      void refreshSession().finally(() => { recoveryPending.current = false; });
+      void api<Health>("/health").then(setHealth).catch(() => {});
+    };
+    const timer = setInterval(retry, 5000);
+    window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", retry);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", retry);
+    };
+  }, [offline, refreshSession]);
 
   const updateSession = useCallback(
     (patch: Partial<Session>) => {
@@ -400,6 +424,7 @@ export default function App() {
       forward();
     };
     const lost = (name: string) => () => {
+      usbGeneration.current += 1;
       pendingUSB.current.clear();
       setConnected(false);
       setRunning(false);
@@ -436,6 +461,11 @@ export default function App() {
   /* ── Acciones de placa ──────────────────────────────────────── */
   const guard = useCallback(
     async (work: () => Promise<void>) => {
+      if (usbBusy.current || usbConnecting.current) {
+        notify("Espera a que termine la operación de la placa antes de continuar.", "info");
+        return;
+      }
+      usbBusy.current = true;
       setBusy(true);
       try {
         await work();
@@ -445,22 +475,31 @@ export default function App() {
           "error",
         );
       } finally {
+        usbBusy.current = false;
         setBusy(false);
       }
     },
     [notify],
   );
   const connect = useCallback(async () => {
+    if (usbConnecting.current || usbBusy.current) return;
     if (!sessionRef.current) {
       onboardingDestination.current = canonical(location.pathname);
       setOnboarding(true);
       return;
     }
+    usbConnecting.current = true;
     setConnecting(true);
+    const generation = ++usbGeneration.current;
     try {
       const current = boardRef.current;
       if (current === "pico") await serial.connect();
       else await ArduinoSerial.connect(current);
+      if (generation !== usbGeneration.current) {
+        if (current === "pico") await serial.disconnect();
+        else await ArduinoSerial.disconnect();
+        return;
+      }
       setConnected(true);
       try {
         await post("/bridge/connect", {});
@@ -485,10 +524,12 @@ export default function App() {
           "error",
         );
     } finally {
+      usbConnecting.current = false;
       setConnecting(false);
     }
   }, [notify]);
   const disconnect = useCallback(async () => {
+    usbGeneration.current += 1;
     try {
       pendingUSB.current.clear();
       if (boardRef.current === "pico") await serial.disconnect();
@@ -505,10 +546,11 @@ export default function App() {
   }, [notify]);
   const setBoard = useCallback(
     (value: Board) => {
-      if (connected) {
-        notify("Desconecta la placa antes de cambiar de modelo.", "info");
+      if (connected || usbConnecting.current || usbBusy.current) {
+        notify("Termina la operación y desconecta la placa antes de cambiar de modelo.", "info");
         return;
       }
+      usbGeneration.current += 1;
       setBoardState(value);
       writeLocal("raices.board", value);
       setLocalReadings([]);
@@ -516,6 +558,7 @@ export default function App() {
     [connected, notify],
   );
   const compileAndUpload = useCallback(async (code: string, target: Board) => {
+    const generation = usbGeneration.current;
     const result = await post<{ hex: string; output: string }>(
       "/arduino/compile",
       {
@@ -523,6 +566,8 @@ export default function App() {
         board: target,
       },
     );
+    if (generation !== usbGeneration.current || target !== boardRef.current || !ArduinoSerial.connected)
+      throw new Error("La conexión cambió durante la compilación. Conecta la placa y vuelve a ejecutar.");
     setTerminal((previous) => `${previous}\n${result.output}\n`);
     await ArduinoSerial.upload(result.hex);
   }, []);
@@ -672,6 +717,25 @@ export default function App() {
     if (boardRef.current === "pico") await serial.write(text);
     else await ArduinoSerial.write(text);
   }, []);
+  const queryPico = useCallback(async (code: string) => {
+    if (usbBusy.current || usbConnecting.current)
+      throw new Error("Espera a que termine la operación USB antes de consultar la placa.");
+    if (boardRef.current !== "pico" || !serial.connected)
+      throw new Error("Esta consulta requiere una Pico conectada por USB.");
+    const generation = usbGeneration.current;
+    usbBusy.current = true;
+    setBusy(true);
+    setRunning(false);
+    try {
+      const output = await serial.exec(code);
+      if (generation !== usbGeneration.current)
+        throw new Error("La placa se desconectó durante la consulta. Repite la captura.");
+      return output;
+    } finally {
+      usbBusy.current = false;
+      setBusy(false);
+    }
+  }, []);
   const clearTerminal = useCallback(() => setTerminal(""), []);
   const openOnboarding = useCallback((destination = "/taller/welcome") => {
     onboardingDestination.current =
@@ -710,6 +774,7 @@ export default function App() {
       terminal,
       clearTerminal,
       sendSerial,
+      queryPico,
       localReadings,
       lastDiagnostics,
       installStation,
@@ -745,6 +810,7 @@ export default function App() {
       terminal,
       clearTerminal,
       sendSerial,
+      queryPico,
       localReadings,
       lastDiagnostics,
       installStation,

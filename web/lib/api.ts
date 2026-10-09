@@ -58,6 +58,12 @@ export type DashboardData = {
   rules: Rule[];
   alerts: Alert[];
 };
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 export async function api<T = Record<string, unknown>>(
   path: string,
   options: RequestInit = {},
@@ -71,11 +77,14 @@ export async function api<T = Record<string, unknown>>(
       ...options.headers,
     },
   });
-  const data = await response
-    .json()
-    .catch(() => ({ error: "El servidor no respondió correctamente." }));
+  const data = await response.json().catch(() => null);
   if (!response.ok)
-    throw new Error(data.message || data.error || `Error ${response.status}`);
+    throw new ApiError(
+      data?.message || data?.error || `El servidor respondió con error ${response.status}.`,
+      response.status,
+    );
+  if (data === null)
+    throw new ApiError("El servidor no respondió correctamente. Vuelve a intentar.", 502);
   return data as T;
 }
 export const post = <T = Record<string, unknown>>(

@@ -995,27 +995,28 @@ export function BreadboardView({
   }, []);
 
   const inspectHole = (id: string) => {
-    const strip = stripOf(id);
+    const strip = stripOf(id, true);
     const point = parsePoint(id);
     const pin = picoPinForStrip(strip);
     const here: string[] = [];
     for (const part of circuit.parts) {
       if (stateOf(part.id) === "hidden") continue;
       for (const [pinId, hole] of Object.entries(part.holes ?? {}))
-        if (stripOf(hole) === strip)
+        if (stripOf(hole, true) === strip)
           here.push(`${part.label} (${partDef(part).pins.find((p) => p.id === pinId)?.label ?? pinId})`);
     }
     for (const wire of circuit.wires) {
       if (stateOf(wire.id) === "hidden") continue;
       for (const end of [wire.from, wire.to])
-        if (isPoint(end) && stripOf(end) === strip) here.push(`cable ${wire.color} (${wire.carries})`);
+        if (isPoint(end) && stripOf(end, true) === strip) here.push(`cable ${wire.color} (${wire.carries})`);
     }
     setInspect(
       point.kind === "rail"
         ? {
             title: `${RAIL_INFO[point.rail].label}`,
             lines: [
-              "Todos los agujeros de esta línea están unidos entre sí.",
+              "Este plano considera rieles partidos entre 31 y 33: sólo los agujeros de esta mitad están unidos por dentro.",
+              "Comprueba la continuidad de tu protoboard real; un puente une ambas mitades.",
               RAIL_INFO[point.rail].sign === "+"
                 ? "En el taller, los rieles rojos llevan 3,3 V."
                 : "En el taller, los rieles azules son GND (0 V).",
@@ -1054,7 +1055,7 @@ export function BreadboardView({
       box.x + ((event.clientX - rect.left) / rect.width) * box.w,
       box.y + ((event.clientY - rect.top) / rect.height) * box.h,
     );
-    setHoverStrip(hole ? stripOf(hole) : null);
+    setHoverStrip(hole ? stripOf(hole, true) : null);
   };
 
   const callouts = useMemo(() => {

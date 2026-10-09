@@ -6,6 +6,7 @@ tools
 .env.*
 !.env.example
 .git
+.vercel
 artifacts
 test-results
 __pycache__

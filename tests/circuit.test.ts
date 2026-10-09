@@ -144,7 +144,8 @@ describe("revisión eléctrica de cada montaje del taller", () => {
       if (/r_echo[345]/.test(part.id)) part.props!.ohms = 1050;
     }
     const { gpioVolts } = analyze(circuit, { vbus: 5.25 });
-    expect(gpioVolts.GP18).toBeLessThan(3.35);
+    expect(gpioVolts.GP18).toBeLessThan(3.3);
+    expect(errors(circuit, { vbus: 5.25 })).toEqual([]);
   });
 
   it("el LED recibe una corriente segura para el pin", () => {
@@ -178,6 +179,30 @@ describe("revisión eléctrica de cada montaje del taller", () => {
 });
 
 describe("la revisión detecta los errores típicos de un principiante", () => {
+  it.each([750, 600])(
+    "un divisor con resistencias superiores de %i Ω supera 3,3 V aunque quede bajo 3,6 V",
+    (ohms) => {
+      const circuit = clone(circuits.hcsr04);
+      for (const part of circuit.parts)
+        if (part.id === "r_echo1" || part.id === "r_echo2")
+          part.props!.ohms = ohms;
+      const result = analyze(circuit);
+      expect(result.gpioVolts.GP18).toBeGreaterThan(3.3);
+      expect(result.gpioVolts.GP18).toBeLessThan(3.6);
+      expect(
+        result.issues.some((issue) => issue.code === "gpio-overvoltage"),
+      ).toBe(true);
+    },
+  );
+
+  it("acepta el límite nominal de 3,3 V sin errores de redondeo del análisis nodal", () => {
+    const result = analyze(circuits.hcsr04, { vbus: 5.5 });
+    expect(result.gpioVolts.GP18).toBeCloseTo(3.3, 8);
+    expect(
+      result.issues.some((issue) => issue.code === "gpio-overvoltage"),
+    ).toBe(false);
+  });
+
   it("5 V directo a un pin GP (ECHO sin divisor)", () => {
     const circuit = clone(circuits.hcsr04);
     circuit.wires = circuit.wires.map((wire) =>

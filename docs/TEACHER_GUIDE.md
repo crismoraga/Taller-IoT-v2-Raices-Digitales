@@ -6,6 +6,36 @@ La hora está diseñada para un montaje central sencillo: **LED + humedad del su
 
 El currículo contiene **33 actividades**, organizadas en bienvenida y once bloques de progresión y exploración. Cada actividad incluye objetivo, materiales, concepto, conexión, explicación del circuito, código o herramienta real, resultado esperado, modificaciones, experimentos, reto con pistas, checkpoint y problemas concretos. La ruta exprés selecciona seis actividades que suman exactamente 60 minutos; la ruta completa mantiene la secuencia LED integrado → LED externo → parpadeo → pulsador → regla de entrada/salida → sensores → calibración → estación → red → datos → alertas.
 
+## Plan operativo para hoy
+
+Prepara primero **una mesa modelo de principio a fin** y después replica su preparación en las demás. La meta central requiere una sonda; las ampliaciones se ofrecen después de verificar la recepción. Reserva los últimos dos minutos para exportar y cerrar. Telegram es una demostración adicional: si falta el bot, se comprueban alerta y recuperación en el dashboard.
+
+Completa esta ficha antes de abrir la sala y compártela sin credenciales:
+
+| Dato para proyectar                                                  | Completar antes de iniciar         |
+| -------------------------------------------------------------------- | ---------------------------------- |
+| URL pública HTTPS del taller                                         |                                    |
+| Endpoint de Pico, misma API accesible: `https://…/api/device/ingest` |                                    |
+| Navegador para USB                                                   | Chrome o Edge de escritorio        |
+| Placa y variante por mesa                                            | Pico W / Uno / Nano / Nano antiguo |
+| Camino de telemetría previsto                                        | Wi-Fi validado / puente USB        |
+| Materiales y repuestos                                               | Responsable y ubicación            |
+| Ayudante para montaje / software                                     |                                    |
+
+**Puerta de entrada a la sesión:**
+
+- [ ] La URL abre desde un segundo computador y una red externa; el frontend y la API responden.
+- [ ] Puedes crear dos grupos y sus lecturas/progresos permanecen separados.
+- [ ] El acceso docente funciona y queda cerrado en el computador del proyector cuando no se usa.
+- [ ] La mesa modelo ejecuta LED, raw de suelo, calibración y estación con solo Suelo habilitado.
+- [ ] Mi planta recibe dos lecturas con origen Hardware, dispositivo correcto y hora reciente; el CSV descarga.
+- [ ] Una regla de prueba registra alerta y recuperación; si se usará Telegram, la entrega se verifica aparte.
+- [ ] Cada computador puede elegir su puerto USB; las placas están preparadas antes de la bienvenida.
+- [ ] Tierra seca/húmeda, papel absorbente, resistencias y USB de datos están separados por mesa.
+- [ ] Tienes a mano [guía estudiante](STUDENT_GUIDE.md) y [resolución de problemas](TROUBLESHOOTING.md), también descargadas para consultar si cae la red.
+
+Una página pública permite consultar el taller desde cualquier lugar; la ejecución USB requiere un computador compatible y la placa física. Para enviar por Wi-Fi, también deben funcionar la API pública, la CA del firmware y la red de la sala. Registrar esos tres resultados evita confundir una web que carga con una estación que ya transmite.
+
 ## Antes de recibir los grupos
 
 1. Despliega el servidor con persistencia y HTTPS según README; guarda credenciales docentes fuera del código. Comprueba salud, exportación, dos grupos separados y reinicio con datos conservados.
@@ -18,16 +48,28 @@ El currículo contiene **33 actividades**, organizadas en bienvenida y once bloq
 
 ## Guion de 60 minutos
 
-| Tiempo | Acción de estudiantes                                                                                                       | Evidencia de aprendizaje                                       |
-| ------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| 0–5    | Crear nombre de estación, reconocer placa/protoboard y conectar USB                                                         | Pueden señalar sensor, código y red en la ruta                 |
-| 5–13   | Cablear LED con 220 Ω, ejecutar encendido y apagar cambiando código                                                         | LED real cambia, no solo una animación                         |
-| 13–20  | Ejecutar parpadeo y editar intervalo                                                                                        | Predicen el ciclo completo de encendido/apagado                |
-| 20–35  | Cablear sonda suelo y leer raw; añadir DHT/DS si el grupo tiene tiempo                                                      | Distinguen ADC y mensaje digital; provocan cambio físico       |
-| 35–45  | Guardar seco/húmedo, probar condición intermedia                                                                            | Explican qué significa porcentaje relativo                     |
-| 45–60  | Instalar la estación con sensores y referencias, ver telemetría Wi-Fi o puente USB automático, crear umbral y probar alerta | Señalan dónde viajan los datos y por qué pertenecen a su grupo |
+| Tiempo | Acción de estudiantes                                                                                                | Evidencia de aprendizaje                                      |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 0–5    | Crear nombre de estación, reconocer placa/protoboard y conectar USB                                                  | Pueden señalar sensor, código y red en la ruta                |
+| 5–13   | Cablear LED con 220 Ω, ejecutar encendido y apagar cambiando código                                                  | LED real cambia, no solo una animación                        |
+| 13–20  | Ejecutar parpadeo y editar intervalo                                                                                 | Predicen el ciclo completo de encendido/apagado               |
+| 20–35  | Cablear sonda suelo y leer raw; añadir DHT/DS si el grupo tiene tiempo                                               | Distinguen ADC y mensaje digital; provocan cambio físico      |
+| 35–45  | Guardar seco/húmedo, probar condición intermedia                                                                     | Explican qué significa porcentaje relativo                    |
+| 45–58  | Instalar la estación con referencias, ver telemetría Wi-Fi o puente USB, crear umbral y probar alerta y recuperación | Dos lecturas recientes Hardware y los dos eventos de la regla |
+| 58–60  | Exportar CSV, explicar una conexión/cambio/transporte, detener y desconectar                                         | Bitácora y archivo conservados; kit seguro para guardar       |
 
 Roles sugeridos por mesa: responsable de cableado, responsable de código, observador de datos y relator. Rotan al pasar de LED a sensores. No conectes otra estación al mismo perfil de navegador por accidente: una sesión identifica un grupo; usa perfiles separados para grupos en un mismo computador.
+
+### Frases para guiar los seis pasos
+
+1. **Bienvenida:** «Hoy convertimos una condición física en un dato que viaja. Muéstrame qué pieza siente, qué pieza ejecuta y dónde aparece el resultado».
+2. **LED:** «Antes de ejecutar, predice. Ahora cambia una orden: ¿cambió la luz física o solo el texto?». Revisa la resistencia y la polaridad con USB desconectado.
+3. **Parpadeo:** «Con medio segundo encendido y medio segundo apagado, ¿cuánto dura un ciclo?». La respuesta es un segundo; C++ expresa la pausa en milisegundos.
+4. **Suelo:** «Anota diez raw quietos y dos condiciones. ¿El cambio es repetible y mayor que la fluctuación?». No prometas una dirección universal ni trates un raw aislado como prueba de presencia.
+5. **Calibración:** «¿Qué condiciones etiquetaste como 0 y 100?». En Pico, Capturar detiene el programa. En Uno/Nano se copian raw de la terminal a los campos; no hay captura MicroPython automática. Guardar requiere reinstalar estación para aplicar las referencias.
+6. **Red:** «Muéstrame tu dispositivo, el origen Hardware y dos horas recientes. ¿Dónde se evaluó la alerta?». Cierra con una limitación que puedan explicar.
+
+Para el ensayo final usa una regla temporal de Suelo: mínimo 30, máximo vacío, histéresis 3 y pausa 120 segundos. Con referencias etiquetadas correctamente, la tierra seca produce una lectura cercana a 0 y la húmeda a 100. Una lectura válida bajo 30 activa; al menos 33 recupera. Conserva profundidad y evita agua cerca de la electrónica. El mínimo es una prueba de la plataforma y **no una recomendación universal de riego**. Ajusta o retira la regla de ensayo al terminar.
 
 ## Acompañamiento
 
@@ -70,12 +112,38 @@ LM35 y potenciómetro son experimentos individuales: comparten el ADC reservado 
 
 Si un sensor falla, usa uno de los dos repuestos de ese modelo y marca lo retirado. Si la red del aula falla, continúa con USB y el servidor accesible por HTTPS/local seguro. Un Uno/Nano no obtiene Wi-Fi al instalar firmware: requiere el puente serial abierto. Si no se logra un canal real, demuestra una simulación explícita y registra que el resultado hardware quedó pendiente.
 
+## Rescate sin perder el cierre
+
+Dedica hasta dos minutos a aislar un fallo por mesa: pide síntoma, última modificación y evidencia que sí funciona. Cambia una causa a la vez. En caso de calentamiento o corto, desconecta antes de investigar. Un ayudante sigue el diagnóstico mientras el resto registra su predicción.
+
+| Tramo que falla       | Continuación útil                                                                                                       | Evidencia que queda pendiente                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| USB/placa             | Probar cable y placa de repuesto; si no responde, compartir una estación modelo y usar simulación explícita para reglas | Ejecución propia en esa placa                 |
+| Sonda/raw             | Revisar VCC/GND/AOUT con USB quitado y cambiar solo sonda si hay repuesto                                               | Medición y calibración propias                |
+| Wi-Fi Pico            | Mantener estación instalada y usar puente USB con página abierta y computador conectado al servidor                     | Envío autónomo por Wi-Fi                      |
+| Red completa del aula | Seguir montaje y código local ya disponible; registrar raw en papel y usar la copia descargada de la guía               | Recepción en API, dashboard y avisos externos |
+| Telegram              | Verificar evento y recuperación en Mi planta; continuar cierre sin esperar el servicio externo                          | Entrega confirmada al chat                    |
+
+Si la API está accesible pero no el hardware, **Practicar sin hardware** permite ensayar Suelo 29 → 31 → 34 con la regla anterior. Debe permanecer visible el origen Simulación. Esa secuencia enseña alerta, permanencia bajo el margen y recuperación; no aprueba la sonda ni genera entrega al bot. En una caída completa de red, no prometas que el simulador podrá guardar o sincronizar nuevos datos: usa la explicación y el registro en papel.
+
+Al minuto 45, las mesas que aún depuran ampliaciones vuelven a **solo Suelo**. Al minuto 55, las que no lograron transmisión muestran su último tramo comprobado y practican interpretación en la mesa modelo o simulación explícita. Al minuto 58, todas exportan lo disponible y preparan el cierre.
+
 ## Cierre y preparación del siguiente taller
 
 Cada grupo exporta sus datos y puede explicar una conexión física, una línea de código y una etapa de red. Apaga y seca sensores de agua, revisa jumpers, revoca dispositivos que no deban seguir enviando y guarda componentes en sus cajas. La eliminación de una sesión borra sus datos: exporta primero si quieres conservar evidencias.
+
+Cerrar el navegador detiene el puente USB, pero **no** una Pico W alimentada que envía por Wi-Fi. Para dejar una placa lista para otro grupo, revoca su credencial y elimina su `config.json` con el procedimiento de [FIRMWARE.md](FIRMWARE.md); ese archivo contiene credenciales en la memoria de la placa. No borres archivos del computador del estudiante como parte del cierre.
+
+La salida se comprueba con cuatro evidencias: LED modificado, respuesta de raw, dos referencias y telemetría con alerta/recuperación. Si una evidencia se obtuvo en simulación o en la mesa modelo, anótalo por separado. Las preguntas y medallas ayudan a acompañar, pero no reemplazan estas observaciones.
 
 Los porcentajes y umbrales son una exploración del montaje, no una receta agronómica. No se hace riego automático: el inventario no incluye bomba/relé y el taller se centra en observar y comunicar.
 
 ## Acta de ensayo físico
 
 Antes de anunciar el taller como validado, anota para cada grupo: placa/firmware, cable y navegador, LED, sonda y calibración, DHT/DS si montados, red/URL, telemetría, alerta local y entrega bot. Conserva notas del modelo exacto y de cambios de pinout. Las pruebas automáticas del repositorio cubren software y aislamiento; esta acta cubre los elementos externos que necesitan hardware real.
+
+| Mesa / placa | LED y cambio | Raw responde | Seco / húmedo | 2 lecturas Hardware | Alerta / recuperación | Bot si se usa | Pendiente / responsable |
+| ------------ | ------------ | ------------ | ------------- | ------------------- | --------------------- | ------------- | ----------------------- |
+|              |              |              |               |                     |                       |               |                         |
+
+Marca cada celda solo después de observarla. No completes el acta a partir de resultados de pruebas de software ni de números de ejemplo.

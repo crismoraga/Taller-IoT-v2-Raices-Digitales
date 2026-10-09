@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Backdrop, Icon, Medallion, type IconName } from "../brand/Graphics";
 import {
   essentials,
@@ -16,6 +16,8 @@ import { Card, Segmented, Tag } from "../ui/Card";
 import { Page, SectionHeader } from "../ui/Layout";
 import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
+import { FinalReview, Preparation } from "../workshop/Preparation";
+import { resumeWorkshop, workshopRoute } from "../workshop/flow";
 
 const LivingStation = lazy(() => import("../experience/LivingStation"));
 
@@ -61,13 +63,28 @@ export default function Home() {
   const [view, setView] = useState<"express" | "full">(
     app.guided ? "express" : "full",
   );
+  useEffect(() => setView(app.guided ? "express" : "full"), [app.guided]);
   const open = (lesson: Lesson) =>
     app.session
       ? app.navigate(`/taller/${lesson.id}`)
       : app.openOnboarding(`/taller/${lesson.id}`);
   const started = app.session && progress.done.size > 0;
+  const resume = resumeWorkshop(app.guided, progress.done);
+  const displayedRoute = workshopRoute(view === "express");
+  const displayedDone = displayedRoute.filter((lesson) =>
+    progress.done.has(lesson.id),
+  ).length;
   const finished =
-    progress.expressDone === progress.expressTotal && progress.expressTotal > 0;
+    displayedRoute.length > 0 && displayedDone === displayedRoute.length;
+  const routeDuration = displayedRoute.reduce(
+    (minutes, lesson) => minutes + lesson.duration,
+    0,
+  );
+  const remainingDuration = displayedRoute.reduce(
+    (minutes, lesson) =>
+      minutes + (progress.done.has(lesson.id) ? 0 : lesson.duration),
+    0,
+  );
   const duration = essentials.reduce(
     (minutes, lesson) => minutes + lesson.duration,
     0,
@@ -115,17 +132,13 @@ export default function Home() {
                 iconRight="arrowRight"
                 onClick={() =>
                   app.session
-                    ? app.navigate(
-                        progress.next
-                          ? `/taller/${progress.next.id}`
-                          : "/planta",
-                      )
+                    ? app.navigate(resume ? `/taller/${resume.id}` : "/planta")
                     : app.openOnboarding()
                 }
               >
                 {!app.session
                   ? "Comenzar taller"
-                  : finished && !progress.next
+                  : finished
                     ? "Ver mi planta"
                     : started
                       ? "Retomar mi estación"
@@ -143,7 +156,9 @@ export default function Home() {
             <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-sm font-bold text-on-dark">
               <li className="flex items-center gap-2">
                 <Icon name="clock" size={16} className="text-accent" />
-                {duration} minutos · paso a paso
+                {view === "express"
+                  ? `${duration} minutos · paso a paso`
+                  : `${routeDuration} minutos · ruta completa`}
               </li>
               <li className="flex items-center gap-2">
                 <Icon name="usb" size={16} className="text-accent" />
@@ -166,7 +181,7 @@ export default function Home() {
           <div className="living-hero-scene">
             <div className="living-scene-heading">
               <span className="t-overline text-accent-soft">
-                Del suelo a la señal
+                Ilustración · estación Pico W
               </span>
               <span className="font-mono text-[10px] text-accent-soft/80">
                 ESTACIÓN / 01
@@ -218,6 +233,8 @@ export default function Home() {
           ))}
         </ol>
       </section>
+
+      <Preparation />
 
       <section
         className="journey-moments mt-6 grid gap-3 md:grid-cols-3"
@@ -301,20 +318,23 @@ export default function Home() {
           <div className="route-status mt-4" role="status">
             <span className="t-overline text-ink-accent">Tu avance</span>
             <span className="font-bold text-ink">
-              {progress.expressDone} / {progress.expressTotal} actividades
-              registradas
+              {displayedDone} / {displayedRoute.length} actividades registradas
             </span>
             <SegmentedProgress
-              total={progress.expressTotal}
-              done={progress.expressDone}
+              total={displayedRoute.length}
+              done={displayedDone}
               onDark={false}
-              label="Avance de la ruta guiada"
+              label={
+                view === "express"
+                  ? "Avance de la ruta guiada"
+                  : "Avance de la ruta completa"
+              }
               className="min-w-[110px] flex-1"
             />
             <span className="text-xs text-ink-soft">
               {finished
                 ? "Revisa tus lecturas en Mi planta."
-                : "El avance se guarda para tu grupo."}
+                : `${remainingDuration} min estimados por completar. El avance se guarda para tu grupo.`}
             </span>
           </div>
         )}
@@ -326,7 +346,7 @@ export default function Home() {
                   lesson={lesson}
                   number={index + 1}
                   done={progress.done.has(lesson.id)}
-                  current={progress.next?.id === lesson.id}
+                  current={resume?.id === lesson.id}
                   onOpen={() => open(lesson)}
                 />
               </li>
@@ -339,7 +359,7 @@ export default function Home() {
                 <StageRow
                   stage={stage}
                   done={progress.done}
-                  nextId={progress.next?.id}
+                  nextId={resume?.id}
                   onOpen={open}
                 />
               </li>
@@ -347,6 +367,12 @@ export default function Home() {
           </ol>
         )}
       </section>
+
+      {app.session && finished && (
+        <div className="mt-6">
+          <FinalReview />
+        </div>
+      )}
 
       {/* Accesos */}
       <section
