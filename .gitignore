@@ -17,3 +17,7 @@ playwright-report/
 
 # Copia generada por scripts/prepare-assets.mjs desde docs/
 public/docs/
+
+# Árboles de trabajo temporales de agentes
+.claude/worktrees/
+dist-server/
