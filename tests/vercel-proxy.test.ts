@@ -483,3 +483,260 @@ test("SSE lifetime closes and cancels streams while ordinary JSON responses keep
     await f.close();
   }
 });
+
+test("compiler resumes before the workshop and its HTTPS domain reaches the main restart script", async () => {
+  const calls: string[] = [];
+  const compiler = {
+    runCommand: async (command: unknown) => {
+      assert.deepEqual(command, {
+        cmd: "bash",
+        args: ["/vercel/sandbox/compiler/restart.sh"],
+        detached: false,
+      });
+      calls.push("compiler:restart");
+      return { exitCode: 0 };
+    },
+    domain: (port: number) => {
+      assert.equal(port, 3002);
+      calls.push("compiler:domain");
+      return "https://compiler-a.vercel.run";
+    },
+  };
+  const main = {
+    runCommand: async (command: unknown) => {
+      assert.deepEqual(command, {
+        cmd: "bash",
+        args: [
+          "/vercel/sandbox/workshop/restart.sh",
+          "https://compiler-a.vercel.run",
+        ],
+        detached: false,
+      });
+      calls.push("main:restart");
+      return { exitCode: 0 };
+    },
+    domain: (port: number) => {
+      assert.equal(port, 3001);
+      calls.push("main:domain");
+      return "https://workshop-a.vercel.run";
+    },
+  };
+  const get = vi.fn(
+    async (args: {
+      name: string;
+      resume: boolean;
+      signal?: AbortSignal;
+      onResume: (box: unknown) => Promise<void>;
+    }) => {
+      assert.equal(args.resume, true);
+      assert.equal(
+        args.signal,
+        undefined,
+        "shared restoration must not inherit a client abort signal",
+      );
+      const box = args.name === "compiler" ? compiler : main;
+      calls.push(args.name === "compiler" ? "compiler:get" : "main:get");
+      await args.onResume(box);
+      return box;
+    },
+  );
+  const f = await fixture({
+    env: {
+      RAICES_SANDBOX_NAME: "workshop",
+      RAICES_COMPILER_SANDBOX_NAME: "compiler",
+    },
+    loadSDK: async () => ({ Sandbox: { get } }),
+  });
+  try {
+    assert.equal((await fetch(`${f.origin}/api/health`)).status, 200);
+    assert.equal((await fetch(`${f.origin}/api/session`)).status, 200);
+    assert.deepEqual(calls, [
+      "compiler:get",
+      "compiler:restart",
+      "compiler:domain",
+      "main:get",
+      "main:restart",
+      "main:domain",
+    ]);
+    assert.equal(
+      get.mock.calls.length,
+      2,
+      "sequential requests reuse the 30-second routing cache",
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("running sandboxes restart main once initially and again only when the compiler origin changes", async () => {
+  let compilerOrigin = "https://compiler-a.vercel.run";
+  const restart = vi.fn(async () => ({ exitCode: 0 }));
+  const get = vi.fn(async (args: { name: string }) =>
+    args.name === "compiler"
+      ? { domain: (): string => compilerOrigin }
+      : { domain: () => "https://workshop-a.vercel.run", runCommand: restart },
+  );
+  const f = await fixture({
+    env: {
+      RAICES_SANDBOX_NAME: "workshop",
+      RAICES_COMPILER_SANDBOX_NAME: "compiler",
+    },
+    loadSDK: async () => ({ Sandbox: { get } }),
+    cacheTtlMs: 15,
+  });
+  try {
+    assert.equal((await fetch(`${f.origin}/api/health`)).status, 200);
+    assert.equal((await fetch(`${f.origin}/api/session`)).status, 200);
+    assert.equal(restart.mock.calls.length, 1);
+    compilerOrigin = "https://compiler-b.vercel.run";
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal((await fetch(`${f.origin}/api/health`)).status, 200);
+    assert.equal(restart.mock.calls.length, 2);
+    assert.deepEqual(restart.mock.calls[1], [
+      {
+        cmd: "bash",
+        args: [
+          "/vercel/sandbox/workshop/restart.sh",
+          "https://compiler-b.vercel.run",
+        ],
+        detached: false,
+      },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal((await fetch(`${f.origin}/api/session`)).status, 200);
+    assert.equal(
+      restart.mock.calls.length,
+      2,
+      "unchanged compiler domain does not restart a running main process",
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("simultaneous clients share restoration and one disconnect cannot cancel another client's setup", async () => {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const get = vi.fn(async (args: { name: string; signal?: AbortSignal }) => {
+    assert.equal(args.signal, undefined);
+    if (args.name === "compiler") {
+      await ready;
+      return { domain: (): string => "https://compiler-a.vercel.run" };
+    }
+    return {
+      domain: (): string => "https://workshop-a.vercel.run",
+      runCommand: async () => ({ exitCode: 0 }),
+    };
+  });
+  const f = await fixture({
+    env: {
+      RAICES_SANDBOX_NAME: "workshop",
+      RAICES_COMPILER_SANDBOX_NAME: "compiler",
+    },
+    loadSDK: async () => ({ Sandbox: { get } }),
+  });
+  try {
+    const abandoned = request(`${f.origin}/api/health`);
+    abandoned.on("error", () => {});
+    abandoned.end();
+    await vi.waitFor(() => assert.equal(get.mock.calls.length, 1));
+    const active = fetch(`${f.origin}/api/session`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    abandoned.destroy();
+    release();
+    assert.equal((await active).status, 200);
+    assert.equal(
+      get.mock.calls.length,
+      2,
+      "one compiler lookup plus one main lookup serves both requests",
+    );
+  } finally {
+    release();
+    await f.close();
+  }
+});
+
+test("SANDBOX_NOT_LISTENING invalidates routing and restarts on the next request without replaying a POST", async () => {
+  for (const location of ["header", "body"]) {
+    const restart = vi.fn(async () => ({ exitCode: 0 }));
+    const create = vi.fn();
+    const get = vi.fn(async () => ({
+      domain: () => "https://workshop-a.vercel.run",
+      runCommand: restart,
+    }));
+    const backend = vi.fn(async () =>
+      backend.mock.calls.length === 1
+        ? new Response(
+            location === "body" ? "SANDBOX_NOT_LISTENING" : "unavailable",
+            {
+              status: 502,
+              headers:
+                location === "header"
+                  ? { "x-vercel-error": "SANDBOX_NOT_LISTENING" }
+                  : {},
+            },
+          )
+        : new Response("ready"),
+    );
+    const f = await fixture({
+      loadSDK: async () => ({ Sandbox: { get, create, getOrCreate: create } }),
+      fetchImpl: backend,
+    });
+    try {
+      const first = await fetch(`${f.origin}/api/session`, {
+        method: "POST",
+        body: "{}",
+      });
+      assert.equal(first.status, 502);
+      await first.text();
+      assert.equal(
+        backend.mock.calls.length,
+        1,
+        "mutating request must not automatically replay",
+      );
+      assert.equal((await fetch(`${f.origin}/api/health`)).status, 200);
+      assert.equal(get.mock.calls.length, 2);
+      assert.deepEqual(restart.mock.calls, [
+        [
+          {
+            cmd: "bash",
+            args: ["/vercel/sandbox/workshop/restart.sh"],
+            detached: false,
+          },
+        ],
+      ]);
+      assert.equal(create.mock.calls.length, 0);
+    } finally {
+      await f.close();
+    }
+  }
+});
+
+test("an unavailable compiler snapshot does not resume main or recreate either student's VM", async () => {
+  const create = vi.fn();
+  const get = vi.fn(async (args: { name: string }) => {
+    assert.equal(args.name, "compiler");
+    throw new Error("snapshot unavailable confidential-detail");
+  });
+  const backend = vi.fn();
+  const f = await fixture({
+    env: {
+      RAICES_SANDBOX_NAME: "workshop",
+      RAICES_COMPILER_SANDBOX_NAME: "compiler",
+    },
+    loadSDK: async () => ({ Sandbox: { get, create, getOrCreate: create } }),
+    fetchImpl: backend,
+  });
+  try {
+    const response = await fetch(`${f.origin}/api/health`);
+    assert.equal(response.status, 503);
+    assert.ok(!(await response.text()).includes("confidential-detail"));
+    assert.equal(get.mock.calls.length, 1);
+    assert.equal(create.mock.calls.length, 0);
+    assert.equal(backend.mock.calls.length, 0);
+  } finally {
+    await f.close();
+  }
+});

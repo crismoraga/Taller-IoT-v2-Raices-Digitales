@@ -1,4 +1,4 @@
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 const HOP_HEADERS = new Set([
@@ -130,7 +130,77 @@ export function createWorkshopProxy({
   loadSDK = () => import("@vercel/sandbox"),
   fetchImpl = globalThis.fetch,
   sseLifetimeMs = 280_000,
+  cacheTtlMs = 30_000,
 } = {}) {
+  let routingCache;
+  let initialized = false;
+  let lastCompilerOrigin;
+  let forceMainRestart = false;
+
+  async function lookupRouting() {
+    if (
+      routingCache &&
+      (!routingCache.expiresAt || routingCache.expiresAt > Date.now())
+    )
+      return routingCache.promise;
+    const entry = { expiresAt: 0, promise: undefined };
+    entry.promise = (async () => {
+      const { Sandbox } = await loadSDK();
+      const compilerName = env.RAICES_COMPILER_SANDBOX_NAME?.trim();
+      let compilerOrigin;
+      const runRestart = async (sandbox, path, args = []) => {
+        const command = await sandbox.runCommand({
+          cmd: "bash",
+          args: [path, ...args],
+          detached: false,
+        });
+        if (command.exitCode !== 0) throw new Error("Backend restart failed");
+      };
+      if (compilerName) {
+        const compiler = await Sandbox.get({
+          name: compilerName,
+          resume: true,
+          onResume: (existing) =>
+            runRestart(existing, "/vercel/sandbox/compiler/restart.sh"),
+        });
+        compilerOrigin = sandboxOrigin(await compiler.domain(3002));
+      }
+      let restarted = false;
+      const restartMain = async (existing) => {
+        await runRestart(
+          existing,
+          "/vercel/sandbox/workshop/restart.sh",
+          compilerOrigin ? [compilerOrigin] : [],
+        );
+        restarted = true;
+      };
+      // Restoration is shared by simultaneous requests. A browser disconnect must not cancel it.
+      const sandbox = await Sandbox.get({
+        name: env.RAICES_SANDBOX_NAME,
+        resume: true,
+        onResume: restartMain,
+      });
+      if (
+        !restarted &&
+        (forceMainRestart ||
+          (compilerOrigin &&
+            (!initialized || compilerOrigin !== lastCompilerOrigin)))
+      )
+        await restartMain(sandbox);
+      const origin = sandboxOrigin(await sandbox.domain(3001));
+      initialized = true;
+      lastCompilerOrigin = compilerOrigin;
+      forceMainRestart = false;
+      entry.expiresAt = Date.now() + cacheTtlMs;
+      return { origin, entry };
+    })().catch((error) => {
+      if (routingCache === entry) routingCache = undefined;
+      throw error;
+    });
+    routingCache = entry;
+    return entry.promise;
+  }
+
   return async function workshopProxy(req, res) {
     const started = Date.now();
     let target;
@@ -157,24 +227,10 @@ export function createWorkshopProxy({
     req.once("aborted", disconnect);
     res.once("close", disconnect);
     try {
-      const { Sandbox } = await loadSDK();
-      const sandbox = await Sandbox.get({
-        name,
-        resume: true,
-        signal: controller.signal,
-        onResume: async (existing) => {
-          const command = await existing.runCommand({
-            cmd: "bash",
-            args: ["/vercel/sandbox/workshop/restart.sh"],
-            detached: false,
-          });
-          if (command.exitCode !== 0) throw new Error("Backend restart failed");
-        },
-      });
+      const routing = await lookupRouting();
       if (controller.signal.aborted) return;
-      const origin = sandboxOrigin(await sandbox.domain(3001));
       const body = requestBody(req);
-      const upstream = await fetchImpl(`${origin}${target}`, {
+      const upstream = await fetchImpl(`${routing.origin}${target}`, {
         method: req.method,
         headers: forwardHeaders(req.headers),
         body,
@@ -186,6 +242,19 @@ export function createWorkshopProxy({
         await upstream.body?.cancel();
         return;
       }
+      const invalidateRouting = () => {
+        if (routingCache === routing.entry) {
+          routingCache = undefined;
+          forceMainRestart = true;
+        }
+      };
+      if (
+        upstream.status === 502 &&
+        (upstream.headers.get("x-vercel-error") || "").includes(
+          "SANDBOX_NOT_LISTENING",
+        )
+      )
+        invalidateRouting();
       res.statusCode = upstream.status;
       forwardHeaders(upstream.headers, true).forEach((value, key) =>
         res.setHeader(key, value),
@@ -217,9 +286,28 @@ export function createWorkshopProxy({
         await upstream.body?.cancel();
         res.end();
       } else {
-        await pipeline(Readable.fromWeb(upstream.body), res, {
-          signal: controller.signal,
-        });
+        const source = Readable.fromWeb(upstream.body);
+        if (upstream.status === 502) {
+          let inspected = 0;
+          let suffix = "";
+          const detectStoppedSandbox = new Transform({
+            transform(chunk, _encoding, done) {
+              if (inspected < 4096) {
+                const part = chunk.subarray(0, 4096 - inspected);
+                const text = suffix + part.toString("utf8");
+                inspected += part.length;
+                if (text.includes("SANDBOX_NOT_LISTENING")) invalidateRouting();
+                suffix = text.slice(-32);
+              }
+              done(null, chunk);
+            },
+          });
+          await pipeline(source, detectStoppedSandbox, res, {
+            signal: controller.signal,
+          });
+        } else {
+          await pipeline(source, res, { signal: controller.signal });
+        }
       }
     } catch {
       if (!controller.signal.aborted)
