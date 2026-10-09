@@ -104,6 +104,165 @@ afterEach(async () => {
 });
 
 describe("API real: aislamiento, persistencia y seguridad", () => {
+  it("combina escrituras desde un snapshot obsoleto y PATCH simultáneos sin perder claves", async () => {
+    const a = await session(1),
+      b = await session(2);
+    const stale = app.store.byId(a.session.id)!;
+    app.store.patchSession(stale, {
+      drafts: { "led.python": "print('A')" },
+      calibrations: { soil: { dry: 52000, wet: 24000 } },
+      sensorEnabled: { soil: true },
+    });
+    app.store.patchSession(stale, {
+      drafts: { "blink.python": "print('B')" },
+      calibrations: { water_level: { dry: 500, wet: 22000 } },
+      sensorEnabled: { water_level: true },
+    });
+    const afterStale = app.store.byId(a.session.id)!;
+    expect(afterStale.drafts).toEqual({
+      "led.python": "print('A')",
+      "blink.python": "print('B')",
+    });
+    expect(afterStale.calibrations).toEqual({
+      soil: { dry: 52000, wet: 24000 },
+      water_level: { dry: 500, wet: 22000 },
+    });
+    expect(afterStale.sensorEnabled).toEqual({ soil: true, water_level: true });
+
+    const patches = [
+      {
+        drafts: { "soil.python": "print('suelo')" },
+        sensorEnabled: { light: true },
+      },
+      {
+        drafts: { "water.python": "print('agua')" },
+        calibrations: { light: { dry: 64000, wet: 12000 } },
+      },
+      {
+        lastRun: {
+          lessonId: "led",
+          board: "pico",
+          code: "print('última ejecución')",
+          at: "2026-10-08T13:00:00Z",
+        },
+      },
+    ];
+    const results = await Promise.all(
+      patches.map((payload) =>
+        app.inject({
+          method: "PATCH",
+          url: "/api/session",
+          headers: headers(a.cookie),
+          payload,
+        }),
+      ),
+    );
+    expect(results.map((result) => result.statusCode)).toEqual([200, 200, 200]);
+    const final = (
+      await app.inject({ url: "/api/session", headers: headers(a.cookie) })
+    ).json().session;
+    expect(final.drafts).toEqual({
+      "led.python": "print('A')",
+      "blink.python": "print('B')",
+      "soil.python": "print('suelo')",
+      "water.python": "print('agua')",
+    });
+    expect(final.calibrations).toEqual({
+      soil: { dry: 52000, wet: 24000 },
+      water_level: { dry: 500, wet: 22000 },
+      light: { dry: 64000, wet: 12000 },
+    });
+    expect(final.sensorEnabled).toEqual({
+      soil: true,
+      water_level: true,
+      light: true,
+    });
+    expect(final.lastRun.code).toBe("print('última ejecución')");
+    expect(app.store.byId(b.session.id)?.drafts).toEqual({});
+  });
+
+  it("mantiene un puente USB por grupo, valida sus lotes y respeta revocación y CSRF", async () => {
+    const a = await session(1),
+      b = await session(2);
+    const connect = () =>
+      app.inject({
+        method: "POST",
+        url: "/api/bridge/connect",
+        headers: headers(a.cookie),
+        payload: {},
+      });
+    const first = await connect();
+    expect(first.statusCode).toBe(200);
+    const second = await connect();
+    expect(second.json().deviceId).toBe(first.json().deviceId);
+    const send = (
+      h: Record<string, string>,
+      payload: Record<string, unknown> = { readings: [reading(45)] },
+    ) =>
+      app.inject({
+        method: "POST",
+        url: "/api/bridge/ingest",
+        headers: h,
+        payload,
+      });
+    expect((await send(headers(a.cookie))).statusCode).toBe(200);
+    expect((await dashboard(a.cookie)).latest[0].source).toBe("hardware");
+    expect((await dashboard(b.cookie)).latest).toHaveLength(0);
+    expect((await send({ origin })).statusCode).toBe(401);
+    expect(
+      (await send({ cookie: a.cookie, origin: "https://evil.invalid" }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await send(headers(a.cookie), {
+          readings: [reading(3)],
+          sessionId: b.session.id,
+        })
+      ).statusCode,
+    ).toBe(400);
+    await app.inject({
+      method: "POST",
+      url: "/api/device/revoke",
+      headers: headers(a.cookie),
+      payload: { deviceId: first.json().deviceId },
+    });
+    expect((await send(headers(a.cookie))).statusCode).toBe(403);
+    const reconnected = await connect();
+    expect(reconnected.json().deviceId).not.toBe(first.json().deviceId);
+    expect((await send(headers(a.cookie))).statusCode).toBe(200);
+  });
+  it("conserva el último programa ejecutado en su sesión y lo recupera tras reiniciar", async () => {
+    const a = await session(1),
+      b = await session(2);
+    const lastRun = {
+      lessonId: "led",
+      board: "pico",
+      code: 'print("Raíces")\n',
+      at: new Date(now).toISOString(),
+    };
+    const saved = await app.inject({
+      method: "PATCH",
+      url: "/api/session",
+      headers: headers(a.cookie),
+      payload: { lastRun },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().session.lastRun).toEqual(lastRun);
+    expect(
+      (
+        await app.inject({ url: "/api/session", headers: headers(b.cookie) })
+      ).json().session.lastRun,
+    ).toBeUndefined();
+    const config = app.rdConfig;
+    await app.close();
+    app = await buildApp(config);
+    expect(
+      (
+        await app.inject({ url: "/api/session", headers: headers(a.cookie) })
+      ).json().session.lastRun,
+    ).toEqual(lastRun);
+  });
   it("permite precargar assets desde una IP compartida y mantiene el límite de la API", async () => {
     const config = app.rdConfig;
     await app.close();

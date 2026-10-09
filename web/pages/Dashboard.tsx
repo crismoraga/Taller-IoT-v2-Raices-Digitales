@@ -21,6 +21,9 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useApp } from "../lib/context";
+import { Icon } from "../brand/Graphics";
+import { PageHeader } from "../ui/Layout";
+import { Segmented } from "../ui/Card";
 import {
   api,
   post,
@@ -29,14 +32,7 @@ import {
   type Reading,
   type DashboardData,
 } from "../lib/api";
-import {
-  PageHeading,
-  Button,
-  Badge,
-  EmptyState,
-  Notice,
-  Modal,
-} from "../components/Common";
+import { Button, Badge, EmptyState, Notice, Modal } from "../components/Common";
 const initial: DashboardData = {
   devices: [],
   latest: [],
@@ -168,7 +164,7 @@ export default function Dashboard() {
     const interval = setInterval(() => void sendSimulation(), 5000);
     return () => clearInterval(interval);
   }, [streaming]);
-  const latest = (data.latest.length ? data.latest : app.localReadings).filter(
+  const latest = [...data.latest, ...app.localReadings].filter(
     (r) => source === "all" || r.source === source,
   );
   const latestMap = new Map<string, Reading>();
@@ -221,17 +217,21 @@ export default function Dashboard() {
   };
   return (
     <div className="dashboard-page">
-      <PageHeading
-        eyebrow="ESCUCHA LO QUE TU PLANTA TE CUENTA"
-        title={
-          app.session
-            ? `${app.session.name || "Mi planta"} está conectando.`
-            : "Tu planta, en un vistazo."
+      <PageHeader
+        kicker="Mi planta · del suelo al dato"
+        title="Lo que tus raíces cuentan."
+        subtitle="Observa una señal, descubre un cambio y decide cuándo prestar atención. Aquí aparecen las lecturas que recibe tu estación."
+        art={
+          <Icon
+            name="sprout"
+            size={84}
+            className="text-accent"
+            strokeWidth={1.3}
+          />
         }
-        description="Del fenómeno físico al dato. Tus lecturas, tendencias y alertas en un solo lugar."
-        action={
+        actions={
           <Button
-            variant="secondary"
+            variant="hero"
             onClick={() => window.location.assign("/api/export")}
             disabled={!app.session}
           >
@@ -245,7 +245,7 @@ export default function Dashboard() {
           title="Cada planta merece su propio espacio."
           description="Crea tu grupo para guardar lecturas, calibraciones y alertas de forma independiente."
           action={
-            <Button onClick={app.openOnboarding}>
+            <Button onClick={() => app.openOnboarding("/planta")}>
               Crear mi grupo <ArrowRight size={16} />
             </Button>
           }
@@ -277,7 +277,7 @@ export default function Dashboard() {
                 {online ? <Wifi size={13} /> : <WifiOff size={13} />}{" "}
                 {online ? "RECIBIENDO DATOS" : "SIN DATOS RECIENTES"}
               </Badge>
-              <small>Canal de actualización: {eventState}</small>
+              <small>Actualización del panel: {eventState}</small>
             </div>
             <div className="range-summary">
               <strong>
@@ -293,21 +293,16 @@ export default function Dashboard() {
             </div>
           </section>
           <div className="dashboard-controls">
-            <div className="segmented">
-              {[
-                ["all", "Todas las fuentes"],
-                ["hardware", "Hardware real"],
-                ["simulation", "Simulación"],
-              ].map(([v, l]) => (
-                <button
-                  key={v}
-                  className={source === v ? "active" : ""}
-                  onClick={() => setSource(v)}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="Fuente de las lecturas"
+              value={source}
+              onChange={setSource}
+              options={[
+                { value: "all", label: "Todas las fuentes" },
+                { value: "hardware", label: "Hardware real", icon: "usb" },
+                { value: "simulation", label: "Simulación", icon: "flask" },
+              ]}
+            />
             <Button
               variant={simulation ? "secondary" : "ghost"}
               onClick={() => setSimulation(!simulation)}
@@ -335,6 +330,7 @@ export default function Dashboard() {
                 <button
                   key={id}
                   className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside ? "alerting" : ""}`}
+                  aria-pressed={chartSensor === id}
                   onClick={() => setChartSensor(id)}
                 >
                   <div className="sensor-card-top">
@@ -361,7 +357,7 @@ export default function Dashboard() {
                       {reading?.source === "simulation"
                         ? "SIMULACIÓN"
                         : reading
-                          ? "USB / HARDWARE"
+                          ? "HARDWARE REAL"
                           : "SIN LECTURAS"}
                     </span>
                     <span>
@@ -382,7 +378,10 @@ export default function Dashboard() {
               );
             })}
           </div>
-          <section className="chart-panel">
+          <section
+            className="chart-panel"
+            aria-label="Historia de tus lecturas"
+          >
             <div className="panel-header">
               <div>
                 <Activity size={17} />
@@ -692,41 +691,77 @@ function HistoryChart({ readings }: { readings: Reading[] }) {
     pad = Math.max((hi - lo) * 0.2, 1),
     min = lo - pad,
     max = hi + pad;
+  const firstTime = new Date(points[0].timestamp || 0).getTime();
+  const lastTime = new Date(points.at(-1)!.timestamp || 0).getTime();
   const point = (i: number) => [
-    50 + (i / Math.max(points.length - 1, 1)) * 850,
+    50 +
+      (lastTime === firstTime
+        ? 0.5
+        : (new Date(points[i].timestamp || 0).getTime() - firstTime) /
+          (lastTime - firstTime)) *
+        850,
     185 - ((points[i].value! - min) / (max - min)) * 155,
   ];
   const coords = points.map((_, i) => point(i));
   const path = coords.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" ");
-  const selected = index !== null ? points[index] : null;
+  const activeIndex =
+    index === null ? null : Math.min(index, points.length - 1);
+  const selected = activeIndex !== null ? points[activeIndex] : null;
   return (
     <div className="history-chart">
       <svg
         viewBox="0 0 940 230"
         role="img"
-        aria-label={`Gráfico con ${points.length} lecturas`}
+        tabIndex={0}
+        aria-label={`Gráfico con ${points.length} lecturas. Usa las flechas para explorar cada valor.`}
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+            return;
+          event.preventDefault();
+          setIndex(
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? points.length - 1
+                : Math.max(
+                    0,
+                    Math.min(
+                      points.length - 1,
+                      (activeIndex ?? 0) +
+                        (event.key === "ArrowRight" ? 1 : -1),
+                    ),
+                  ),
+          );
+        }}
         onMouseMove={(e) => {
           const bounds = e.currentTarget.getBoundingClientRect();
-          setIndex(
-            Math.max(
-              0,
-              Math.min(
-                points.length - 1,
-                Math.round(
-                  ((((e.clientX - bounds.left) / bounds.width) * 940 - 50) /
-                    850) *
-                    (points.length - 1),
-                ),
-              ),
+          const target = Math.max(
+            0,
+            Math.min(
+              1,
+              (((e.clientX - bounds.left) / bounds.width) * 940 - 50) / 850,
             ),
           );
+          const targetTime = firstTime + target * (lastTime - firstTime);
+          let nearest = 0;
+          for (let i = 1; i < points.length; i++)
+            if (
+              Math.abs(
+                new Date(points[i].timestamp || 0).getTime() - targetTime,
+              ) <
+              Math.abs(
+                new Date(points[nearest].timestamp || 0).getTime() - targetTime,
+              )
+            )
+              nearest = i;
+          setIndex(nearest);
         }}
         onMouseLeave={() => setIndex(null)}
       >
         <defs>
           <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#a9c58d" stopOpacity=".4" />
-            <stop offset="1" stopColor="#a9c58d" stopOpacity="0" />
+            <stop stopColor="var(--ink-accent)" stopOpacity=".24" />
+            <stop offset="1" stopColor="var(--ink-accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[0, 1, 2, 3].map((i) => (
@@ -736,14 +771,14 @@ function HistoryChart({ readings }: { readings: Reading[] }) {
               x2="910"
               y1={30 + i * 52}
               y2={30 + i * 52}
-              stroke="#e4eadf"
+              stroke="var(--border)"
               strokeDasharray="3 5"
             />
             <text
               x="38"
               y={34 + i * 52}
               textAnchor="end"
-              fill="#81907d"
+              fill="var(--ink-soft)"
               fontSize="11"
             >
               {(max - (i * (max - min)) / 3).toFixed(1)}
@@ -754,39 +789,55 @@ function HistoryChart({ readings }: { readings: Reading[] }) {
           d={`${path} L${coords.at(-1)![0]},190 L50,190Z`}
           fill="url(#chart-fill)"
         />
-        <path d={path} fill="none" stroke="#58855a" strokeWidth="2.5" />
+        <path
+          d={path}
+          fill="none"
+          stroke="var(--ink-accent)"
+          strokeWidth="2.5"
+        />
         {points.length === 1 && (
-          <circle cx={coords[0][0]} cy={coords[0][1]} r="4" fill="#58855a" />
+          <circle
+            cx={coords[0][0]}
+            cy={coords[0][1]}
+            r="4"
+            fill="var(--ink-accent)"
+          />
         )}
-        {index !== null && (
+        {activeIndex !== null && (
           <g>
             <line
-              x1={coords[index][0]}
-              x2={coords[index][0]}
+              x1={coords[activeIndex][0]}
+              x2={coords[activeIndex][0]}
               y1="25"
               y2="190"
-              stroke="#8ca77f"
+              stroke="var(--ink-soft)"
               strokeDasharray="4 3"
             />
             <circle
-              cx={coords[index][0]}
-              cy={coords[index][1]}
+              cx={coords[activeIndex][0]}
+              cy={coords[activeIndex][1]}
               r="5"
-              fill="#214b3c"
-              stroke="#fff"
+              fill="var(--ink-accent)"
+              stroke="var(--surface)"
               strokeWidth="2"
             />
           </g>
         )}
-        <text x="50" y="216" fill="#81907d" fontSize="11">
+        <text x="50" y="216" fill="var(--ink-soft)" fontSize="11">
           {new Date(points[0].timestamp || 0).toLocaleTimeString("es-CL")}
         </text>
-        <text x="900" y="216" textAnchor="end" fill="#81907d" fontSize="11">
+        <text
+          x="900"
+          y="216"
+          textAnchor="end"
+          fill="var(--ink-soft)"
+          fontSize="11"
+        >
           {new Date(points.at(-1)!.timestamp || 0).toLocaleTimeString("es-CL")}
         </text>
       </svg>
       {selected && (
-        <div className="chart-tooltip">
+        <div className="chart-tooltip" role="status">
           {format(selected)} {selected.unit} ·{" "}
           {new Date(selected.timestamp || 0).toLocaleTimeString("es-CL")} ·{" "}
           {selected.source === "simulation" ? "Simulación" : "Hardware"}

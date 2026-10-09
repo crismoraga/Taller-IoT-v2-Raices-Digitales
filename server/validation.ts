@@ -100,6 +100,15 @@ export const sessionPatchSchema = z
       .partialRecord(z.enum(["soil", "light", "water_level"]), calibration)
       .optional(),
     sensorEnabled: z.partialRecord(sensor, z.boolean()).optional(),
+    lastRun: z
+      .object({
+        lessonId: safeKey,
+        board: z.enum(["pico", "uno", "nano", "nano-old"]),
+        code: z.string().max(100000),
+        at: z.iso.datetime({ offset: true }),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export const sessionCreateSchema = sessionPatchSchema.pick({

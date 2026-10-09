@@ -13,6 +13,9 @@ import {
   Download,
 } from "lucide-react";
 import { useApp } from "../lib/context";
+import { Icon } from "../brand/Graphics";
+import { essentials, normalizeProgress } from "../content";
+import { PageHeader } from "../ui/Layout";
 import {
   api,
   post,
@@ -23,13 +26,7 @@ import {
   type Reading,
   type Alert,
 } from "../lib/api";
-import {
-  PageHeading,
-  Button,
-  Notice,
-  Badge,
-  Modal,
-} from "../components/Common";
+import { Button, Notice, Badge, Modal } from "../components/Common";
 type Group = {
   id: string;
   name: string;
@@ -48,6 +45,12 @@ type Detail = {
   latest: Reading[];
   alerts: Alert[];
 };
+const expressCount = (progress: Group["progress"]) =>
+  Array.isArray(progress)
+    ? essentials.filter((lesson) =>
+        normalizeProgress(progress).includes(lesson.id),
+      ).length
+    : Math.max(0, Math.min(essentials.length, Number(progress) || 0));
 export default function Teacher() {
   const app = useApp();
   const [authed, setAuthed] = useState(false),
@@ -74,9 +77,11 @@ export default function Teacher() {
       setAuthed(true);
       const t = await api<{ configured: boolean; chatId?: string }>(
         "/telegram",
-      );
-      setTelegram(t.configured);
-      if (t.chatId) setChatId(t.chatId);
+      ).catch(() => null);
+      if (t) {
+        setTelegram(t.configured);
+        if (t.chatId) setChatId(t.chatId);
+      }
     } catch {
       setAuthed(false);
     }
@@ -90,6 +95,7 @@ export default function Teacher() {
     return () => clearInterval(timer);
   }, [authed]);
   const login = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       await post("/teacher/login", { password });
@@ -102,6 +108,7 @@ export default function Teacher() {
     }
   };
   const configure = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       await post("/telegram", { token: botToken, chatId });
@@ -118,16 +125,32 @@ export default function Teacher() {
   };
   return (
     <div className="teacher-page">
-      <PageHeading
-        eyebrow="ACOMPAÑAR ES PARTE DE CONECTAR"
-        title="Diez equipos. Un mismo descubrimiento."
-        description="Sigue el progreso del taller y detecta dónde hace falta una mano."
-        action={
+      <PageHeader
+        kicker="Espacio docente · acompaña el descubrimiento"
+        title="Diez equipos. Mil preguntas."
+        subtitle="Una mirada a todo el taller para dar la siguiente pista, resolver un cable suelto y celebrar cada descubrimiento."
+        art={
+          <Icon
+            name="school"
+            size={84}
+            className="text-accent"
+            strokeWidth={1.3}
+          />
+        }
+        actions={
           authed ? (
             <Button
-              variant="secondary"
+              variant="hero"
               onClick={() =>
-                void post("/teacher/logout", {}).then(() => setAuthed(false))
+                void post("/teacher/logout", {})
+                  .then(() => {
+                    setAuthed(false);
+                    setGroups([]);
+                    setDetail(null);
+                    setTelegram(false);
+                    setChatId("");
+                  })
+                  .catch((error) => app.notify(error.message, true))
               }
             >
               <LogOut size={15} />
@@ -170,8 +193,9 @@ export default function Teacher() {
             </Button>
           </form>
           <small>
-            La organización define TEACHER_PASSWORD en el servidor. No existe
-            una contraseña pública predeterminada.
+            La contraseña la entrega la organización del taller. El acceso
+            docente permite consultar a los equipos y configurar los avisos de
+            la clase.
           </small>
         </section>
       ) : (
@@ -222,7 +246,7 @@ export default function Teacher() {
                         <div className="progress-track">
                           <div
                             style={{
-                              width: `${Array.isArray(g.progress) ? Math.min(100, (g.progress.filter((x) => ["welcome", "led", "blink", "sensors", "calibration", "cloud"].includes(x)).length / 6) * 100) : (Number(g.progress) / 6) * 100}%`,
+                              width: `${(expressCount(g.progress) / Math.max(essentials.length, 1)) * 100}%`,
                             }}
                           />
                         </div>
@@ -230,7 +254,7 @@ export default function Teacher() {
                           {Array.isArray(g.progress)
                             ? g.progress.length
                             : g.progress}{" "}
-                          actividades completadas{" "}
+                          actividades registradas{" "}
                           {g.sensorIssues
                             ? `· ${g.sensorIssues} sensores por revisar`
                             : ""}
@@ -293,8 +317,9 @@ export default function Teacher() {
                   <li>Configura un umbral en el dashboard de cada grupo.</li>
                 </ol>
                 <Notice>
-                  El token se guarda cifrado en el servidor y nunca se devuelve
-                  al navegador. El servidor debe tener SECRETS_KEY configurada.
+                  La clave del bot se guarda cifrada y no se muestra al volver a
+                  abrir el panel. Usa un chat del taller al que el bot tenga
+                  acceso.
                 </Notice>
               </div>
               <form

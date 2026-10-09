@@ -1,0 +1,142 @@
+/*
+ * Raíces Digitales: una identidad propia para el laboratorio vivo de Telemática USM.
+ * Conserva tipografía, emblemas y pilares de SoyTEL. Bosque nocturno, papel cálido,
+ * señal lima, cobre y cian acercan naturaleza y tecnología.
+ * La marca es fija. Superficies y tintas cambian juntas con el tema.
+ */
+:root {
+  --primary: #0c302b;
+  --primary-soft: #19493d;
+  --primary-deep: #071d1b;
+  --primary-input: #153d36;
+  --secondary: #22665b;
+  --accent: #d0ef83;
+  --accent-soft: #c3ded0;
+  --cream: #f5f0df;
+  --cream-soft: #fff9e9;
+  --cream-shade: #ded5bb;
+  --slate: #a3b6ac;
+  --muted: #596d61;
+  --on-dark: #dce6dc;
+  --success: #23734c;
+  --warning: #d9a325;
+  --danger: #b6313b;
+  --danger-light: #ffabb1;
+  --info: #137f91;
+  --signal-cyan: #6addde;
+  --terracotta: #dc916e;
+
+  --pilar-datos: #b29cea;
+  --pilar-software: #dc916e;
+  --pilar-redes: #7bd4aa;
+  --pilar-teleco: #6addde;
+  --pilar-hardware: #e7bf5c;
+
+  /* Los cables siempre tienen nombre: su color es una segunda referencia. */
+  --wire-red: #d64545;
+  --wire-orange: #e8833a;
+  --wire-black: #1d2730;
+  --wire-yellow: #e3b324;
+  --wire-green: #2f9e6b;
+  --wire-blue: #3e8fd0;
+  --wire-white: #e9eef2;
+  --wire-purple: #8b6fd6;
+  --wire-gray: #8a98a5;
+
+  --paper: #f4f4ec;
+  --surface: #fffef8;
+  --surface-alt: #e9ede3;
+  --border: #d3dacd;
+  --border-strong: #aebdac;
+  --highlight: #e2edcc;
+  --ink: #143c32;
+  --ink-soft: #536559;
+  --ink-accent: #266448;
+  --success-soft: #dfefdf;
+  --success-ink: #1b5638;
+  --warning-soft: #f7edce;
+  --warning-ink: #6b5020;
+  --danger-soft: #f9e7e6;
+  --danger-ink: #85212b;
+  --danger-text: #aa2533;
+  --action: #153f32;
+  --action-ink: #f5f0df;
+  --overlay: rgba(5, 24, 22, 0.76);
+  --code-bg: #091f1d;
+  --skeleton: #e0e8da;
+  --skeleton-shine: rgba(255, 255, 255, 0.8);
+
+  --elev-soft: 0 7px 20px rgba(13, 46, 32, 0.07);
+  --elev-card: 0 16px 34px rgba(13, 46, 32, 0.11);
+  --elev-lifted: 0 24px 64px rgba(5, 24, 20, 0.24);
+  --elev-glow: 0 0 32px rgba(208, 239, 131, 0.23);
+  --duration-instant: 90ms;
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 380ms;
+  --duration-slower: 600ms;
+  --duration-ambient: 1600ms;
+  --curve-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --curve-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --paper: #091d19;
+  --surface: #102a23;
+  --surface-alt: #18382d;
+  --border: #2b4c3e;
+  --border-strong: #4c725b;
+  --highlight: #284832;
+  --ink: #f0f1df;
+  --ink-soft: #b6c5b8;
+  --ink-accent: #d0ef83;
+  --success-soft: #183a29;
+  --success-ink: #a5e8b9;
+  --warning-soft: #3a321a;
+  --warning-ink: #f3d893;
+  --danger-soft: #40232a;
+  --danger-ink: #ffc4c7;
+  --danger-text: #ffabb1;
+  --action: #d0ef83;
+  --action-ink: #143c32;
+  --overlay: rgba(2, 12, 10, 0.8);
+  --code-bg: #051511;
+  --skeleton: rgba(195, 222, 208, 0.12);
+  --skeleton-shine: rgba(195, 222, 208, 0.22);
+  --elev-soft: 0 7px 20px rgba(0, 0, 0, 0.25);
+  --elev-card: 0 16px 34px rgba(0, 0, 0, 0.32);
+  --elev-lifted: 0 24px 64px rgba(0, 0, 0, 0.48);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #091d19;
+    --surface: #102a23;
+    --surface-alt: #18382d;
+    --border: #2b4c3e;
+    --border-strong: #4c725b;
+    --highlight: #284832;
+    --ink: #f0f1df;
+    --ink-soft: #b6c5b8;
+    --ink-accent: #d0ef83;
+    --success-soft: #183a29;
+    --success-ink: #a5e8b9;
+    --warning-soft: #3a321a;
+    --warning-ink: #f3d893;
+    --danger-soft: #40232a;
+    --danger-ink: #ffc4c7;
+    --danger-text: #ffabb1;
+    --action: #d0ef83;
+    --action-ink: #143c32;
+    --overlay: rgba(2, 12, 10, 0.8);
+    --code-bg: #051511;
+    --skeleton: rgba(195, 222, 208, 0.12);
+    --skeleton-shine: rgba(195, 222, 208, 0.22);
+    --elev-soft: 0 7px 20px rgba(0, 0, 0, 0.25);
+    --elev-card: 0 16px 34px rgba(0, 0, 0, 0.32);
+    --elev-lifted: 0 24px 64px rgba(0, 0, 0, 0.48);
+    color-scheme: dark;
+  }
+}

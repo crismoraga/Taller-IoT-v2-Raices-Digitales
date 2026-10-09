@@ -1,12 +1,23 @@
 node_modules/
 dist/
-.env
-.env.*
-!.env.example
-data/
-tools/
+/data/
+/tools/
 *.log
 __pycache__/
 *.pyc
 test-results/
 playwright-report/
+
+# Secretos y configuración local
+# (.env.example sí se versiona)
+.env
+.env.*
+!.env.example
+.vercel
+
+# Copia generada por scripts/prepare-assets.mjs desde docs/
+public/docs/
+
+# Árboles de trabajo temporales de agentes
+.claude/worktrees/
+dist-server/

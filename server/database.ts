@@ -17,6 +17,12 @@ export interface Session {
   calibrations: Record<string, { dry: number; wet: number }>;
   sensorEnabled: Record<string, boolean>;
   createdAt: string;
+  lastRun?: {
+    lessonId: string;
+    board: "pico" | "uno" | "nano" | "nano-old";
+    code: string;
+    at: string;
+  };
 }
 export interface Device {
   id: string;
@@ -78,22 +84,20 @@ export class Store {
     const secret = token();
     const id = randomUUID();
     const now = this.config.now();
-    this.db
-      .prepare("INSERT INTO sessions VALUES(?,?,?,?,?,?,?)")
-      .run(
-        id,
-        hash(secret),
-        name || `Grupo ${groupNumber}`,
-        groupNumber,
-        JSON.stringify({
-          progress: [],
-          drafts: {},
-          calibrations: {},
-          sensorEnabled: {},
-        }),
-        now,
-        now + this.config.sessionDays * 86400000,
-      );
+    this.db.prepare("INSERT INTO sessions VALUES(?,?,?,?,?,?,?)").run(
+      id,
+      hash(secret),
+      name || `Grupo ${groupNumber}`,
+      groupNumber,
+      JSON.stringify({
+        progress: [],
+        drafts: {},
+        calibrations: {},
+        sensorEnabled: {},
+      }),
+      now,
+      now + this.config.sessionDays * 86400000,
+    );
     return { secret, session: this.byId(id)! };
   }
   byCookie(secret?: string) {
@@ -110,14 +114,19 @@ export class Store {
     return row ? this.session(row) : null;
   }
   patchSession(session: Session, patch: Partial<Session>) {
+    // Releer antes de combinar evita reemplazar otro PATCH con el snapshot del middleware.
+    // DatabaseSync mantiene esta lectura y escritura en el mismo tramo síncrono del proceso.
+    const current = this.byId(session.id);
+    if (!current)
+      throw Object.assign(new Error("La sesión expiró."), { statusCode: 401 });
     const updated = {
-      ...session,
+      ...current,
       ...patch,
-      drafts: { ...session.drafts, ...patch.drafts },
-      calibrations: { ...session.calibrations, ...patch.calibrations },
-      sensorEnabled: { ...session.sensorEnabled, ...patch.sensorEnabled },
+      drafts: { ...current.drafts, ...patch.drafts },
+      calibrations: { ...current.calibrations, ...patch.calibrations },
+      sensorEnabled: { ...current.sensorEnabled, ...patch.sensorEnabled },
     };
-    const { progress, drafts, calibrations, sensorEnabled } = updated;
+    const { progress, drafts, calibrations, sensorEnabled, lastRun } = updated;
     // Limits apply to the accumulated session, not just one partial request.
     sessionPatchSchema.parse({
       name: updated.name,
@@ -126,13 +135,20 @@ export class Store {
       drafts,
       calibrations,
       sensorEnabled,
+      lastRun,
     });
     this.db
       .prepare("UPDATE sessions SET name=?,group_number=?,data=? WHERE id=?")
       .run(
         updated.name,
         updated.groupNumber,
-        JSON.stringify({ progress, drafts, calibrations, sensorEnabled }),
+        JSON.stringify({
+          progress,
+          drafts,
+          calibrations,
+          sensorEnabled,
+          lastRun,
+        }),
         session.id,
       );
     return updated;

@@ -19,6 +19,12 @@ export type Session = {
   calibrations: Record<string, { dry: number; wet: number }>;
   sensorEnabled: Record<string, boolean>;
   createdAt: string;
+  lastRun?: {
+    lessonId: string;
+    board: "pico" | "uno" | "nano" | "nano-old";
+    code: string;
+    at: string;
+  };
 };
 export type Device = {
   id: string;

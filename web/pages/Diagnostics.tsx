@@ -12,9 +12,11 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useApp } from "../lib/context";
+import { Icon } from "../brand/Graphics";
+import { PageHeader } from "../ui/Layout";
 import { api, download, sensorLabels, statusLabels } from "../lib/api";
 import { serial } from "../lib/serial";
-import { PageHeading, Button, Notice, Badge } from "../components/Common";
+import { Button, Notice, Badge } from "../components/Common";
 export default function Diagnostics() {
   const app = useApp();
   const [health, setHealth] = useState<Record<string, unknown>>({}),
@@ -100,13 +102,21 @@ export default function Diagnostics() {
   const info = { ...app.lastDiagnostics, ...deviceInfo };
   return (
     <div className="diagnostics-page">
-      <PageHeading
-        eyebrow="SI ALGO FALLA, APRENDER TAMBIÉN ES INVESTIGAR"
+      <PageHeader
+        kicker="Diagnóstico · sigue la señal"
         title="Cada conexión tiene una pista."
-        description="Comprueba navegador, placa, red y sensores con información real."
-        action={
+        subtitle="Investigar también es aprender. Revisa cada eslabón, encuentra qué falta y vuelve a tu experimento con una pista concreta."
+        art={
+          <Icon
+            name="stethoscope"
+            size={84}
+            className="text-accent"
+            strokeWidth={1.3}
+          />
+        }
+        actions={
           <Button
-            variant="secondary"
+            variant="hero"
             onClick={() =>
               download(
                 "diagnostico-raices.json",
@@ -165,7 +175,7 @@ export default function Diagnostics() {
           <Stethoscope size={16} />
           Consultar Pico
         </Button>
-        <Button variant="ghost" onClick={() => app.navigate("/configuracion")}>
+        <Button variant="ghost" onClick={() => app.navigate("/estacion")}>
           Configurar estación <ArrowRight size={16} />
         </Button>
       </div>

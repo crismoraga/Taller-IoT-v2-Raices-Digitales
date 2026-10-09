@@ -350,6 +350,70 @@ export async function buildApp(
     notify(sessions.get(request)!.id);
     return { ok: true };
   });
+  // Browser USB bridge is authorized by the group's HttpOnly session, not by
+  // a device token exposed to JavaScript. A revoked bridge needs a new connect.
+  const usbBridge = (sessionId: string, reconnect = false) =>
+    store.transaction(() => {
+      const active = store.db
+        .prepare(
+          "SELECT id FROM devices WHERE session_id=? AND name='Puente USB' AND revoked=0",
+        )
+        .get(sessionId) as Row | undefined;
+      if (active) return String(active.id);
+      const revoked = store.db
+        .prepare(
+          "SELECT id FROM devices WHERE session_id=? AND name='Puente USB' AND revoked=1",
+        )
+        .get(sessionId);
+      if (revoked && !reconnect)
+        throw new HttpError(
+          403,
+          "El puente USB fue revocado. Desconecta y vuelve a conectar para autorizarlo.",
+        );
+      const count = store.db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM devices WHERE session_id=? AND revoked=0",
+        )
+        .get(sessionId) as Row;
+      if (Number(count.count) >= 5)
+        throw new HttpError(
+          409,
+          "Revoca un dispositivo antes de crear otro puente USB.",
+        );
+      const id = randomUUID();
+      store.db
+        .prepare(
+          "INSERT INTO devices(id,session_id,token_hash,name,source) VALUES(?,?,?,?,?)",
+        )
+        .run(id, sessionId, hash(token()), "Puente USB", "hardware");
+      return id;
+    });
+  app.post("/api/bridge/connect", async (request) => {
+    const sessionId = sessions.get(request)!.id;
+    const deviceId = usbBridge(sessionId, true);
+    notify(sessionId);
+    return { deviceId };
+  });
+  app.post(
+    "/api/bridge/ingest",
+    { config: { rateLimit: { max: 120, timeWindow: 60000 } } },
+    async (request) => {
+      const body = ingestSchema.omit({ source: true }).parse(request.body);
+      const sessionId = sessions.get(request)!.id;
+      const deviceId = usbBridge(sessionId);
+      const readings = store.ingest(
+        sessionId,
+        deviceId,
+        "hardware",
+        body.readings,
+        body.diagnostics,
+      );
+      alerts.evaluate(sessionId, readings);
+      alerts.auditDevices(sessionId);
+      notify(sessionId);
+      return { ok: true, deviceId };
+    },
+  );
   app.post(
     "/api/device/ingest",
     { config: { rateLimit: { max: 120, timeWindow: 60000 } } },

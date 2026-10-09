@@ -15,16 +15,11 @@ import {
   Power,
 } from "lucide-react";
 import { useApp } from "../lib/context";
+import { Icon } from "../brand/Graphics";
+import { PageHeader } from "../ui/Layout";
 import { api, post, type DashboardData } from "../lib/api";
 import { sensors } from "../data/lessons";
-import {
-  PageHeading,
-  Button,
-  Notice,
-  Badge,
-  Modal,
-  EmptyState,
-} from "../components/Common";
+import { Button, Notice, Badge, Modal, EmptyState } from "../components/Common";
 import CalibrationWizard from "../components/CalibrationWizard";
 export default function Settings() {
   const app = useApp();
@@ -61,6 +56,10 @@ export default function Settings() {
     setInstallConfirm(false);
     await app.installStation(ssid, password, endpoint);
     setPassword("");
+    // La nueva identidad queda visible y puede revocarse sin recargar ni perder la configuración.
+    void api<DashboardData>("/dashboard")
+      .then((data) => setDevices(data.devices))
+      .catch(() => {});
   };
   const remove = async () => {
     setDeleting(true);
@@ -80,16 +79,24 @@ export default function Settings() {
   if (!app.session)
     return (
       <div className="settings-page">
-        <PageHeading
-          eyebrow="TU ESTACIÓN, A TU MANERA"
+        <PageHeader
+          kicker="Estación · prepara tu experimento"
           title="Preparemos tu equipo."
-          description="Crea tu grupo para configurar placa, sensores y red."
+          subtitle="Cada grupo construye su propia estación. Empieza por tu equipo; después conecta la placa y elige qué quieres medir."
+          art={
+            <Icon
+              name="board"
+              size={84}
+              className="text-accent"
+              strokeWidth={1.3}
+            />
+          }
         />
         <EmptyState
           title="Empecemos por darle un nombre."
           description="Cada grupo tiene su propio espacio, sin datos personales."
           action={
-            <Button onClick={app.openOnboarding}>
+            <Button onClick={() => app.openOnboarding("/estacion")}>
               Crear mi grupo <ArrowRight size={16} />
             </Button>
           }
@@ -98,11 +105,30 @@ export default function Settings() {
     );
   return (
     <div className="settings-page">
-      <PageHeading
-        eyebrow="TU ESTACIÓN, A TU MANERA"
-        title="El siguiente paso: conectar."
-        description="Prepara el hardware, calibra y dale a tu planta un camino hacia Internet."
+      <PageHeader
+        kicker={`Estación ${String(app.session.groupNumber).padStart(2, "0")} · tu laboratorio`}
+        title="Dale sentidos a tu planta."
+        subtitle="Primero tu placa. Después, los sensores que ya cableaste. Calibra, instala y comprueba cómo llega la primera señal."
+        art={
+          <Icon
+            name="board"
+            size={84}
+            className="text-accent"
+            strokeWidth={1.3}
+          />
+        }
       />
+      <ol className="setup-journey" aria-label="Orden de preparación">
+        <li>
+          <span>01</span>Elige y conecta tu placa
+        </li>
+        <li>
+          <span>02</span>Habilita y calibra sensores
+        </li>
+        <li>
+          <span>03</span>Instala tu estación
+        </li>
+      </ol>
       <div className="settings-grid">
         <section className="settings-card">
           <div className="settings-card-title">
@@ -146,6 +172,7 @@ export default function Settings() {
             Placa de trabajo
             <select
               value={app.board}
+              disabled={app.connected || app.busy}
               onChange={(e) => app.setBoard(e.target.value as typeof app.board)}
             >
               <option value="pico">Raspberry Pi Pico W · MicroPython</option>
@@ -158,6 +185,7 @@ export default function Settings() {
           </label>
           <Button
             variant="secondary"
+            disabled={app.busy || app.connecting}
             onClick={() =>
               void (app.connected ? app.disconnect() : app.connect())
             }
@@ -285,28 +313,31 @@ export default function Settings() {
           {sensors
             .filter((s) => s.id !== "air_humidity")
             .map((s) => {
-              const key =
-                s.id === "dht11"
-                  ? "dht11"
-                  : s.id === "ds18b20"
-                    ? "soil_temperature"
-                    : s.id === "ldr"
-                      ? "light"
-                      : s.id;
+              // Sensor IDs in the inventory are the canonical telemetry keys.
+              // The DHT11 is one physical sensor and enables both measurements.
+              const key = s.id;
+              const isDht = key === "air_temperature";
               return (
-                <label className="sensor-toggle" key={s.id}>
+                <label className="sensor-toggle" key={s.id} data-sensor={key}>
                   <input
                     type="checkbox"
-                    checked={!!enabled[key]}
+                    aria-label={s.name}
+                    checked={
+                      isDht
+                        ? !!enabled.air_temperature && !!enabled.air_humidity
+                        : !!enabled[key]
+                    }
                     onChange={(e) =>
                       void app
                         .updateSession({
                           sensorEnabled: {
                             ...enabled,
-                            [key]: e.target.checked,
-                            ...(key === "air_temperature"
-                              ? { air_humidity: e.target.checked }
-                              : {}),
+                            ...(isDht
+                              ? {
+                                  air_temperature: e.target.checked,
+                                  air_humidity: e.target.checked,
+                                }
+                              : { [key]: e.target.checked }),
                           },
                         })
                         .catch((err) => app.notify(err.message, true))
@@ -315,7 +346,21 @@ export default function Settings() {
                   <span>
                     <strong>{s.name}</strong>
                     <small>
-                      {s.model} · {s.gpio}
+                      {s.model} ·{" "}
+                      {arduino
+                        ? (
+                            {
+                              soil: "A0",
+                              soil_temperature: "D5",
+                              air_temperature: "D4",
+                              light: "A1",
+                              rain: "D6",
+                              water_level: "A2",
+                              distance: "D7 TRIG · D8 ECHO",
+                              motion: "D9",
+                            } as Record<string, string>
+                          )[key] || s.gpio
+                        : s.gpio}
                     </small>
                   </span>
                   <span className="toggle-visual" />
@@ -344,7 +389,7 @@ export default function Settings() {
         </div>
         {devices.length ? (
           devices.map((d) => (
-            <div className="device-row" key={d.id}>
+            <div className="device-row" data-device-id={d.id} key={d.id}>
               <div>
                 <strong>{d.name || d.id.slice(0, 8)}</strong>
                 <small>

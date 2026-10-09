@@ -23,24 +23,31 @@ test("production cache keeps lessons and drafts offline, then syncs the authenti
     )
     .toBe(true);
   await page
-    .getByRole("button", { name: "Comenzar el taller", exact: true })
+    .getByRole("button", { name: "Comenzar taller", exact: true })
     .click();
   await page.getByLabel("Nombre del equipo").fill("Offline QA");
-  await page.getByRole("button", { name: "Comenzar mi recorrido" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Comenzar el taller", exact: true })
+    .click();
   await expect(page).toHaveURL(/taller\/welcome/);
   await page.goto("/taller/led");
+  await page
+    .getByRole("navigation", { name: "Partes de la actividad" })
+    .getByRole("button", { name: /Programa/ })
+    .click();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Conectar USB", exact: true }),
+    page.getByRole("button", { name: "Conectar placa", exact: true }).first(),
   ).toBeEnabled();
   await page.locator(".monaco-editor").first().click();
   await page.keyboard.press("Control+Home");
   await page.keyboard.type("# Guardado sin red\n");
   await expect(
-    page.getByText("Borrador local · pendiente de sincronizar", {
+    page.getByText("Guardado en este equipo · se sincroniza al volver la red", {
       exact: true,
     }),
   ).toBeVisible();
@@ -82,13 +89,15 @@ test("dialog traps keyboard focus and returns it to the start button", async ({
 }) => {
   await page.goto("/");
   const start = page.getByRole("button", {
-    name: "Comenzar el taller",
+    name: "Comenzar taller",
     exact: true,
   });
   await start.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Comenzar mi recorrido" }).focus();
+  await dialog
+    .getByRole("button", { name: "Comenzar el taller", exact: true })
+    .focus();
   await page.keyboard.press("Tab");
   await expect(
     dialog.getByRole("button", { name: "Cerrar", exact: true }),

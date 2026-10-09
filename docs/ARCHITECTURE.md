@@ -13,7 +13,15 @@ flowchart LR
   Teacher[Navegador del profesor] -->|cookie docente| Proxy
 ```
 
-El frontend sirve el recorrido guiado de seis etapas y laboratorios de sensores. El navegador ejecuta y modifica MicroPython mediante el REPL real de la Pico; instala módulos desde el servidor y guarda la configuración de su propia estación. Arduino se compila con AVR-GCC por Arduino CLI y se sube al bootloader con Web Serial. El programa se ejecuta únicamente en la placa física.
+El frontend sirve seis actividades esenciales de 60 minutos y una biblioteca de 33 actividades por etapas. Catorce bloques pedagógicos se presentan en cinco fases: entiende, conecta, programa, experimenta y comprueba. Catálogo y ruta comparten `web/content/`; progreso y borradores mantienen los IDs anteriores cuando corresponde. Editor y escenas se cargan al usarse. Los SVG SoyTEL y la escena viva usan identidad bosque/lima/cian con temas claro/oscuro.
+
+El montaje tiene un único modelo físico (`web/circuit/`): agujeros, tiras conductoras, pines físicos de la Pico, piezas, resistencias y cables. SVG y Three.js leen ese modelo; el guía confirma acciones críticas y avanza una conexión a la vez. La cámara se adapta al canvas y al circuito. Los flujos animados son ilustraciones educativas identificadas; las lecturas reales proceden exclusivamente de la API o del USB. Las escenas se pausan fuera de pantalla, al ocultar la pestaña o por preferencia de movimiento reducido. WebGL dispone de alternativa textual/2D.
+
+El navegador ejecuta y modifica MicroPython mediante el REPL real de la Pico; instala módulos desde el servidor y guarda la configuración de su propia estación. Arduino se compila con AVR-GCC por Arduino CLI y se sube al bootloader con Web Serial. El programa se ejecuta únicamente en la placa física.
+
+El puente USB usa `/api/bridge/connect` y `/api/bridge/ingest`: cookie HttpOnly del grupo y origen autorizado, sin token de dispositivo en JavaScript. El servidor deriva el grupo de la cookie y limita dispositivos activos. Las líneas JSON consecutivas se combinan por sensor antes de publicar; un Wi-Fi activo con IP y TLS confirmado evita duplicar las muestras que la Pico ya publica. La revocación impide ingresar nuevos datos hasta reconectar. La credencial de instalación Pico permanece sólo en memoria y se reutiliza hasta revocarla.
+
+Actualizaciones y recuperación de sesión se serializan en el cliente. La cola offline combina borradores, calibraciones y habilitaciones de manera parcial; un nuevo cambio reemplaza al anterior para la misma clave. Antes de confirmar un PATCH se incluye la cola pendiente, y sólo entonces se limpia. El servidor reconsulta el estado vigente antes de combinar el cambio para no escribir un snapshot previo de la sesión. `lastRun` conserva el último código ejecutado del propio grupo.
 
 El firmware separa drivers y diagnóstico de la lógica de publicación. Los sensores del inventario se leen con sus unidades, raw, estado y error disponible. La calibración transforma ADC en porcentajes relativos; conserva los puntos húmedo/seco por sesión y los aplica al generar la configuración. El firmware de Pico W maneja Wi-Fi, HTTPS, emparejamiento y reconexión. Una Uno/Nano no incorpora red, por lo que su telemetría pasa por el puente USB del navegador. Un flujo de simulación educativo opcional registra explícitamente su origen.
 

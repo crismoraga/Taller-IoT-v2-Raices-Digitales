@@ -1,0 +1,1808 @@
+{
+  "manifest": {
+    "captured_at": "2026-10-09T03:20:22.970967+00:00",
+    "baseline_head": "c7b46c1da421945e5a9f46dc5e4fc58428b9d9a4",
+    "working_tree_included": true,
+    "files": [
+      {
+        "path": ".dockerignore",
+        "sha256": "02ded641e6aff629afc9070ac25f02b388e7b163f0b1913deb99040af2221abd"
+      },
+      {
+        "path": ".env.example",
+        "sha256": "de50e828d26e0a5ad695b601e2c69e463cafce1be59d8769687fea7dc1c02886"
+      },
+      {
+        "path": ".gitattributes",
+        "sha256": "b96cba99905fb76f8b6f7eb302d24262aee8b47862d33dc6793fb08534b70558"
+      },
+      {
+        "path": ".github/architect.chatmode.md",
+        "sha256": "8873236d8e70b2868c1ba87234bc50ba1e79e94fc4f160760ee73b3daffa63bb"
+      },
+      {
+        "path": ".github/ask.chatmode.md",
+        "sha256": "97d42e074760ef69353ec605df9775364b0217205c13f36b0363b53ac2dd896c"
+      },
+      {
+        "path": ".github/code.chatmode.md",
+        "sha256": "6c7d1683075495060191c2667a50b04a4c961b82c15b8c08c65288c52d7f882a"
+      },
+      {
+        "path": ".github/debug.chatmode.md",
+        "sha256": "aa0dfe2c1eff915eaba326a6d31797796106939ec28d71031becb75db8ce3e42"
+      },
+      {
+        "path": ".gitignore",
+        "sha256": "2974c94088f0dadf2e49bd97756d2b8dfb6da5a1d508a666dfebdb216b11e485"
+      },
+      {
+        "path": "BRAND_TOKENS.md",
+        "sha256": "b550f5282922825c0625be835af3d60221332e38842a1da49cdd8a66f6e64031"
+      },
+      {
+        "path": "Caddyfile",
+        "sha256": "a93e05be7669f9ec797dfff43522f0902e9c31592a937816655ad9077a9ffd6a"
+      },
+      {
+        "path": "Contexto_Taller_IoT_2_0_Planta_Inteligente.md",
+        "sha256": "c328de8e22630b88ec5d1af4c90dc367e92f7f573684437e10730fc6edf5cc95"
+      },
+      {
+        "path": "Contexto_Taller_IoT_2_0_Planta_Inteligente.pdf",
+        "sha256": "f63d82f1ea58f297d64260c85eca31315f2c8a922d1ce71d063bd751402effe6"
+      },
+      {
+        "path": "Dockerfile",
+        "sha256": "67c3d3ef9c0d4f60d5d93385a912c580ed7242e12ea17d0d671c77dcb0d48ad1"
+      },
+      {
+        "path": "Dockerfile.compiler",
+        "sha256": "dfd34b4318274d350ece7a816fd93954e90012325d703a1e6747f45819d293bc"
+      },
+      {
+        "path": "README.md",
+        "sha256": "c185f96b6942f50e89f8e8d06793e1a1812b76e0d4d8bf4396c1d872a0c6b4b3"
+      },
+      {
+        "path": "compose.yaml",
+        "sha256": "7fa264db8b9e3b3ae88da2e7d7726c5d1a9707f50b5814f1dd0653734d86eeda"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "sha256": "02997d72048b4ca83a2f65f0669fef02cac03eba6d87af5e62ad678f20d2dee8"
+      },
+      {
+        "path": "docs/DEPLOYMENT.md",
+        "sha256": "640cc8861e1dd8930bc8762ed0333918ba88608009ece1d1c941727d1fdfba74"
+      },
+      {
+        "path": "docs/FIRMWARE.md",
+        "sha256": "3c54c648c8a6f2e0fa35675332bd61ec9018dd67e44996bd57e478db54a6759c"
+      },
+      {
+        "path": "docs/HARDWARE.md",
+        "sha256": "ec2a06d3f58f88708865a0f05058bf33e4c4b5a0ddd94acb8f444ad6e4aa9b33"
+      },
+      {
+        "path": "docs/IMPLEMENTATION_CONTRACT.md",
+        "sha256": "f7e33f8b7e4f21f09cd350c8cc84c450630dd6a48674daa4580ea4a745567998"
+      },
+      {
+        "path": "docs/QA.md",
+        "sha256": "3b70f783127e624faa05eff981622956a06c8e6137fa30738efd181bb147fd2b"
+      },
+      {
+        "path": "docs/SECURITY.md",
+        "sha256": "6a00f498e30d6f4ee1d6afe6ed87e64ebf046b6a884996bc7337700227ca3fc8"
+      },
+      {
+        "path": "docs/SETUP.md",
+        "sha256": "102a3df7a628d816d66e1382e44a203c2ab37be379f037be8b9886bceb89ffcc"
+      },
+      {
+        "path": "docs/STUDENT_GUIDE.md",
+        "sha256": "88de4c0fb8e8eb8508f2baabe6064da3b48ca3b1cb6fc089eeb13511e770e7b5"
+      },
+      {
+        "path": "docs/TEACHER_GUIDE.md",
+        "sha256": "5757a85a2c9cc8cdb568d9f59574fb6fa1e80cb44905190dd6f63f904a45e17b"
+      },
+      {
+        "path": "docs/TROUBLESHOOTING.md",
+        "sha256": "256b3035fa4d862efd1e7137a1b6f3b5e91ecb9844d9c58436448450b1bc5c26"
+      },
+      {
+        "path": "firmware/LICENSE-MICROPYTHON-LIB.txt",
+        "sha256": "a38cf48836aa313254cdcf3de9fb7c24da4a2eab75ead2cc0cecd998336e7800"
+      },
+      {
+        "path": "firmware/arduino/station.ino",
+        "sha256": "47c793411d8dc7d23beaec2f8da357d3c25a9cb66b302fb405d481a2e8992a7b"
+      },
+      {
+        "path": "firmware/board.py",
+        "sha256": "e1a6f663fad3c9fef94683d372a6c2577443e6270e9d27364b846248534f2b41"
+      },
+      {
+        "path": "firmware/ca.pem",
+        "sha256": "22b557a27055b33606b6559f37703928d3e4ad79f110b407d04986e1843543d1"
+      },
+      {
+        "path": "firmware/config.example.json",
+        "sha256": "302cec18cb2f48021d8584672b138f2790a2e3907ce4d79c47c741cb3815dbce"
+      },
+      {
+        "path": "firmware/connectivity.py",
+        "sha256": "5f3c0f90371bd700a13b7b899e00341a29ff6d198fe839cf017c4844dc79e357"
+      },
+      {
+        "path": "firmware/drivers.py",
+        "sha256": "4f0c73ce4de940fa170c341ccfc9d2207742cfb72ded0985f96117d1f9c09b1a"
+      },
+      {
+        "path": "firmware/ds18x20.py",
+        "sha256": "a3bb6985b8e17d7a86f0260069ed0cc87e2e6db2dd178307f8a456a80482debd"
+      },
+      {
+        "path": "firmware/main.py",
+        "sha256": "27119fc61624ba3961eb8a3144590ef5a1187243b16845d85443c0bae2f05cdc"
+      },
+      {
+        "path": "firmware/onewire.py",
+        "sha256": "beb3876420a91fdc3f56af0a812c8c212470cbf35421fb79414f75f923cb30e9"
+      },
+      {
+        "path": "galeria.html",
+        "sha256": "24c603ad1b4753b0041c45329569379afff882b6eee6dd94d9345cbf0fe407b0"
+      },
+      {
+        "path": "hardware/README.md",
+        "sha256": "cd48bb3795ca926222ad322c2370fa70bd96d7b5ea7bfdac2a04462977da4f5e"
+      },
+      {
+        "path": "hardware/examples/arduino/active_buzzer.ino",
+        "sha256": "50064edc84111aac5c2564c570b31287ed56c070e2d7433d9e274b341d1d77ce"
+      },
+      {
+        "path": "hardware/examples/arduino/blink.ino",
+        "sha256": "94ba2f6bc55b8c63b5f74a690ab1d81a812c260048618377a72e8b37657b0e6a"
+      },
+      {
+        "path": "hardware/examples/arduino/button.ino",
+        "sha256": "950258e934877aa6462e575693eb7c1147d8f39232a630248d538a7a7634d4eb"
+      },
+      {
+        "path": "hardware/examples/arduino/buzzer.ino",
+        "sha256": "abaef924c841c2aa8eda6f8e0dae38445815aed5196b65676be7a477cd5e68b9"
+      },
+      {
+        "path": "hardware/examples/arduino/calibration.ino",
+        "sha256": "18eea746d3691d0dca83074864e503309d5fb4f2daa2326466d2e040dd13642e"
+      },
+      {
+        "path": "hardware/examples/arduino/cloud.ino",
+        "sha256": "18eea746d3691d0dca83074864e503309d5fb4f2daa2326466d2e040dd13642e"
+      },
+      {
+        "path": "hardware/examples/arduino/dht11.ino",
+        "sha256": "6610a3a257acf513266707428f44f20c9739f6c1e343e14f11010440a58183d9"
+      },
+      {
+        "path": "hardware/examples/arduino/distance.ino",
+        "sha256": "81282054c292465bda4725ef75af33b91a60ebd66728693e086649d1455573f7"
+      },
+      {
+        "path": "hardware/examples/arduino/ds18b20.ino",
+        "sha256": "dd53a39c8750a386e3cb18f38ae2b9c24ee809351fc00e83c1a4573d39831426"
+      },
+      {
+        "path": "hardware/examples/arduino/flame.ino",
+        "sha256": "c76deeb7947489e86f5bb0a649306808a4232f67114f3e456d68ce75b2764b49"
+      },
+      {
+        "path": "hardware/examples/arduino/four_digit.ino",
+        "sha256": "04fa744d01394a68be50a966d30edc465357fcc2f773d7d2e7acbe1362692699"
+      },
+      {
+        "path": "hardware/examples/arduino/infrared.ino",
+        "sha256": "0af747260df8e82d1d88180895f0bb640d169925073c841925cb9fd53e5cfbec"
+      },
+      {
+        "path": "hardware/examples/arduino/lcd.ino",
+        "sha256": "8542afff5311fbc28d5f78f3e9af527c81674172a6b9a8c6c31bd6d1f68859a5"
+      },
+      {
+        "path": "hardware/examples/arduino/ldr.ino",
+        "sha256": "e3c0cec2d371679d4970bb508cb883ce81a6394f66aba3925579e4dd08f61f03"
+      },
+      {
+        "path": "hardware/examples/arduino/led.ino",
+        "sha256": "b3328fc90ae7f532be6519436f62191260aba72c573a2767d7d6dd9612bedb42"
+      },
+      {
+        "path": "hardware/examples/arduino/lm35.ino",
+        "sha256": "09335f119a32f6a2cb17ff14127ef2f921308dcbdd1f8fd944b69fcc23a06273"
+      },
+      {
+        "path": "hardware/examples/arduino/matrix.ino",
+        "sha256": "3808af8526eb1a831fa86560128cb6fd5ca399689a618597df863094d7f31f95"
+      },
+      {
+        "path": "hardware/examples/arduino/motion.ino",
+        "sha256": "9f599870654536f3823370a692b49935b0ab4b05e404ebb6de9802491f67abaf"
+      },
+      {
+        "path": "hardware/examples/arduino/potentiometer.ino",
+        "sha256": "2167ff8fc02ac35e5012013c1bd3f3384b715583fc58277cc75c08d891aaf696"
+      },
+      {
+        "path": "hardware/examples/arduino/rain.ino",
+        "sha256": "233d72d577cef4635e2603a3a23c37e79c4f3350e9f80a7d38984d1943076283"
+      },
+      {
+        "path": "hardware/examples/arduino/sensors.ino",
+        "sha256": "18eea746d3691d0dca83074864e503309d5fb4f2daa2326466d2e040dd13642e"
+      },
+      {
+        "path": "hardware/examples/arduino/servo.ino",
+        "sha256": "1b01ec8a3679ed472f464b854b1cb116c1ed11c75d2d6eb18bb1ccd5f6ba6f0d"
+      },
+      {
+        "path": "hardware/examples/arduino/seven_segment.ino",
+        "sha256": "0dc30085fd13682b0048ae4951d93ebf7730e071a72d5877f0cc8b51ab582342"
+      },
+      {
+        "path": "hardware/examples/arduino/shift_register.ino",
+        "sha256": "3079b1866facd7d401a9846916837175e900d67e4a0a8ce1236245367b29b9d9"
+      },
+      {
+        "path": "hardware/examples/arduino/soil.ino",
+        "sha256": "18eea746d3691d0dca83074864e503309d5fb4f2daa2326466d2e040dd13642e"
+      },
+      {
+        "path": "hardware/examples/arduino/stepper.ino",
+        "sha256": "3803b511709a920fd223b042640f400955fa5859909a92638f4553b138f2f4e1"
+      },
+      {
+        "path": "hardware/examples/arduino/tilt.ino",
+        "sha256": "c3040f63997a7199cfad51abe4dcd03cd94b4f4b210fd72d56d9f38a66823b64"
+      },
+      {
+        "path": "hardware/examples/arduino/water_level.ino",
+        "sha256": "6d4144eb114907218399cddd979b19d09b7911bdcd25f46bc787a18e000e1594"
+      },
+      {
+        "path": "hardware/examples/arduino/welcome.ino",
+        "sha256": "464450af70ef5800db7544c301d9e38f087248ac29e6f4a64e9ca49c9f70d1aa"
+      },
+      {
+        "path": "hardware/examples/micropython/active_buzzer.py",
+        "sha256": "7a9741d73708c28d3113644ebab15466cbbfafc6fcf86fb077480b19d7c9bd3c"
+      },
+      {
+        "path": "hardware/examples/micropython/blink.py",
+        "sha256": "ae5e98bd1c90e5651d18a0c63c6148368e1a5d953e13e6d8f9bd3588695df1c1"
+      },
+      {
+        "path": "hardware/examples/micropython/button.py",
+        "sha256": "f24135a7ffc53eb476f163919aa5920d3905ccf8c58332a47d5f95b885dea0cf"
+      },
+      {
+        "path": "hardware/examples/micropython/buzzer.py",
+        "sha256": "c221f527ba23a430a5b201a5311992780caef78c31f6c53b58d3dd868a65db70"
+      },
+      {
+        "path": "hardware/examples/micropython/calibration.py",
+        "sha256": "ac004c2ad64b47d0a3160a5b85cbf27f943db5fad0013c797d4b460eed4fdd79"
+      },
+      {
+        "path": "hardware/examples/micropython/cloud.py",
+        "sha256": "19f4e162ea5de697c24de3428361ac586b236a68e2e91ba3974ffa241d130fef"
+      },
+      {
+        "path": "hardware/examples/micropython/dht11.py",
+        "sha256": "62827434aa12c1ee117cb1dead34b89f5bdd71b03c1632b155c021ed59517865"
+      },
+      {
+        "path": "hardware/examples/micropython/distance.py",
+        "sha256": "06123ad044456bd45ff231dbda0033e5739fe7f2dda33020017a76cc45d37a79"
+      },
+      {
+        "path": "hardware/examples/micropython/ds18b20.py",
+        "sha256": "bdd5d4077eedecf2fac1582088cf159e5780761e6c69bcc496ce9bef2d872b1a"
+      },
+      {
+        "path": "hardware/examples/micropython/flame.py",
+        "sha256": "498cae262d782cdab833abd5ea8ca74154593cfa0a6a6c7570c3e6ad06dd6f3f"
+      },
+      {
+        "path": "hardware/examples/micropython/four_digit.py",
+        "sha256": "69855b687559dcd0d65e43289c0ef47055a161383da160783e7621303d7d40c5"
+      },
+      {
+        "path": "hardware/examples/micropython/infrared.py",
+        "sha256": "4ae9fff552538359422230405fdd0b3bdf12a6f71338ed78e739509e48fac484"
+      },
+      {
+        "path": "hardware/examples/micropython/lcd.py",
+        "sha256": "1e692de9b97de6572fc083c90b38ad1d33a723b881393fd0945fd3b6faaa04d4"
+      },
+      {
+        "path": "hardware/examples/micropython/ldr.py",
+        "sha256": "c9b25b62516f8bb91bb530acb80d1023928fd2ec0939d560c2a63d76a7df8c35"
+      },
+      {
+        "path": "hardware/examples/micropython/led.py",
+        "sha256": "02cbaadbe7686a87a63f12f9b6d69a957c5c71c9074cca7c69bcf5fb55bc6317"
+      },
+      {
+        "path": "hardware/examples/micropython/lm35.py",
+        "sha256": "3731547f39933e0ed5e110790805f58f9aa5e2719b447fe64216ec7499c4c0fa"
+      },
+      {
+        "path": "hardware/examples/micropython/matrix.py",
+        "sha256": "c80877ad596c2471049449ca46f57d85bf6ec0c98758220cdb348f0efb5976d6"
+      },
+      {
+        "path": "hardware/examples/micropython/motion.py",
+        "sha256": "a591b62a2dd9d5bf61f1169826a6877158b2863bdd5e1d95c940d0c135fc0c61"
+      },
+      {
+        "path": "hardware/examples/micropython/potentiometer.py",
+        "sha256": "f93f7ee97f9b6e8a120a6f9955ebb959834b46385ee3077d118741c3fa76e9cd"
+      },
+      {
+        "path": "hardware/examples/micropython/rain.py",
+        "sha256": "0f99c10a0e8f967986d1f37c68f78582873dd4ede060ff86f7863983bea49dde"
+      },
+      {
+        "path": "hardware/examples/micropython/sensors.py",
+        "sha256": "ac004c2ad64b47d0a3160a5b85cbf27f943db5fad0013c797d4b460eed4fdd79"
+      },
+      {
+        "path": "hardware/examples/micropython/servo.py",
+        "sha256": "d01322773a91a0a580f2e450dd2d93dbbd5faa1712560a08efbd4639b94f9d5a"
+      },
+      {
+        "path": "hardware/examples/micropython/seven_segment.py",
+        "sha256": "8968cf957e9aa11afafd0ad5a86fd037c85fc4b42a010b2f12320af9c5bae33e"
+      },
+      {
+        "path": "hardware/examples/micropython/shift_register.py",
+        "sha256": "6282f2dd7defd4f87edb8368c21e8525161e5d360c2170246ef8977071114b8f"
+      },
+      {
+        "path": "hardware/examples/micropython/soil.py",
+        "sha256": "ac004c2ad64b47d0a3160a5b85cbf27f943db5fad0013c797d4b460eed4fdd79"
+      },
+      {
+        "path": "hardware/examples/micropython/stepper.py",
+        "sha256": "1153f270e271b706a544825a7393de502054d52d3ba07ec32b2cebc5a4d1dad7"
+      },
+      {
+        "path": "hardware/examples/micropython/tilt.py",
+        "sha256": "52194eaef52c9a3be372c4b0e8f941ba95d416f5fcca5980011c872cba72cdb9"
+      },
+      {
+        "path": "hardware/examples/micropython/water_level.py",
+        "sha256": "d237ce990853b6f5e17d496bcf74fb93bf882a117b313e91cb09f501c6d015ee"
+      },
+      {
+        "path": "hardware/examples/micropython/welcome.py",
+        "sha256": "b324ae633e5da91003b82d09da85faf81c6e557ad9baedb7d4ed3f8cc23b72c6"
+      },
+      {
+        "path": "hardware/export-examples.mjs",
+        "sha256": "5be3bfa318a0b4ba11056af139a95e5cbe87f5ed5d2191c07e01b53aec892869"
+      },
+      {
+        "path": "hardware/sensor-matrix.json",
+        "sha256": "0dacc496da974678b92c8d5133a08ccab05bdc1709e80b35b114fed4848a15c3"
+      },
+      {
+        "path": "index.html",
+        "sha256": "4c56760f078ed7e08df17bad377a6fa6579a4813b95a2d02f67352e70f7abc31"
+      },
+      {
+        "path": "memory-bank/activeContext.md",
+        "sha256": "f0a91e816ab46968082392fc5b7e66d384f727cf248172ce403234b57dcfed26"
+      },
+      {
+        "path": "memory-bank/architect.md",
+        "sha256": "c565a1d047704a8272eb011bbceeacd9de791579e90f33026e33cffa77808e13"
+      },
+      {
+        "path": "memory-bank/decisionLog.md",
+        "sha256": "ce4f53fa0a978c48fabf80dee682ffb10d44e863d339d0800df9aa51ba3ff523"
+      },
+      {
+        "path": "memory-bank/productContext.md",
+        "sha256": "4942b38441882aae5be1c24ebcbc249abe41f114b62c8ddaf6aa3e03539768ef"
+      },
+      {
+        "path": "memory-bank/progress.md",
+        "sha256": "9a8b0ac817c35e77a82e52e231fc5f2c9d3681bb08feefa4b5ef82637469507d"
+      },
+      {
+        "path": "memory-bank/projectBrief.md",
+        "sha256": "42fbd4ce801c6a0cc116b465dbc556a7fc5ac94e0e234a8a646ce5cf8a716abc"
+      },
+      {
+        "path": "memory-bank/systemPatterns.md",
+        "sha256": "e5a474e524b904954ff8c34b95d5e8e72ad99500a28d12129af1311824b9686a"
+      },
+      {
+        "path": "package-lock.json",
+        "sha256": "23ed28ae76b9a426bcbd360602b9022bc196ddd054e6ff44c694e6c44f8df54b"
+      },
+      {
+        "path": "package.json",
+        "sha256": "fe48ddcae9fe9d17221970651105f8d9ad7eb4ab45757ffd57725ba4009c89fb"
+      },
+      {
+        "path": "playwright.config.ts",
+        "sha256": "118c2f579138f2682c2678e7e431179b6db5aad1f7ef1e78a6f011d6f169c390"
+      },
+      {
+        "path": "public/brand/telematica-usm.png",
+        "sha256": "5236773414f540ed3c8652edae732ead03f9f46ebf4c2358c62b3a4d0dcd7a31"
+      },
+      {
+        "path": "public/favicon.svg",
+        "sha256": "e07cfbf4a73e8b1d35a90b13b24cff6187e6dda1a840b8027f65890abd1de3a6"
+      },
+      {
+        "path": "public/fonts/DM-Sans-LICENSE.txt",
+        "sha256": "9af36190332437f5ecd09974de43c1f7c77a310a996cdd8ceb25628b458840e1"
+      },
+      {
+        "path": "public/fonts/JetBrainsMono-OFL.txt",
+        "sha256": "403581b69dac5cff4079205e01c6b467e56af449ecbd7247693ddb1baafa005b"
+      },
+      {
+        "path": "public/fonts/Montserrat-OFL.txt",
+        "sha256": "f429f739351287574c0c3175a9222bb3e49c7cad3f568a04f2c08d74c107724e"
+      },
+      {
+        "path": "public/fonts/NunitoSans-OFL.txt",
+        "sha256": "6632e6c45fcc18cc03909a0a53d84e9775185e06203ff80d6367cf93959b91a8"
+      },
+      {
+        "path": "public/fonts/Outfit-LICENSE.txt",
+        "sha256": "c676351bf8576b9aba743cd5eaa8c0e7ee0d51f805d720447b4df4ddb6a2e416"
+      },
+      {
+        "path": "public/fonts/dm-sans.woff2",
+        "sha256": "9fea608a947e67020c33cad9a6fe3d60c54119dfb8cff87768a8117a15ed7543"
+      },
+      {
+        "path": "public/fonts/outfit.woff2",
+        "sha256": "6c18d579fd87c3776be068b762cbc83fde3acb543d49eabd3ade842eb987e887"
+      },
+      {
+        "path": "scripts/build-offline.mjs",
+        "sha256": "2a1dd60d2d6d061ad25b83612906e7227f2a285b8351daff927e8f75c05e7cc2"
+      },
+      {
+        "path": "scripts/init-local.mjs",
+        "sha256": "897cf32b806237981186dd313b977cf90f09c6df39ce8dd6cd4ed74c2779d8d0"
+      },
+      {
+        "path": "scripts/prepare-assets.mjs",
+        "sha256": "a02ba8313ca4c228c807b8845e91c42e6c408d5e0518ea347ceb7561090d9712"
+      },
+      {
+        "path": "scripts/setup-arduino.ps1",
+        "sha256": "eb82e480417e73d014cc3f494a1ac7c84d1f7edec296f9d771278095163b4807"
+      },
+      {
+        "path": "scripts/simulate-stations.mjs",
+        "sha256": "8a255e9256901bb3ea81392b94bdc7d46dba34a2871c2ce0d79744269b1dc6a0"
+      },
+      {
+        "path": "server/alerts.ts",
+        "sha256": "e0202a91c06e5a33eef280e988adbbd1c1bfa504f4d4509138f30e633ec3443d"
+      },
+      {
+        "path": "server/app.ts",
+        "sha256": "89707335bfa92c044827b0e9f66a0e14ac3d310397de50a0523f9ac24c3d3856"
+      },
+      {
+        "path": "server/arduino.ts",
+        "sha256": "6615d08e00d5f84880546c119e3c74f5b10114a147ec792df8414fb301bc885a"
+      },
+      {
+        "path": "server/compiler-service.ts",
+        "sha256": "ff516c9252fde34b2f0a7412c8d71ca2328ce91e74559d591a36c3b9e1c80de7"
+      },
+      {
+        "path": "server/config.ts",
+        "sha256": "ef38411faf29844b43c3ca02aa5a3521e6d2b22906956de7e58baf6eb4d56f4c"
+      },
+      {
+        "path": "server/database.ts",
+        "sha256": "9d4f0878f7c3a08701ebdad5f6b51002626b2ed386599febc8ed43ce46bceec2"
+      },
+      {
+        "path": "server/index.ts",
+        "sha256": "6cfabf7b240dac1144c0583fcc6e3d5d4af53751863a0d780acf5db506f051d3"
+      },
+      {
+        "path": "server/validation.ts",
+        "sha256": "1d22d334e56424f26391e42d3e6de9f428c4da86fd4d94e60aa93a0464934efb"
+      },
+      {
+        "path": "tests/backend.test.ts",
+        "sha256": "8d5809635c1ddb75d9f6bd30ed16ac3f6772ce49952c7d49248098c7362995d3"
+      },
+      {
+        "path": "tests/circuit.test.ts",
+        "sha256": "86cb04a4c1093a6e3cdf0bd4a3198a82b29f2a5ffb61d29f93e4006c86607be5"
+      },
+      {
+        "path": "tests/content.test.ts",
+        "sha256": "f324283af784df8905cdac6be25dc8ceee40440f355127b02e8b090564a2bba0"
+      },
+      {
+        "path": "tests/e2e/offline.spec.ts",
+        "sha256": "bdd1ee1437c32d518ecf0241c67d4298c1826d2ac7f2e36fadc140d3ec54bb9c"
+      },
+      {
+        "path": "tests/e2e/usb.spec.ts",
+        "sha256": "b65ef292bcb6deaf69e9140aa6942afe13970059a845b5d51e63a004a7bf3ba1"
+      },
+      {
+        "path": "tests/e2e/workshop.spec.ts",
+        "sha256": "fd52172b350a910ea63129f9bb112132ad7ddb066d9f2555a08614c153d775b7"
+      },
+      {
+        "path": "tests/firmware/test_connectivity.py",
+        "sha256": "e7766f5504f699d5323d4c49e7a4e0617a944b91b27dcbd256d0bea558cb0d4f"
+      },
+      {
+        "path": "tests/firmware/test_drivers.py",
+        "sha256": "1bd06b0c26f2c956685a27fc4ddfda4a94dbeef8ec2786bc98e9e06c00c21829"
+      },
+      {
+        "path": "tests/offline.test.ts",
+        "sha256": "18662cbf0dcacf0819de021694996e8285aebbbb2811d162e16ccfca1ef332fc"
+      },
+      {
+        "path": "tests/serial.test.ts",
+        "sha256": "cfab58f07a15e13bcc3880c0119f90299987e669a77fcde7938d4cda1e106c26"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "287c2c54ff997bba42c4903f98a9480ddb94f14726e88835ce6eb1594b49eeaf"
+      },
+      {
+        "path": "vite.config.ts",
+        "sha256": "1619d18723dfa01ffee54de5b7dcb191942527945f864d3805d299bdc91c8ac0"
+      },
+      {
+        "path": "vitest.config.ts",
+        "sha256": "a0a0d63e6367bc24ee63589db96d2f7cbc3d10690868786fa80e55f1a79b4550"
+      },
+      {
+        "path": "web/App.tsx",
+        "sha256": "13a273bb3f24df32ea6eff1b8ed3b63e4bdcb6efb40153873d4054848682d33f"
+      },
+      {
+        "path": "web/brand-tokens.css",
+        "sha256": "ed3e364fcf4eeb32feb9abad71c493df879e0541ce76578b022a31656a87065c"
+      },
+      {
+        "path": "web/brand/Graphics.tsx",
+        "sha256": "a2e38696832549d48e498a5d45e88f1f23ad8765679d11240113fe8d1b024a09"
+      },
+      {
+        "path": "web/brand/extra-icons.ts",
+        "sha256": "93385bf5b859606d4068463fb93b729ef673599f8b127bfaeac26a27ab93548a"
+      },
+      {
+        "path": "web/brand/graphics/icons.ts",
+        "sha256": "71e0cc5c7e56285c0b8fd0417e7a902f2b7d407b7e3be7c2b4e174f8b5d2181e"
+      },
+      {
+        "path": "web/brand/graphics/illustrations.ts",
+        "sha256": "918c1e937dc73cfdf944a98aaca8b6e0144ca8a16dfb6ecd723716294f40d33b"
+      },
+      {
+        "path": "web/brand/graphics/medallions.ts",
+        "sha256": "994e577a6da53fc3674763d0a878fd97136a5a31b96456bb84ec613a49fc226d"
+      },
+      {
+        "path": "web/brand/graphics/patterns.ts",
+        "sha256": "d9cb3b698f46f3ffd5ecf3f3010074e6b1eefa8306679035ff80261f63fabfc3"
+      },
+      {
+        "path": "web/brand/graphics/rutix.ts",
+        "sha256": "e328b0ebe8636f456102a64e86df0ed7a648a7a828c77c6ba7859a0a9a4ead09"
+      },
+      {
+        "path": "web/brand/graphics/shapes.ts",
+        "sha256": "64eef6e32ad3c32835cd878ded2c9507ece54cef3b805afeea46dde98068d971"
+      },
+      {
+        "path": "web/brand/tokens.css",
+        "sha256": "3dc1ef9f2171a93e2204cf6af55cdd00c5fad9f93bb117caf136e68357b3e8ff"
+      },
+      {
+        "path": "web/circuit/BreadboardView.tsx",
+        "sha256": "5a6ebe59b699d729adcedb891366618f31534e55fd95bcc203fafd7519ee58e1"
+      },
+      {
+        "path": "web/circuit/breadboard.ts",
+        "sha256": "9c97a3b191689ad8448f5a674373423158334ad61c86f6900705c48bbc8139c7"
+      },
+      {
+        "path": "web/circuit/geometry.ts",
+        "sha256": "caa27633ecfb85b16d0c473c265ed39d950282c3ed84b56777fe631ee4352641"
+      },
+      {
+        "path": "web/circuit/layouts.ts",
+        "sha256": "fc4d850cbfae413aece97bfad217ceeb1a60170c33e183f4918a811b39ecc1ec"
+      },
+      {
+        "path": "web/circuit/model.ts",
+        "sha256": "a48e973d73e3b5eb0f88e633f4fcaf08eb6fc122481161559c6f8d3f4560ddc0"
+      },
+      {
+        "path": "web/circuit/netlist.ts",
+        "sha256": "7d2b414acb8081d4eb59b0d8b55bd050e99d948c21c32f8890be7c90358fa31d"
+      },
+      {
+        "path": "web/circuit/parts.ts",
+        "sha256": "d13463c3b88805a9bdd81adc21726d473f81aec8df9b718bbb332c77f8835d10"
+      },
+      {
+        "path": "web/circuit/pico.ts",
+        "sha256": "d27ddd6a754c36962b51427b38daf7329a6617c4c3c1b7e9fb9f99a991e35db3"
+      },
+      {
+        "path": "web/components/CalibrationWizard.tsx",
+        "sha256": "995b9b96bca292872a23961aa909db63ef10c35172e9eb7eb70ffdea6370fe7e"
+      },
+      {
+        "path": "web/components/CodeWorkbench.tsx",
+        "sha256": "5e002d158095679cf85193d0b5edfb9eb7fcc345945426ae7172eeeb5450127b"
+      },
+      {
+        "path": "web/components/Common.tsx",
+        "sha256": "ec323ef9956d48972d9452e288132b2b17b9978912480465515625d0721ece08"
+      },
+      {
+        "path": "web/components/StationScene.tsx",
+        "sha256": "05061026ac52cf8810370a8cd1bf2b50b7819715fde53c6fe26bd60b19bfc5db"
+      },
+      {
+        "path": "web/content/index.ts",
+        "sha256": "123f7107e374e09db58ea2c99db7a2aa741d5727828517c457d3950032344452"
+      },
+      {
+        "path": "web/content/lessons/displays.ts",
+        "sha256": "46aa832357d18b02cf520da8139489c7c7613eb1bf3ed1438be2f6029c04eb3c"
+      },
+      {
+        "path": "web/content/lessons/explore.ts",
+        "sha256": "5b71498400b101d52c76525443ce704ff1a977475ed404d0f84b49e92ca0bde9"
+      },
+      {
+        "path": "web/content/lessons/foundations.ts",
+        "sha256": "bc91301ba1cf4621d19f795d46ee0bfa1e60777413d14688e1898a58be883e0a"
+      },
+      {
+        "path": "web/content/lessons/integration.ts",
+        "sha256": "f3467abcbb8c1b06bc1c852f2e7cce287d85cdf03536ff17bff1578f1dc605e8"
+      },
+      {
+        "path": "web/content/lessons/led.ts",
+        "sha256": "0488ef02fa905c23be3ba9bc03db6f594fb8274617c6d53c15ed259151ba3ffc"
+      },
+      {
+        "path": "web/content/lessons/motors.ts",
+        "sha256": "874398d98ec1dab7d54d06aab0d17aefec6cf53ca673db998ea13920e866daa0"
+      },
+      {
+        "path": "web/content/lessons/potentiometer.ts",
+        "sha256": "6d63ceffc98b06e053b482bf46cb0ed650dcc90626eb5a501ae9ba5cbdfeb34b"
+      },
+      {
+        "path": "web/content/lessons/sensors.ts",
+        "sha256": "451536d186ec7abc94b6208e6b838995f87f51662b7e084ae336bb1ae91037d3"
+      },
+      {
+        "path": "web/content/library.ts",
+        "sha256": "8593c419507e587d6a674acf5df04509c6d2669366a37de9dd54354eefe6df90"
+      },
+      {
+        "path": "web/content/route.ts",
+        "sha256": "800e33cc88895b0ec61af04b912bcb7e234afaa63f4881964e9c111d43b7baae"
+      },
+      {
+        "path": "web/content/types.ts",
+        "sha256": "391c3effaf91c342eee038c07d300457ed1e2e85e74c718ab4e44e1b1d1f3b5d"
+      },
+      {
+        "path": "web/data/lessons.ts",
+        "sha256": "ddfe4f8c1a9de50cf6ccdea5f699a3ca44d673a1be5dd0c36c4e4a0fc98c7ab5"
+      },
+      {
+        "path": "web/dev/gallery.tsx",
+        "sha256": "104cea2f896253eea59dba3a5f50004a88b9ce025df1c98d554d2b4377d355fa"
+      },
+      {
+        "path": "web/experience/CircuitExperience.tsx",
+        "sha256": "9f5b48e7ac05aee6f9355e7c3c440e31dceb6aa7d5b4cf008cca03713366359c"
+      },
+      {
+        "path": "web/experience/LivingStation.tsx",
+        "sha256": "def1cb8e41f3ca48334d07c7c55614bc81b1d28d20cb497f944b52e4f6e43a4e"
+      },
+      {
+        "path": "web/experience/Primitives.tsx",
+        "sha256": "00febabf90c5742f5ffbd86079df055bddd1767a07e48e691055916a95bf7a28"
+      },
+      {
+        "path": "web/experience/README.md",
+        "sha256": "ce42fbf5b60c243cee5e522a5c22d9a60d5167192a3a2b4c4538f515ea292dd4"
+      },
+      {
+        "path": "web/experience/SceneSupport.tsx",
+        "sha256": "61b3f749ac66e48a8ced192b02ddaf5d822ae8226c0ee1bbdb75a6d38334a874"
+      },
+      {
+        "path": "web/experience/experience.css",
+        "sha256": "d802ccf1a6d41c236bcf682d07427aec3cabc9ea80040b6e82e8ffec85192197"
+      },
+      {
+        "path": "web/experience/index.ts",
+        "sha256": "f38f30af2020e6f2b462eecba6719d3414bd6ec9c0d4a5604b77d2b1fb05a3ee"
+      },
+      {
+        "path": "web/index.css",
+        "sha256": "207b2293c30d00b82d59eef790b4da32d1ece1237944f8cdb45ffb57734f53c3"
+      },
+      {
+        "path": "web/legacy.css",
+        "sha256": "a7de1c862c0eadebe3bba5aa117c5832dad60b0e334814b127bb983a5c981272"
+      },
+      {
+        "path": "web/lesson/CalibrationTool.tsx",
+        "sha256": "9cfca93640fe7c24b42d0d65915dc7c180c92e014f657fe75cf06dd1d12fab06"
+      },
+      {
+        "path": "web/lesson/CodeWorkbench.tsx",
+        "sha256": "f7ae82a60ef3b3e6e5ae5290673f67b30b1ae1b595664822516a859eecea7a10"
+      },
+      {
+        "path": "web/lesson/PinGuide.tsx",
+        "sha256": "ed9524425997a1f187fab98729eef0ee2fe701879793585e475a19d3fa962658"
+      },
+      {
+        "path": "web/lesson/Quiz.tsx",
+        "sha256": "f3dd5209de79a77c27d94ead46721936693cce31b7d4c82d887c2dfdf498eb94"
+      },
+      {
+        "path": "web/lesson/WiringGuide.tsx",
+        "sha256": "d984b949a15458747cf0b48e42ef33cc66c715c07173d32f96e1b14a2ef57638"
+      },
+      {
+        "path": "web/lib/api.ts",
+        "sha256": "b90c68c14d6b4fe7457debc45e107883973b2c8e188be545f80d6521274e18e4"
+      },
+      {
+        "path": "web/lib/arduino.ts",
+        "sha256": "bbf29dc9dd7d460bb307a3b4e2b5ac5fec919d9d365b9af76a8a84c203408c00"
+      },
+      {
+        "path": "web/lib/context.tsx",
+        "sha256": "556c8df8add9b7976c45546300229d1a0d61214e4dd1b77e636c5bd3eccd4b85"
+      },
+      {
+        "path": "web/lib/offline.ts",
+        "sha256": "4b01aa41e44ecfb8c805d94a4536cc9d10c9dac9be6ee122602e2e59192815c7"
+      },
+      {
+        "path": "web/lib/progress.ts",
+        "sha256": "beacac5df2e2a20cb44100ea14c5e1b236b0945037519870cef398f1676a4b2b"
+      },
+      {
+        "path": "web/lib/serial.ts",
+        "sha256": "7e53c3a25202621b4c3bbe21b4a103efa386accc04e1bfeb819e2dfab6cef7e7"
+      },
+      {
+        "path": "web/lib/theme.ts",
+        "sha256": "f23be00607da7338b4d791c451de9ad5f1d4f8c7c0676c9edde205fdd5536f39"
+      },
+      {
+        "path": "web/main.tsx",
+        "sha256": "ff060b60114e0ab29de551abf0e508d1992b4f2ea625588183af73ccb6a67c3d"
+      },
+      {
+        "path": "web/pages/Dashboard.tsx",
+        "sha256": "aaf6360d1dc46ea2b3391cb6918e99fb96754fa4aa3779ce87054d60c49ce0eb"
+      },
+      {
+        "path": "web/pages/Diagnostics.tsx",
+        "sha256": "b23c993ea92cd3ba2a0f47584a9f97eb27c0ec5027fb11533b2effe1e27c1ef6"
+      },
+      {
+        "path": "web/pages/Home.tsx",
+        "sha256": "b54e4abe053517c621b4a8a23fa79dac0ff3ca4966c1e361c0c9ec05c301ac7e"
+      },
+      {
+        "path": "web/pages/Lab.tsx",
+        "sha256": "dbc2dbb211ed0cc616ae6811f350275632f839e03a5e0a846a6ca6d6b7668700"
+      },
+      {
+        "path": "web/pages/Lesson.tsx",
+        "sha256": "9f1f6ebea04b601787a35feb138f539e2e53b44e1383dc26322d2ecdf2174b23"
+      },
+      {
+        "path": "web/pages/Settings.tsx",
+        "sha256": "ee13d559d6a00b02749cf9c878434531d213ed98ecc2512b0267dea9b0025e96"
+      },
+      {
+        "path": "web/pages/Teacher.tsx",
+        "sha256": "d716fa98d95d216d79b05c62c6518e8350fdd43b58e5bd3cdd6d966200e03e4e"
+      },
+      {
+        "path": "web/pages/Workshop.tsx",
+        "sha256": "828bbca0c23ac97b903cc058ad2475d2b115ca2892ddce875cf68504e089bdf3"
+      },
+      {
+        "path": "web/shell/Brand.tsx",
+        "sha256": "53526b91086a385831f4cde1c618a33ee60d2e76f17ab5659eaa5d5213e24f11"
+      },
+      {
+        "path": "web/shell/ConnectButton.tsx",
+        "sha256": "03eaed6be2acc1d3e9e536e2a9452b2dd36b9f2e178cdbb1731cada61dfa2cb7"
+      },
+      {
+        "path": "web/shell/Onboarding.tsx",
+        "sha256": "7969ea1109ed7da487c63a1dc3c8fca453922c7adbc9242ab798cc0ecd0206e8"
+      },
+      {
+        "path": "web/shell/Sidebar.tsx",
+        "sha256": "51e00df29427f026a68874b0562020871401b21871f3bae097ad2590317b53da"
+      },
+      {
+        "path": "web/shell/Topbar.tsx",
+        "sha256": "a3fafabbe9f0a1525258bb0a6caa0c19a39f9603f20647f2e40c0f8f54ab2b22"
+      },
+      {
+        "path": "web/styles.css",
+        "sha256": "c4f5fab94968a3b2e8c693de0f21c12e6a6a0afe477b110c98eeda509ac57637"
+      },
+      {
+        "path": "web/ui/Button.tsx",
+        "sha256": "0eed1cd819a741d387c85ca2b7a95a8b517fdef67f6dd8e3964d79668a924edd"
+      },
+      {
+        "path": "web/ui/Card.tsx",
+        "sha256": "fcd229198bf0546c40d7496247d1e05b1d1580163acee19fa4c91503391ea587"
+      },
+      {
+        "path": "web/ui/Feedback.tsx",
+        "sha256": "690cabd047a493b6ec657a2724200cb3cf9b1a1976311afeca72328ae761be72"
+      },
+      {
+        "path": "web/ui/Form.tsx",
+        "sha256": "f1304367d31c54ae3df9c4b9a7af96daaa1bc6b1b7cd6443814823d0d7957f03"
+      },
+      {
+        "path": "web/ui/Layout.tsx",
+        "sha256": "7498d0a1c2dee5119d66b30dc8f994de52a03817d008097c5b0ad4248b1c93d4"
+      },
+      {
+        "path": "web/ui/Overlay.tsx",
+        "sha256": "f45fbd9c5789ae4ace54091b8e7dc7d73b452e7d3b04fd8b164e3f128ea7ae24"
+      },
+      {
+        "path": "web/ui/Progress.tsx",
+        "sha256": "a71c58a942fbdc9f4b568acf1d1eccbe727c7604d229768aa5ff2e425cf99995"
+      },
+      {
+        "path": "web/ui/cx.ts",
+        "sha256": "8c585f4d7605275efece3a5f782e18e6c11b4ee9f1a507015d6248ee013cac21"
+      }
+    ]
+  },
+  "priority_counts": {
+    "P1": 7,
+    "P2": 15
+  },
+  "count_observations": 22,
+  "reviewed_files": [
+    ".dockerignore",
+    "Caddyfile",
+    "Dockerfile",
+    "Dockerfile.compiler",
+    "README.md",
+    "compose.yaml",
+    "docs/ARCHITECTURE.md",
+    "docs/DEPLOYMENT.md",
+    "docs/SECURITY.md",
+    "firmware/arduino/station.ino",
+    "firmware/board.py",
+    "firmware/connectivity.py",
+    "firmware/drivers.py",
+    "firmware/main.py",
+    "hardware/examples/arduino/*.ino (comparación textual mediante código)",
+    "hardware/examples/arduino/soil.ino",
+    "hardware/sensor-matrix.json",
+    "package.json",
+    "scripts/build-offline.mjs",
+    "scripts/prepare-assets.mjs",
+    "server/alerts.ts",
+    "server/app.ts",
+    "server/arduino.ts",
+    "server/compiler-service.ts",
+    "server/config.ts",
+    "server/database.ts",
+    "server/database.ts (patchSession)",
+    "server/index.ts",
+    "server/validation.ts",
+    "tests/backend.test.ts",
+    "tests/circuit.test.ts",
+    "tests/circuit.test.ts (parcial)",
+    "tests/content.test.ts",
+    "tests/e2e/offline.spec.ts",
+    "tests/e2e/workshop.spec.ts (relevant scenarios)",
+    "tests/offline.test.ts",
+    "tests/serial.test.ts",
+    "vite.config.ts",
+    "web/App.tsx",
+    "web/App.tsx (setBoard/disconnect)",
+    "web/circuit/BreadboardView.tsx",
+    "web/circuit/breadboard.ts",
+    "web/circuit/geometry.ts",
+    "web/circuit/layouts.ts",
+    "web/circuit/layouts.ts (parcial)",
+    "web/circuit/model.ts",
+    "web/circuit/netlist.ts",
+    "web/circuit/parts.ts",
+    "web/circuit/pico.ts",
+    "web/content/index.ts",
+    "web/content/lessons/displays.ts",
+    "web/content/lessons/integration.ts (parcial)",
+    "web/content/lessons/led.ts (parcial)",
+    "web/content/lessons/motors.ts",
+    "web/content/lessons/sensors.ts",
+    "web/content/library.ts",
+    "web/data/lessons.ts (lectura parcial + importación completa readonly)",
+    "web/experience/CircuitExperience.tsx",
+    "web/experience/LivingStation.tsx",
+    "web/experience/README.md",
+    "web/experience/SceneSupport.tsx",
+    "web/lesson/CalibrationTool.tsx",
+    "web/lesson/CodeWorkbench.tsx",
+    "web/lesson/PinGuide.tsx",
+    "web/lesson/WiringGuide.tsx",
+    "web/lib/api.ts",
+    "web/lib/arduino.ts",
+    "web/lib/context.tsx",
+    "web/lib/offline.ts",
+    "web/lib/progress.ts",
+    "web/lib/serial.ts",
+    "web/main.tsx",
+    "web/pages/Dashboard.tsx",
+    "web/pages/Lab.tsx",
+    "web/pages/Lesson.tsx",
+    "web/pages/Settings.tsx",
+    "web/pages/Teacher.tsx"
+  ],
+  "findings": [
+    {
+      "id": "CIR-01",
+      "priority": "P1",
+      "title": "Cambiar Pico W → Arduino no cambia el explorador de bienvenida ni el modelo de portada; los circuitos solo soportan Pico",
+      "verification": "confirmed_static",
+      "evidence": [
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 251,
+          "detail": "welcome se evalúa antes de la rama arduino; renderiza EXPLORER/BreadboardView sin app.board (264–269)."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 272,
+          "detail": "En otras lecciones Arduino sí reemplaza el circuito por PinGuide; no hay plano Arduino (280–287)."
+        },
+        {
+          "file": "web/circuit/BreadboardView.tsx",
+          "line": 1123,
+          "detail": "PicoLayer se renderiza incondicionalmente."
+        },
+        {
+          "file": "web/experience/CircuitExperience.tsx",
+          "line": 733,
+          "detail": "CircuitWorld siempre monta Pico; Props 787–792 no incluyen board."
+        },
+        {
+          "file": "web/experience/LivingStation.tsx",
+          "line": 542,
+          "detail": "LivingWorld siempre monta HeroPico; Props 554–557 no incluyen board."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 506,
+          "detail": "setBoard sí cambia estado y localStorage cuando no hay conexión; no es un fallo general del selector."
+        }
+      ],
+      "scenario": "Sin conexión serial, abrir /taller/welcome → Conecta → cambiar Tu placa a uno/nano. El selector cambia, pero sigue el explorador Pico. La portada conserva HeroPico. En /taller/led el comportamiento distinto esperado por el código es reemplazar el plano por tabla Arduino, no dejar el mismo plano. Browser repro corresponde al padre.",
+      "fix": "Introducir BoardDefinition por pico/uno/nano (nano-old comparte geometría Nano, no necesariamente carga), con pines físicos, capacidades, tensión, terminales, montaje y geometría. Resolver LessonAssembly(board,lesson) y pasarlo a ambos renderizadores/ERC. En Uno representar placa externa con headers, no intentar insertar el cuerpo de Uno en la protoboard. Hasta disponer del plano, ocultar el explorador Pico para Arduino y explicar explícitamente la falta de soporte. Adaptar o etiquetar como Pico específica la portada.",
+      "acceptance": [
+        "En /taller/welcome cambiar pico→uno→nano modifica nombre, silueta y pinout en el mismo render; no quedan etiquetas GP/3V3 propias de Pico bajo un selector Arduino.",
+        "La lección LED de cada placa muestra terminales que coinciden con su guía y código; Uno D2/5V y Pico GP2/3V3 no se intercambian.",
+        "Cambiar placa invalida o separa intentos/confirmaciones y conserva solo estado compatible; conectado sigue rechazando el cambio.",
+        "E2E cubre welcome, una lección con circuito y portada para las tres geometrías, además de texto/código."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-02",
+      "priority": "P1",
+      "title": "“3D interactivo” es inspección de un montaje prearmado: el estudiante no conecta ningún cable virtual",
+      "verification": "confirmed_static",
+      "evidence": [
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 159,
+          "detail": "Pasa circuit/activeStep/mode, ningún intento del alumno ni callbacks de cableado."
+        },
+        {
+          "file": "web/experience/CircuitExperience.tsx",
+          "line": 697,
+          "detail": "Parts/wires visibles salen del prefijo de steps; entrar al paso ya dibuja su cable (703–710)."
+        },
+        {
+          "file": "web/experience/CircuitExperience.tsx",
+          "line": 614,
+          "detail": "Click de cable solo abre Selection; no cambia endpoints."
+        },
+        {
+          "file": "web/circuit/BreadboardView.tsx",
+          "line": 1039,
+          "detail": "Click del plano solo inspecciona agujero."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 111,
+          "detail": "analyze recibe el circuit de referencia entero, no un circuito construido por el alumno."
+        },
+        {
+          "file": "tests/e2e/workshop.spec.ts",
+          "line": 111,
+          "detail": "Test incremental avanza y marca casillas; no crea conexiones ni introduce cables incorrectos."
+        }
+      ],
+      "scenario": "Abrir LED, Empezar a cablear: el GND aparece conectado automáticamente. Seleccionar sus extremos solo explica. Se puede terminar sin realizar una sola inserción virtual. Esto no satisface el requisito de practicar cada cable antes del hardware.",
+      "fix": "Separar referencia inmutable CircuitSpec de AssemblyAttempt editable. Registrar extremos mediante elegir origen→elegir destino (click/touch y selector teclado), placement/rotación de piezas, undo/remove/reset. Renderizar solo attempt; objetivo actual como ghost/markers inequívocos, no cable ya realizado. Validar estado de intento, no referencia; dar feedback de error y por qué. Conservar vista demo aparte y claramente etiquetada.",
+      "acceptance": [
+        "Un intento nuevo comienza sin cables; entrar a un paso no agrega el cable.",
+        "LED requiere insertar ambos extremos de cada cable virtual; origen correcto + destino equivocado no completa paso y señala la fila/pin incorrecto.",
+        "Eliminar un cable previamente válido invalida los pasos/netlist dependientes.",
+        "2D/3D muestran exactamente el mismo attempt al alternar; teclado y touch permiten completar sin arrastre.",
+        "Resultado final depende de conexiones reales del attempt y ERC; demo nunca concede logro de práctica."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-03",
+      "priority": "P2",
+      "title": "El avance “Guiado” y los vistos buenos representan posición, no acciones verificadas; se pueden saltar y reanudar sin validar",
+      "verification": "confirmed_static",
+      "evidence": [
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 118,
+          "detail": "Solo advance revisa la casilla del paso actual."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 405,
+          "detail": "Lista llama go(index) directamente; no aplica el guard de verify."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 417,
+          "detail": "Todos los índices anteriores se pintan éxito aunque nunca se verificaron."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 99,
+          "detail": "Solo persiste position; verified inicializa vacío (102,106), por lo que reload conserva avance sin conservar evidencia."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 755,
+          "detail": "Fases navegables sin requisito de cableado."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 805,
+          "detail": "Siguiente: Programa no depende de cableado listo; completar solo depende de quizDone/confirmed (632)."
+        }
+      ],
+      "scenario": "LED en Guiado: hacer click en último paso; anteriores aparecen completados. Recargar en una posición avanzada mantiene el cursor, no las comprobaciones. Pulsar Siguiente: Programa evita WiringGuide y sus advertencias. No se afirma que la navegación libre sea mala: el error es presentarla como progreso verificado.",
+      "fix": "Modelar estados visited/attempted/validated distintos. Derivar progreso de steps validados y dependencias del attempt; dejar previsualización/navegación libre sin asignar éxito. Guard único para transición guiada, lista, teclado y navegación entre fases. Persistir versión del esquema, placa, lesson/circuit e intento, no cursor como evidencia.",
+      "acceptance": [
+        "Saltar a último paso no añade checks de éxito a pasos nunca realizados.",
+        "En Guiado no se concede cableado listo al saltar por lista/fase/teclado; Libre puede explorar pero no equivale a validación.",
+        "Reload restaura attempt y completitud derivada; una versión o placa incompatible reinicia tras aviso.",
+        "Completar actividad distingue checkpoint teórico de práctica virtual realizada."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-04",
+      "priority": "P2",
+      "title": "En “Antes de cablear”, 3D muestra el primer cable ya colocado; 2D correctamente no lo muestra",
+      "verification": "confirmed_static_and_model_probe",
+      "evidence": [
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 98,
+          "detail": "Preparación usa position=-1 y pasa ese valor a activeStep (161)."
+        },
+        {
+          "file": "web/experience/CircuitExperience.tsx",
+          "line": 810,
+          "detail": "Math.max(0, ...) convierte -1 en 0; se pasa stepIndex al mundo (919)."
+        },
+        {
+          "file": "web/experience/CircuitExperience.tsx",
+          "line": 698,
+          "detail": "Prefijo slice(0,activeStep+1) incluye el primer cable."
+        },
+        {
+          "file": "web/circuit/BreadboardView.tsx",
+          "line": 796,
+          "detail": "2D current=-1 deja objetos del paso cero hidden (800)."
+        },
+        {
+          "file": "web/circuit/layouts.ts",
+          "line": 47,
+          "detail": "El primer paso LED agrega w_gnd_bottom a3→bn:3."
+        }
+      ],
+      "scenario": "LED al abrir Conecta, antes de Empezar a cablear: 3D enseña GND armado y describe primer paso en inspector; la tarjeta dice preparación. Cambiar a 2D lo hace desaparecer. Probe ejecutado confirma clamp(-1)=0 y primer cable; no se ha observado canvas en navegador en este subagente.",
+      "fix": "Conservar el sentinel -1 hasta cálculo de visibleSteps/world/inspector. Manejar explícitamente prepare/step/final en vez de clamping ambiguo.",
+      "acceptance": [
+        "activeStep=-1,mode=step contiene cero cables y cero piezas agregadas por steps tanto 2D como 3D.",
+        "Empezar a cablear cambia el objetivo a step0, sin autocompletarlo en modalidad práctica.",
+        "El inspector describe preparación, no el paso 0, antes de comenzar."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-05",
+      "priority": "P2",
+      "title": "El explorador enseña que todo riel está unido, aunque la revisión eléctrica y los pasos soportan rieles partidos",
+      "verification": "confirmed_static_and_model_probe",
+      "evidence": [
+        {
+          "file": "web/circuit/BreadboardView.tsx",
+          "line": 998,
+          "detail": "Inspector/hover usan stripOf(id) sin splitRails."
+        },
+        {
+          "file": "web/circuit/BreadboardView.tsx",
+          "line": 1018,
+          "detail": "Asegura: Todos los agujeros de esta línea están unidos entre sí."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 112,
+          "detail": "ERC de la guía usa splitRails=true."
+        },
+        {
+          "file": "web/circuit/breadboard.ts",
+          "line": 115,
+          "detail": "stripOf separa mitades si splitRails=true; corte después de31."
+        },
+        {
+          "file": "web/circuit/layouts.ts",
+          "line": 129,
+          "detail": "Puentes 31→33 reparan riel partido y pasos explican por qué (135)."
+        },
+        {
+          "file": "tests/circuit.test.ts",
+          "line": 284,
+          "detail": "Regresión ya distingue funcionamiento con/sin puentes y splitRails."
+        }
+      ],
+      "scenario": "Explorar bn:3 en welcome o antes de poner puente. La vista resalta/describiría todo bn incluido bn:60 como unido, aunque el escenario conservador de ERC los considera separados. Probe: inspectorSame=true,splitElectricalSame=false.",
+      "fix": "Hacer rail topology parte explícita del BreadboardDefinition y compartirla entre geometría, inspector y ERC. Enseñar variante continua/partida; no asumir que color continuo garantiza conectividad. Diferenciar unión interna y unión efectiva por puente.",
+      "acceptance": [
+        "Con riel partido y sin puente, bn:3 no resalta bn:60 ni afirma continuidad.",
+        "Agregar puente31→33 cambia la conectividad efectiva en inspector y ERC juntos.",
+        "Vista continua declara la variante; tutorial manda comprobar el kit real en lugar de afirmar una topología universal."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-06",
+      "priority": "P2",
+      "title": "ERC no detecta GPIO de 3,5 V: usa límite absoluto3,6 aunque promete seguridad nominal≤3,3",
+      "verification": "confirmed_runtime_model",
+      "evidence": [
+        {
+          "file": "web/circuit/netlist.ts",
+          "line": 51,
+          "detail": "GPIO_ABS_MAX=3.6."
+        },
+        {
+          "file": "web/circuit/netlist.ts",
+          "line": 335,
+          "detail": "gpio-overvoltage solo si value>GPIO_ABS_MAX."
+        },
+        {
+          "file": "web/circuit/netlist.ts",
+          "line": 11,
+          "detail": "Contrato documentado: ningún GP más de3,3V."
+        },
+        {
+          "file": "web/circuit/pico.ts",
+          "line": 114,
+          "detail": "Guía ADC: 0 a3,3V; nunca más de3,3V."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 529,
+          "detail": "UI afirma Sin cortocircuitos y describe máximo de GPIO cuando no hay issues."
+        },
+        {
+          "file": "circuit-probe-output.json",
+          "line": 84,
+          "detail": "Fixture divisor1k/2k desdeVBUS5,25V aGP26 produce issues=[] y gpioVolts.GP26=3.5 (85–87)."
+        }
+      ],
+      "scenario": "Fixture scratch eléctricamente conectada, geometría válida y netlist concordante entrega3,5V al ADC y pasa analyze sin observación. No se encontró esa sobrevoltaje en los16 montajes actuales: este es un fallo del validador ante modificaciones/práctica, no prueba de daño real del kit.",
+      "fix": "Separar límite nominal de trabajo y absoluto destructivo; no usar absoluto como criterio verde. Validar entradas con tensión segura específica de placa y referencia ADC y contemplar tolerancias. Un input>3,3 debe al menos perder sello seguro.",
+      "acceptance": [
+        "La fixture actual de circuit-probe.ts debe emitir riesgo de overvoltage y no sello seguro al obtenerGP26=3,5V.",
+        "Regresiones frontera3,3/3,35/3,5/3,6/5V distinguen nominal de absoluto.",
+        "Los16 montajes de referencia actuales siguen pasando las condiciones documentadas; el divisor HC se ensaya aUSB máximo+tolerancia."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "CIR-07",
+      "priority": "P2",
+      "title": "Desconectar serial no corta energía USB, pero el tutorial lo presenta como placa sin energía segura para cablear",
+      "verification": "confirmed_static; physical_power_not_tested",
+      "evidence": [
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 445,
+          "detail": "Intro decide advertencia eléctrica usando app.connected; falso muestra Placa sin conectar: así se cablea (454–460)."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 450,
+          "detail": "Dentro de Desconecta el cable USB se presenta ConnectButton como acción."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 491,
+          "detail": "disconnect cierra serial y marca connected=false; no puede extraer USB ni verificar VBUS."
+        },
+        {
+          "file": "web/circuit/pico.ts",
+          "line": 79,
+          "detail": "El propio modelo identifica VBUS como5V conUSB conectado."
+        }
+      ],
+      "scenario": "Cerrar conexión del navegador manteniendo el cable USB físicamente enchufado, o abrir página con placa alimentada y sin puerto autorizado. app.connected=false no equivale a placa sin energía. El mensaje de seguridad no puede asegurar ese estado.",
+      "fix": "Decir Sin conexión de datos, no Sin energía. Paso físico explícito: retirarUSB y fuentes externas, confirmación humana distinta de disconnect serial. Nunca inferir ausencia deVCC desde WebSerial.",
+      "acceptance": [
+        "Con serial desconectado y USB aún insertado no aparece mensaje que afirme placa desenergizada.",
+        "La preparación pide retirarUSB/alimentaciones y confirmarlo antes de práctica física; aclarar que botón desconecta datos, no energía.",
+        "Prueba física docente documenta separación de estado datos/energía; UI automatizada verifica texto correcto para connected true/false."
+      ],
+      "confidence": "high",
+      "area": "circuit"
+    },
+    {
+      "id": "BD-01",
+      "priority": "P1",
+      "title": "Un deploy Vercel del frontend no publica la API persistente existente",
+      "evidence": [
+        {
+          "file": "web/lib/api.ts",
+          "line": 65,
+          "detail": "Todos los fetch apuntan a /api del mismo origen y credentials=same-origin."
+        },
+        {
+          "file": "vite.config.ts",
+          "line": 12,
+          "detail": "El único proxy /api está en server de desarrollo; no se convierte en proxy productivo."
+        },
+        {
+          "file": "server/database.ts",
+          "line": 53,
+          "detail": "DatabaseSync abre un archivo local persistente; SSE, auditorías y cola Telegram viven en un proceso residente."
+        },
+        {
+          "file": "README.md",
+          "line": 52,
+          "detail": "La documentación reconoce correctamente que el backend SQLite no debe desplegarse como funciones efímeras."
+        }
+      ],
+      "scenario": "Publicar únicamente dist en Vercel deja /api/session, /api/firmware, ingestión y compilación sin backend. El snapshot no contiene vercel.json ni adaptación serverless. Es un bloqueo de arquitectura para ese objetivo, no una regresión del Compose documentado.",
+      "fix": "Preferir Compose en un VPS Linux con dominio y disco persistente, sirviendo frontend y API bajo Caddy. Si se exige Vercel, alojar únicamente dist allí, configurar rewrite externo /api/:path* hacia el backend residente y fallback SPA después de la API; mantener cookies, Origin y no-store. No trasladar SQLite/toolchain a funciones.",
+      "acceptance": "Desde el dominio elegido crear sesión, recuperar cookie tras recarga, compilar/upload real, recibir SSE y lectura real, reiniciar backend y conservar datos; /api nunca debe devolver index.html.",
+      "confidence": 0.99,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "BD-02",
+      "priority": "P2",
+      "title": "Compose no configura trustProxy: cinco fallos bloquean acceso docente a todos los clientes",
+      "evidence": [
+        {
+          "file": "server/app.ts",
+          "line": 60,
+          "detail": "trustProxy es false si TRUST_PROXY no está definido."
+        },
+        {
+          "file": "compose.yaml",
+          "line": 5,
+          "detail": "No pasa TRUST_PROXY al app aunque todo el tráfico llega desde Caddy."
+        },
+        {
+          "file": "server/app.ts",
+          "line": 610,
+          "detail": "Login limita 5 solicitudes/15 minutos por req.ip; creación y pairing también usan req.ip."
+        }
+      ],
+      "scenario": "Prueba app.inject: misma IP remota de proxy, X-Forwarded-For distinto para atacante y docente. Cinco contraseñas incorrectas retornaron 401; login válido de otro XFF retornó 429. En Compose la IP vista es Caddy, no la del cliente.",
+      "fix": "Confiar exclusivamente en el proxy controlado mediante rango/IP privado estable o función validada, y configurar la propagación de IP en Caddy. No habilitar trustProxy indiscriminado ni aceptar XFF arbitrario del público.",
+      "acceptance": "Tras cinco fallos de un cliente, otro cliente puede iniciar sesión; XFF falsificado desde un emisor no confiable no altera la IP autorizada. Probar también límites de creación y pairing tras proxy.",
+      "confidence": 1.0,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "BD-03",
+      "priority": "P2",
+      "title": "Un 429/500/503 al reconectar destruye borradores pendientes offline",
+      "evidence": [
+        {
+          "file": "web/App.tsx",
+          "line": 199,
+          "detail": "refreshSession solicita sesión y luego PATCH de la cola dentro del mismo try."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 225,
+          "detail": "Ante cualquier error que no sea de red llama offlineStore.forget(). No discrimina estado HTTP."
+        },
+        {
+          "file": "web/lib/offline.ts",
+          "line": 49,
+          "detail": "forget elimina cache de sesión y cola pending."
+        },
+        {
+          "file": "web/lib/api.ts",
+          "line": 78,
+          "detail": "Errores HTTP se convierten en Error genérico, sin status; isNetworkError no los reconoce."
+        }
+      ],
+      "scenario": "Un grupo trabaja sin red; al reconectar la API está en mantenimiento (503), saturada (429) o devuelve 400 al aplicar un borrador. refreshSession borra ambas claves locales y descarta cambios nunca sincronizados. Verificado por trazado estático, no prueba de navegador.",
+      "fix": "Conservar estado HTTP en ApiError; no borrar cache/cola por errores transitorios o validación. Para 401/403 conservar un archivo recuperable y explicar cambio/expiración de identidad sin sincronizar hacia otro grupo.",
+      "acceptance": "E2E con pending local y GET o PATCH que retorna 429/500/503/400: las claves y borradores persisten, son exportables y sincronizan sólo cuando vuelve la sesión autorizada.",
+      "confidence": 0.99,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "BD-04",
+      "priority": "P2",
+      "title": "El filtro del compilador permite directivas C++ con digraph %:",
+      "evidence": [
+        {
+          "file": "server/arduino.ts",
+          "line": 205,
+          "detail": "Sólo identifica includes que empiezan por #; %: es un token equivalente en el preprocesador."
+        },
+        {
+          "file": "server/arduino.ts",
+          "line": 226,
+          "detail": "El filtro de include_next/import/pragma/line tampoco contempla %:."
+        },
+        {
+          "file": "server/compiler-service.ts",
+          "line": 15,
+          "detail": "El servicio incluido ejecuta compilación nativa con arduinoSandbox=false y depende de este filtro."
+        },
+        {
+          "file": "docs/SECURITY.md",
+          "line": 13,
+          "detail": "Afirma que los includes de estudiante están limitados a bibliotecas conocidas."
+        }
+      ],
+      "scenario": "La reproducción literal de ambos regex devolvió includesDetected=0 y forbiddenDetected=false para %:include <stdio.h>. GCC local -E aceptó el digraph (exit 0) y resolvió stdio.h. Puede sustituirse por una ruta absoluta: se elude la lista blanca. No se probó AVR ni exfiltración; el contenedor mantiene separación respecto de SQLite y secretos docentes.",
+      "fix": "No tratar regex como frontera de seguridad del preprocesador. Rechazar digraphs y otras formas alternativas con tests, o analizar/tokenizar con una política fiable. Mantener aislamiento de compilador y archivos mínimos; no afirmar confinamiento a biblioteca por el filtro actual.",
+      "acceptance": "AVR real rechaza %:include con ruta externa, %:include_next, variantes de tokenización y directivas ofuscadas; bibliotecas educativas siguen compilando. Ningún diagnóstico devuelve archivos fuera del allowlist.",
+      "confidence": 0.96,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "BD-05",
+      "priority": "P2",
+      "title": "Rate limit global se evade rotando cookies inventadas sin autenticar",
+      "evidence": [
+        {
+          "file": "server/app.ts",
+          "line": 84,
+          "detail": "La clave global usa hash de cookie rd_session o Authorization antes de validar su autenticidad."
+        },
+        {
+          "file": "server/app.ts",
+          "line": 210,
+          "detail": "/api/health es público y llama compiler.available(), que genera I/O al servicio o proceso."
+        },
+        {
+          "file": "server/arduino.ts",
+          "line": 132,
+          "detail": "Cada health consulta al compilador privado con fetch y timeout; sin servicio intenta CLI."
+        }
+      ],
+      "scenario": "181 solicitudes /api/health con una cookie inválida diferente por solicitud retornaron todas 200, pese al límite anunciado de 180/minuto. Un emisor puede eludir límite de coste de health y solicitudes fallidas con identidades inventadas. Esto no elude los límites específicos por IP de login ni otorga permisos.",
+      "fix": "Aplicar primero un presupuesto por IP confiable para tráfico público/no autenticado y usar ID de sesión/dispositivo validado sólo como presupuesto adicional. Cachear comprobación de disponibilidad del compilador y separar liveness/readiness.",
+      "acceptance": "181 solicitudes desde una misma IP con cookies o Authorization aleatorios se limitan; varias sesiones válidas mantienen presupuesto definido y health no dispara una consulta al compilador por cada ataque.",
+      "confidence": 1.0,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "BD-06",
+      "priority": "P2",
+      "title": "La retención efectiva por defecto es siete días, no treinta para los datos del grupo",
+      "evidence": [
+        {
+          "file": "server/database.ts",
+          "line": 99,
+          "detail": "expires_at se fija al crear grupo; PATCH/ingest no renuevan sesión."
+        },
+        {
+          "file": "server/database.ts",
+          "line": 273,
+          "detail": "cleanup borra sesiones expiradas antes de aplicar RETENTION_DAYS; FK ON DELETE CASCADE borra lecturas y alertas."
+        },
+        {
+          "file": "docs/DEPLOYMENT.md",
+          "line": 53,
+          "detail": "Describe grupos siete días e historial/alertas treinta días sin explicitar que la cascada vence antes."
+        }
+      ],
+      "scenario": "Prueba en SQLite memory con sessionDays=7 y retentionDays=30: una lectura se eliminó por completo al adelantar ocho días y ejecutar cleanup. Las publicaciones activas no extienden ese plazo. Un usuario que espera exportar treinta días pierde la serie tras siete.",
+      "fix": "Documentar que la retención real es el menor de vida de sesión y RETENTION_DAYS, o desacoplar expiración de autenticación y purga física mediante un periodo de conservación recuperable por docente. Para talleres de varias semanas ajustar política explícita, no asumir que RETENTION_DAYS la prolonga.",
+      "acceptance": "Tests separan expiración de acceso, retención física y borrado explícito; documentación y despliegue dicen exactamente cuándo desaparece historial y qué permite exportarlo.",
+      "confidence": 1.0,
+      "area": "backend-deploy"
+    },
+    {
+      "id": "CH-01",
+      "priority": "P1",
+      "title": "Cambiar de placa durante el selector USB deja el transporte y el modelo desalineados",
+      "evidence": [
+        {
+          "file": "web/App.tsx",
+          "line": 461,
+          "detail": "connect captura boardRef.current antes de await serial.connect/ArduinoSerial.connect y después establece connected=true sin comprobar que siga siendo la misma placa."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 508,
+          "detail": "setBoard bloquea solo connected; no connecting ni una operación USB pendiente."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 494,
+          "detail": "disconnect y las acciones posteriores eligen transporte mediante el modelo actual, no mediante la conexión realmente abierta."
+        }
+      ],
+      "scenario": "Elegir Pico, abrir Conectar y cambiar a Uno antes de resolver requestPort. La conexión Pico termina, la UI dice conectada para Uno y ejecutar/desconectar usa ArduinoSerial, dejando la Pico abierta.",
+      "fix": "Bloquear cambios durante connecting/busy; registrar una conexión activa inmutable con modelo, transporte y generationId. Invalidar y cerrar aperturas cuyo resultado llegue después de cambiar de generación.",
+      "acceptance": "Con requestPort diferido, cambiar modelo o cancelar conexión no deja un puerto huérfano ni connected=true para otro transporte. Desconectar siempre cierra el puerto realmente abierto.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-02",
+      "priority": "P1",
+      "title": "Una compilación Arduino antigua puede grabarse en una conexión nueva",
+      "evidence": [
+        {
+          "file": "web/App.tsx",
+          "line": 518,
+          "detail": "compileAndUpload espera la respuesta HTTP y luego llama al singleton ArduinoSerial.upload sin identidad de conexión capturada ni cancelación."
+        },
+        {
+          "file": "web/App.tsx",
+          "line": 437,
+          "detail": "guard únicamente actualiza busy en React; no excluye operaciones mediante un lock/ref y no comprueba generación al terminar."
+        },
+        {
+          "file": "web/lib/serial.ts",
+          "line": 537,
+          "detail": "upload verifica la conexión existente al llegar el resultado, aunque no sea la conexión original. exclusive protege la grabación, no la fase de compilación HTTP."
+        }
+      ],
+      "scenario": "Compilar un programa, desconectar mientras el servidor tarda y reconectar otra Uno/Nano. El resultado atrasado se graba en la nueva placa. Atajos Ctrl+Enter también pueden iniciar compilaciones concurrentes y un guard terminado libera busy mientras otro sigue pendiente.",
+      "fix": "Serializar compile+upload como una sola operación, capturar puerto/modelo/generación al iniciarla, usar AbortController al desconectar y rechazar resultados obsoletos antes de cualquier escritura USB.",
+      "acceptance": "Una respuesta de compilación diferida tras desconectar/reconectar produce cero escrituras en el segundo puerto. Dos ejecuciones simultáneas no compilan ni graban a la vez y busy permanece activo hasta finalizar la operación vigente.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-03",
+      "priority": "P1",
+      "title": "La guía confunde cerrar Web Serial con cortar la alimentación física",
+      "evidence": [
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 445,
+          "detail": "Intro decide la seguridad con app.connected; cuando es false anuncia «Placa sin conectar: así se cablea» con tono success."
+        },
+        {
+          "file": "web/lib/serial.ts",
+          "line": 188,
+          "detail": "disconnect libera lector/escritor y cierra el puerto: no retira el cable USB ni apaga VBUS/VSYS."
+        },
+        {
+          "file": "web/lesson/WiringGuide.tsx",
+          "line": 543,
+          "detail": "La revisión final ofrece conectar USB a partir del estado lógico y no de una comprobación física de alimentación."
+        }
+      ],
+      "scenario": "La placa tiene USB físicamente conectado pero nunca se abrió el puerto, o el estudiante pulsa Desconectar. La guía presenta estado seguro para mover cables aunque la placa y sus sensores siguen energizados.",
+      "fix": "Separar conexión de datos y energía: mostrar siempre «No podemos comprobar si tu placa tiene energía», pedir retirar físicamente USB y cualquier alimentación externa y confirmar ese paso. Nunca usar connected=false como evidencia de ausencia de tensión.",
+      "acceptance": "Con USB lógico desconectado la guía no afirma que la placa esté sin energía. La preparación explica explícitamente que Desconectar en la web solo cierra datos y exige retirar el cable antes de cablear.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-04",
+      "priority": "P1",
+      "title": "Los borradores del editor no están aislados al cambiar de sesión en la misma actividad",
+      "evidence": [
+        {
+          "file": "web/lesson/CodeWorkbench.tsx",
+          "line": 114,
+          "detail": "key contiene lessonId y lenguaje, pero no session.id."
+        },
+        {
+          "file": "web/lesson/CodeWorkbench.tsx",
+          "line": 163,
+          "detail": "La recarga de value/cachedDraft y limpieza del debounce dependen solo de key. Cambiar session.id no recarga el código del nuevo grupo."
+        },
+        {
+          "file": "web/lesson/CodeWorkbench.tsx",
+          "line": 149,
+          "detail": "persist usa app.updateSession sin un id de propietario del borrador; change escribe la value visible en la cola y sesión actuales."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 336,
+          "detail": "La key de montaje del Workbench tampoco incluye la sesión."
+        }
+      ],
+      "scenario": "La sesión expira o se sustituye mientras la ruta y placa siguen iguales. El editor mantiene código del grupo A al adoptar B. Una edición posterior guarda ese código como borrador de B; un debounce antiguo también puede persistir bajo el contexto nuevo.",
+      "fix": "Identificar el editor por session.id+lessonId+familia de placa, y asociar cada debounce explícitamente a su sessionId. En cambio de propietario, guardar solo bajo el propietario antiguo si sigue autorizado o conservar localmente por id, y cargar el borrador de B.",
+      "acceptance": "Prueba de componente con sesión A→B sin cambiar ruta: editor muestra exclusivamente el borrador de B y ningún PATCH/cola de B contiene texto de A, incluso con debounce pendiente.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-05",
+      "priority": "P2",
+      "title": "La calibración no conserva identidad de placa ni protege resultados de captura obsoletos",
+      "evidence": [
+        {
+          "file": "web/lib/api.ts",
+          "line": 19,
+          "detail": "calibrations indexa solo sensor; faltan placa, escala ADC, tensión y montaje."
+        },
+        {
+          "file": "web/lesson/CalibrationTool.tsx",
+          "line": 44,
+          "detail": "low/high se inicializan una vez con la sesión y no se reinicializan al cambiar sesión o placa."
+        },
+        {
+          "file": "web/lesson/CalibrationTool.tsx",
+          "line": 63,
+          "detail": "capture espera serial.exec y aplica setLow/setHigh sin verificar target/session/board actuales. El selector de sensor permanece habilitado."
+        },
+        {
+          "file": "web/lib/arduino.ts",
+          "line": 34,
+          "detail": "La generación AVR comprueba rango 0–1023, pero un valor de Pico dentro de ese rango se acepta como AVR y viceversa."
+        },
+        {
+          "file": "firmware/drivers.py",
+          "line": 37,
+          "detail": "El driver Pico interpreta cualquier par numérico con separación ≥500 como referencias de su escala, sin procedencia."
+        }
+      ],
+      "scenario": "Guardar calibración Arduino 100/800 y cambiar a Pico: ese par sigue siendo válido numéricamente y se incorpora como si proviniera de ADC16. O iniciar captura Suelo y seleccionar Agua antes de resolverla: el raw de GP26 termina en el campo de Agua.",
+      "fix": "Guardar calibraciones por identidad de placa/familia ADC y sensor, con metadatos de sonda y alimentación; pedir recalibrar al cambiar montaje. Bloquear cambios de destino durante capture o validar un token target/session/board antes de aplicar el resultado.",
+      "acceptance": "Referencias 100/800 de Uno nunca se instalan silenciosamente en Pico. Captura diferida de suelo no modifica agua ni otra sesión. Cambiar placa carga referencias de esa placa o campos vacíos.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-06",
+      "priority": "P2",
+      "title": "PATCH de progreso y mapas completos sobrescribe avances concurrentes",
+      "evidence": [
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 159,
+          "detail": "Completar envía un array completo construido desde app.session.progress del render."
+        },
+        {
+          "file": "web/lib/offline.ts",
+          "line": 10,
+          "detail": "mergeSessionPatch reemplaza progress con el array más reciente en vez de unir completados."
+        },
+        {
+          "file": "server/database.ts",
+          "line": 122,
+          "detail": "El servidor relee la sesión, pero ...patch reemplaza progress; solo los mapas se combinan."
+        },
+        {
+          "file": "web/lesson/CodeWorkbench.tsx",
+          "line": 153,
+          "detail": "persist envía todos los drafts.current, por lo que claves que no se editaron pueden sobrescribir versiones recientes de otra pestaña."
+        },
+        {
+          "file": "web/lesson/CalibrationTool.tsx",
+          "line": 105,
+          "detail": "Guardar referencia también reenvía el mapa completo de calibraciones."
+        }
+      ],
+      "scenario": "Dos pestañas/grupos de trabajo de la misma sesión parten de welcome. A completa led; B completa blink o sincroniza progreso offline: el PATCH de B puede eliminar led. Guardar un borrador también restaura claves antiguas de otras actividades.",
+      "fix": "Enviar operaciones parciales: completedLessonIds aditivos o endpoint de completar con unión atómica; drafts/calibrations únicamente con la clave editada. Usar versión/CAS para reset o modificaciones no monotónicas.",
+      "acceptance": "PATCH concurrentes welcome+led y welcome+blink conservan los tres ids. Editar led.python no toca blink.python actualizado por otra pestaña. Sincronización offline no borra progreso adquirido online.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-07",
+      "priority": "P2",
+      "title": "La captura de calibración detiene programas al margen del estado global de ejecución",
+      "evidence": [
+        {
+          "file": "web/lesson/CalibrationTool.tsx",
+          "line": 63,
+          "detail": "La herramienta llama al singleton serial.exec directamente, sin app.guard, setRunning ni un estado USB compartido."
+        },
+        {
+          "file": "web/lib/serial.ts",
+          "line": 277,
+          "detail": "interrupt descarta this.execution tras Ctrl-C sin notificar onRunEnd cuando todavía no llegó el delimitador de fin."
+        },
+        {
+          "file": "web/lesson/CalibrationTool.tsx",
+          "line": 146,
+          "detail": "Los botones dependen de app.busy y de capturing solo para su spinner individual; ejecutar otra acción sigue siendo posible mientras esta captura ocupa el transporte."
+        }
+      ],
+      "scenario": "Ejecutar estación/bucle y capturar raw. El programa se interrumpe, pero app.running puede seguir true. El botón de ejecutar permanece activo y otro comando choca con exclusive. El otro botón de captura también puede iniciar un segundo intento rechazado.",
+      "fix": "Exponer captura como operación en AppContext con mutex global, running=false al interrumpir y tokens de cancelación. Deshabilitar ambos botones/selector durante captura y reflejar claramente «programa detenido; vuelve a ejecutar».",
+      "acceptance": "Capturar durante un bucle cambia running a false y busy a true hasta finalizar; no se pueden lanzar dos capturas ni una ejecución concurrente. Ensayar stdout de fin retrasado en el peer USB.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-08",
+      "priority": "P2",
+      "title": "Uno/Nano cambia el código y la tabla, pero conserva instrucciones y evaluación de Pico",
+      "evidence": [
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 192,
+          "detail": "concept.body, facts, safety y materiales se muestran sin resolver la variante elegida."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 559,
+          "detail": "experiment usa prosa común, y Quiz recibe lesson.checkpoint sin variante de placa."
+        },
+        {
+          "file": "web/content/lessons/led.ts",
+          "line": 32,
+          "detail": "Material obligatorio «Pico W en la protoboard», facts GP2/3,3 V y experimento d26/d27 se muestran aunque el modelo sea Uno/Nano y su tabla solo define D2."
+        },
+        {
+          "file": "web/content/lessons/sensors.ts",
+          "line": 756,
+          "detail": "Checkpoint de agua exige GP28 ADC2 aunque el montaje Arduino conecta A2."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 280,
+          "detail": "Arduino carece de secuencia cable-a-cable: se sustituye por una tabla y una advertencia de que el plano es Pico."
+        },
+        {
+          "file": "web/pages/Lesson.tsx",
+          "line": 251,
+          "detail": "welcome se resuelve antes de la rama arduino y ofrece explorar solo una Pico W incluso para Uno/Nano."
+        }
+      ],
+      "scenario": "Seleccionar Uno/Nano en Tu primera señal o Nivel de agua. El sketch y tabla son AVR, pero la explicación sigue enseñando GPIO de Pico, voltaje 3,3 V y agujeros de un plano no aplicable; para superar el checkpoint debe responder por otra placa.",
+      "fix": "Resolver la lección completa desde un BoardProfile (pinout, ADC, niveles, fuente, código, materiales, pasos, explicación y quiz). Crear geometría/tutorial incremental propio de Uno y Nano, no recolorear Pico ni equiparar sus agujeros.",
+      "acceptance": "En cada variante LED, suelo, DHT11, agua, HC-SR04 y welcome, todas las instrucciones operativas/quiz coinciden con el código y el montaje. Uno y Nano disponen de pasos independientes con ubicación y nivel eléctrico correctos; referencias comparativas a Pico se etiquetan como comparación, no como instrucción.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    },
+    {
+      "id": "CH-09",
+      "priority": "P2",
+      "title": "Servicio no disponible y almacenamiento denegado pueden producir pérdida de borrador con feedback engañoso",
+      "evidence": [
+        {
+          "file": "web/lib/api.ts",
+          "line": 77,
+          "detail": "HTTP 502/503/504 genera Error genérico, sin status accesible para distinguir indisponibilidad de validación."
+        },
+        {
+          "file": "web/lib/offline.ts",
+          "line": 56,
+          "detail": "isNetworkError considera solo TypeError/TimeoutError/AbortError; un backend caído que devuelve 503 no activa modo offline."
+        },
+        {
+          "file": "web/lib/offline.ts",
+          "line": 24,
+          "detail": "write atrapa errores de localStorage sin devolver éxito o fracaso."
+        },
+        {
+          "file": "web/lesson/CodeWorkbench.tsx",
+          "line": 154,
+          "detail": "updateSession puede resolver en fallback offline y setSaved(true), aunque remember/queue hayan fallado por almacenamiento denegado o lleno."
+        }
+      ],
+      "scenario": "El proxy devuelve 503: refreshSession descarta sesión local/cola aunque existan borradores recuperables. Con red cortada y almacenamiento bloqueado, el editor termina diciendo guardado aunque nada quedó durablemente almacenado.",
+      "fix": "Tipar errores HTTP y conservar cache/cola ante 5xx/transitorios; distinguir 401/403. Hacer que persistencia local informe resultado y mantener estado «no guardado; descarga» si no hay ninguna copia durable.",
+      "acceptance": "503 conserva sesión y borrador local; 401 invalida autorización de manera explícita. Storage quota/denied junto con red caída nunca muestra «Borrador guardado» y ofrece descarga visible también en móvil.",
+      "confidence": "alta",
+      "area": "content-hardware"
+    }
+  ],
+  "area_verification": {
+    "circuit": {
+      "command": "node ./source/node_modules/vitest/vitest.mjs run --config ./circuit-vitest.config.mjs --configLoader native",
+      "result": "71 tests passed;1 file passed",
+      "probe": "node --import ./source/node_modules/tsx/dist/loader.mjs circuit-probe.ts",
+      "probe_output": "circuit-probe-output.json"
+    },
+    "backend-deploy": {
+      "probe_file": "backend-probe.mjs",
+      "teacher_login": "Cinco 401 de un XFF; login válido de otro XFF mismo proxy =>429",
+      "rate_limit": "181 health con rd_session inventadas distintas=>181 HTTP200",
+      "retention": "8 días con sessionDays7/retentionDays30 =>0 lecturas",
+      "include_filter": "regex no detecta %:include; GCC -E exit0 resuelve header",
+      "note": "Rotar Authorization con cookie válida no evade rate-limit de compilación: siete posteriores =>429, no se reporta ese supuesto bypass."
+    },
+    "content-hardware": {
+      "method": "Auditoría estática del snapshot inmutable; lectura e importación readonly de datos TS con Node v26.7.0.",
+      "real_output": "Comparación de arduinoCode de web/data/lessons.ts con los .ino cuyo id existe: no imprimió EXAMPLE_DIFF. Inspección de Serial.print confirmó escapado correcto, por lo que no se reporta un falso bug JSON.",
+      "positive_checks": [
+        "Pico board.py y matriz: suelo GP26, luz GP27, agua GP28, lluvia GP14, DHT GP15, DS GP16, TRIG17/ECHO18 y PIR19 coinciden.",
+        "Estación AVR y tablas sensor: A0/A1/A2 y D4/D5/D6/D7/D8/D9 coinciden.",
+        "Contenido HC-SR04 explica divisor 2 kΩ/3 kΩ y prohíbe ECHO directo a Pico; Arduino admite ECHO a D8 a 5 V.",
+        "LCD fija RW a GND, el servo queda sin potencia por falta de fuente validada y el stepper exige presupuesto de corriente: no se encontró evidencia firme para afirmar un GPIO Pico expuesto directamente a 5 V en esos pasos."
+      ]
+    }
+  }
+}
