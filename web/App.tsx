@@ -23,7 +23,7 @@ import {
   mergeSessionPatch,
   offline as offlineStore,
 } from "./lib/offline";
-import { ArduinoSerial, serial } from "./lib/serial";
+import { ArduinoSerial, serial, stationCaFile } from "./lib/serial";
 import {
   applyTheme,
   readLocal,
@@ -657,6 +657,7 @@ export default function App() {
           );
           return;
         }
+        const caFile = stationCaFile(endpoint);
         let device = stationCredential.current;
         if (!device) {
           const pairing = await post<{ code: string; expiresAt: string }>(
@@ -677,6 +678,7 @@ export default function App() {
           ssid,
           password,
           endpoint,
+          caFile,
           deviceId: device.deviceId,
           token: device.token,
           calibrations: active?.calibrations ?? {},

@@ -22,6 +22,14 @@ const navigatorSerial = (): USBSerial | undefined =>
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+/** MicroPython loads one trust anchor per TLS context, selected for the host. */
+export function stationCaFile(endpoint: string): "ca.pem" | "ca-vercel.pem" {
+  const url = new URL(endpoint);
+  if (url.protocol !== "https:")
+    throw new Error("La telemetría Wi-Fi requiere un endpoint HTTPS.");
+  return url.hostname.endsWith(".vercel.app") ? "ca-vercel.pem" : "ca.pem";
+}
+
 export class SerialLink {
   onOutput: (text: string) => void = () => {};
   onDisconnect: () => void = () => {};

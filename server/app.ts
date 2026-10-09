@@ -805,7 +805,8 @@ export async function buildApp(
           await walk(path);
         else if (
           item.isFile() &&
-          (item.name.endsWith(".py") || item.name === "ca.pem") &&
+          (item.name.endsWith(".py") ||
+            ["ca.pem", "ca-vercel.pem"].includes(item.name)) &&
           item.name !== "config.py"
         )
           files[relative(config.firmwarePath, path).replaceAll("\\", "/")] =

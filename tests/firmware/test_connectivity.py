@@ -97,6 +97,14 @@ class ConnectionTests(unittest.TestCase):
             cloud.publish([])
             self.assertIn("sin Wi-Fi", cloud.diagnostic()["wifi"])
 
+    def test_selected_vercel_certificate_loads_as_a_single_verified_trust_anchor(self):
+        self.config["caFile"] = str(pathlib.Path(__file__).resolve().parents[2] / "firmware" / "ca-vercel.pem")
+        cloud = connectivity.Cloud(self.config)
+        cloud.clock_valid = True
+        context = cloud.tls_context()
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertEqual(context.cert_store_stats()["x509_ca"], 1)
+
     def test_verified_diagnostic_is_false_after_disconnect_or_delivery_failure(self):
         cloud = connectivity.Cloud(self.config)
         cloud.last_verified = True

@@ -3,12 +3,37 @@ import {
   ArduinoUSBSerial,
   MicroPythonSerial,
   parseIntelHex,
+  stationCaFile,
   type ArduinoBoard,
   type USBPort,
 } from "../web/lib/serial";
 import { arduinoStationSketch } from "../web/lib/arduino";
 
 const enc = new TextEncoder();
+describe("Certificado de la estación Wi-Fi", () => {
+  it("elige Google Trust Services para Vercel y conserva ISRG para Caddy", () => {
+    expect(
+      stationCaFile("https://raices-digitales.vercel.app/api/device/ingest"),
+    ).toBe("ca-vercel.pem");
+    expect(
+      stationCaFile("https://RAICES-DIGITALES.VERCEL.APP/api/device/ingest"),
+    ).toBe("ca-vercel.pem");
+    expect(stationCaFile("https://raices.example.org/api/device/ingest")).toBe(
+      "ca.pem",
+    );
+    expect(
+      stationCaFile("https://raices.vercel.app.example.org/api/device/ingest"),
+    ).toBe("ca.pem");
+    expect(stationCaFile("https://fake-vercel.app/api/device/ingest")).toBe(
+      "ca.pem",
+    );
+  });
+  it("no instala un endpoint Wi-Fi sin HTTPS", () => {
+    expect(() =>
+      stationCaFile("http://raices-digitales.vercel.app/api/device/ingest"),
+    ).toThrow("HTTPS");
+  });
+});
 class TestSerial extends MicroPythonSerial {
   attach(port: USBPort) {
     return this.open(115200, port);

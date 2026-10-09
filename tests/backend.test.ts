@@ -1122,6 +1122,14 @@ describe("alertas reales y transporte SSE", () => {
     expect(ca.fingerprint256).toBe(
       "96:BC:EC:06:26:49:76:F3:74:60:77:9A:CF:28:C5:A7:CF:E8:A3:C0:AA:E1:1A:8F:FC:EE:05:C0:BD:DF:08:C6",
     );
+    const vercelCa = new X509Certificate(files["ca-vercel.pem"]);
+    expect(vercelCa.subject).toContain("CN=GTS Root R1");
+    expect(vercelCa.fingerprint256).toBe(
+      "D9:47:43:2A:BD:E7:B7:FA:90:FC:2E:6B:59:10:1B:12:80:E0:E1:C7:E4:E4:0F:A3:C6:88:7F:FF:57:A7:F4:CF",
+    );
+    expect(
+      files["ca-vercel.pem"].match(/-----BEGIN CERTIFICATE-----/g),
+    ).toHaveLength(1);
     const proxy = await readFile(resolve("Caddyfile"), "utf8");
     expect(proxy).toContain("issuer acme");
     expect(proxy).toContain('root_common_name "ISRG Root X1"');
