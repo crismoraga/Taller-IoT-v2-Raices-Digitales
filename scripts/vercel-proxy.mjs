@@ -26,14 +26,15 @@ function apiTarget(rawUrl) {
   let path = question < 0 ? rawUrl : rawUrl.slice(0, question);
   const rawQuery = question < 0 ? "" : rawUrl.slice(question + 1);
   const query = new URLSearchParams(rawQuery);
+  const paths = query.getAll(PATH_PARAMETER);
   if (path === "/api/workshop") {
-    const paths = query.getAll(PATH_PARAMETER);
     if (paths.length !== 1 || !paths[0]) throw new Error("Missing API path");
     path = `/api/${paths[0]}`;
-    query.delete(PATH_PARAMETER);
-  } else if (query.has(PATH_PARAMETER)) {
-    // The router's private parameter must never be accepted as user input.
-    throw new Error("Ambiguous API path");
+  } else if (paths.length) {
+    // Vercel can retain the original URL and append the rewrite parameter.
+    // It must describe exactly that same path, never override the original.
+    if (paths.length !== 1 || paths[0] !== path.slice("/api/".length))
+      throw new Error("Ambiguous API path");
   }
   if (!path.startsWith("/api/")) throw new Error("Invalid API path");
   // Decode once to detect traversal/separators, but retain the original query bytes.
@@ -48,8 +49,11 @@ function apiTarget(rawUrl) {
     /%(?:2f|5c|25)/i.test(path)
   )
     throw new Error("Invalid API path");
-  const search = rawUrl.startsWith("/api/workshop?")
-    ? query.toString()
+  const search = paths.length
+    ? rawQuery
+        .split("&")
+        .filter((part) => !new URLSearchParams(part).has(PATH_PARAMETER))
+        .join("&")
     : rawQuery;
   return `${decoded}${search ? `?${search}` : ""}`;
 }

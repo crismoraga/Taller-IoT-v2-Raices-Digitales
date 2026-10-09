@@ -206,6 +206,31 @@ test("rewritten API paths remove the private routing parameter while retaining u
   }
 });
 
+test("Vercel original URLs accept a matching rewrite parameter and strip it before forwarding", async () => {
+  const urls: string[] = [];
+  const f = await fixture({
+    fetchImpl: async (url: string) => {
+      urls.push(url);
+      return new Response("ok");
+    },
+  });
+  try {
+    for (const path of [
+      "/api/health?__raices_path=health",
+      "/api/session/export?x=1&__raices_path=session%2Fexport",
+      "/api/session?text=a%20b&__raices_path=session&text=a%2Bb",
+    ])
+      assert.equal((await fetch(`${f.origin}${path}`)).status, 200, path);
+    assert.deepEqual(urls, [
+      "https://sbx-workshop.vercel.run/api/health",
+      "https://sbx-workshop.vercel.run/api/session/export?x=1",
+      "https://sbx-workshop.vercel.run/api/session?text=a%20b&text=a%2Bb",
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
 test("Vercel-parsed bodies preserve code and missing Origin is never invented", async () => {
   const parsedBody = { code: "print('raíces')\n".repeat(60000), board: "pico" };
   const f = await fixture({
@@ -267,6 +292,7 @@ test("invalid, ambiguous and traversal paths are rejected before SDK or backend 
       "/api/session%2fexport",
       "/api/%5csession",
       "/api/session?__raices_path=health",
+      "/api/session?__raices_path=session&__raices_path=session",
       "/api/workshop",
       "/api/workshop?__raices_path=session&__raices_path=health",
       "/api/workshop?__raices_path=..%2Fsecret",

@@ -6,7 +6,7 @@ cd /vercel/sandbox/workshop
 exec 9>/tmp/raices-restart.lock
 flock -x 9
 test -s .env
-test -s images.tar
+test -s images.tar.gz
 
 if ! sudo docker info >/dev/null 2>&1; then
   sudo -n bash -c 'nohup dockerd > /tmp/raices-docker.log 2>&1 </dev/null &'
@@ -17,7 +17,7 @@ if ! sudo docker info >/dev/null 2>&1; then
 fi
 sudo docker info >/dev/null
 if ! sudo docker image inspect raices-app:workshop >/dev/null 2>&1 || ! sudo docker image inspect raices-compiler:workshop >/dev/null 2>&1; then
-  sudo docker load --input images.tar >/dev/null
+  sudo docker load --input images.tar.gz >/dev/null
 fi
 sudo docker network inspect raices-private >/dev/null 2>&1 || sudo docker network create --internal raices-private >/dev/null
 if [ -f .initialized ] && ! sudo docker volume inspect raices-data >/dev/null 2>&1; then
