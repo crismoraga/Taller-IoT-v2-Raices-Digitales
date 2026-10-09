@@ -328,27 +328,36 @@ const PicoLayer = memo(function PicoLayer({
             <rect x={x - 11} y={y - 13 + (inward < 0 ? -22 : 0)} width={22} height={48} fill="transparent" />
             <rect x={x - 6.5} y={y - 6.5} width={13} height={13} rx={3.5} fill={INK.pad} stroke={tint ?? "#a8852c"} strokeWidth={tint ? 2.4 : 1} />
             <circle cx={x} cy={y} r={2.6} fill="#5d4a15" />
+            {/* Rótulo vertical: nombre impreso y, para los pines en uso, su número físico. */}
             {isUsed && (
-              <rect x={x - 10} y={y + inward * 13 - 6.5 + (inward < 0 ? -9 : 0)} width={20} height={22} rx={4} fill="#f4ecd7" opacity={0.96} />
+              <rect
+                x={x - 9}
+                y={inward > 0 ? y + 10 : y - 10 - 50}
+                width={18}
+                height={50}
+                rx={5}
+                fill="#f4ecd7"
+              />
             )}
             <text
-              x={x}
-              y={y + inward * 16 + 2.5}
-              textAnchor="middle"
-              fontSize={pin.name.length > 4 ? 5.6 : 6.6}
+              transform={`translate(${x + 3.6} ${y + inward * 14}) rotate(-90)`}
+              textAnchor={inward > 0 ? "end" : "start"}
+              fontSize={10.5}
               fontWeight={800}
               fill={isUsed ? "#0b2d45" : INK.silk}
+              opacity={isUsed ? 1 : 0.92}
               fontFamily="var(--font-mono)"
             >
               {SHORT_NAME[pin.name] ?? pin.name}
             </text>
             <text
               x={x}
-              y={y + inward * 24 + 2.5}
+              y={y + inward * 56 + 3}
               textAnchor="middle"
-              fontSize={5.4}
-              fontWeight={600}
-              fill={isUsed ? "#1e5b7f" : "#a9dcc4"}
+              fontSize={7}
+              fontWeight={700}
+              fill={isUsed ? "#f4ecd7" : "#9fd6bd"}
+              opacity={isUsed ? 1 : 0.85}
               fontFamily="var(--font-mono)"
             >
               {pin.physical}
@@ -630,15 +639,52 @@ function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
 
 /* ── Cables ───────────────────────────────────────────────────── */
 
+/** Polilínea con esquinas redondeadas. */
+function rounded(points: XY[], radius = 0.55): string {
+  let d = `M${px(points[0].x)} ${px(points[0].y)}`;
+  for (let index = 1; index < points.length - 1; index++) {
+    const previous = points[index - 1];
+    const corner = points[index];
+    const next = points[index + 1];
+    const before = Math.hypot(corner.x - previous.x, corner.y - previous.y) || 1;
+    const after = Math.hypot(next.x - corner.x, next.y - corner.y) || 1;
+    const r = Math.min(radius, before / 2, after / 2);
+    const inX = corner.x - ((corner.x - previous.x) / before) * r;
+    const inY = corner.y - ((corner.y - previous.y) / before) * r;
+    const outX = corner.x + ((next.x - corner.x) / after) * r;
+    const outY = corner.y + ((next.y - corner.y) / after) * r;
+    d += `L${px(inX)} ${px(inY)}Q${px(corner.x)} ${px(corner.y)} ${px(outX)} ${px(outY)}`;
+  }
+  const last = points[points.length - 1];
+  return `${d}L${px(last.x)} ${px(last.y)}`;
+}
+
+/**
+ * Recorrido de un cable. Los cortos hacen una comba suave. Los largos viajan ordenados por
+ * un «carril» sin agujeros (entre el riel y las letras), como un mazo de cables bien peinado.
+ * Los que vienen de un módulo externo bajan en curva hasta su agujero.
+ */
 function wirePath(a: XY, b: XY, index: number): string {
+  const off = (point: XY) => point.y < -1.4 || point.y > 18.4;
+  if (off(a) || off(b)) {
+    const [from, to] = off(a) ? [a, b] : [b, a];
+    const midY = from.y + (to.y - from.y) * 0.55;
+    return `M${px(from.x)} ${px(from.y)}C${px(from.x)} ${px(midY)} ${px(to.x)} ${px(midY - (to.y - from.y) * 0.1)} ${px(to.x)} ${px(to.y)}`;
+  }
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const length = Math.hypot(dx, dy) || 1;
-  // Comba perpendicular: separa cables paralelos y deja ver los agujeros.
-  const sag = Math.min(2.4, 0.5 + length * 0.11) * (index % 2 ? 1 : -1);
-  const mx = (a.x + b.x) / 2 - (dy / length) * sag;
-  const my = (a.y + b.y) / 2 + (dx / length) * sag;
-  return `M${px(a.x)} ${px(a.y)}Q${px(mx)} ${px(my)} ${px(b.x)} ${px(b.y)}`;
+  if (length < 7.5 || Math.abs(dx) < 2) {
+    // Comba perpendicular: separa cables paralelos y deja ver los agujeros.
+    const sag = Math.min(1.6, 0.4 + length * 0.1) * (index % 2 ? 1 : -1);
+    const mx = (a.x + b.x) / 2 - (dy / length) * sag;
+    const my = (a.y + b.y) / 2 + (dx / length) * sag;
+    return `M${px(a.x)} ${px(a.y)}Q${px(mx)} ${px(my)} ${px(b.x)} ${px(b.y)}`;
+  }
+  // El carril lo decide el extremo más cercano a la Pico: arriba (2) o abajo (15).
+  const near = a.x <= b.x ? a : b;
+  const lane = (near.y < 8.5 ? 2.05 : 14.95) + ((index % 3) - 1) * 0.24;
+  return rounded([a, { x: a.x, y: lane }, { x: b.x, y: lane }, b]);
 }
 
 function WireShape({
@@ -717,6 +763,13 @@ function fit(box: Box, aspect: number, minWidth: number): Box {
     w = width;
   }
   return { x, y, w, h };
+}
+
+/** Si sobra ancho, se muestra más protoboard hacia la derecha en vez de fondo vacío a la izquierda. */
+function alignLeft(box: Box, content: Box): Box {
+  if (box.w <= content.w) return box;
+  const boardEnd = BOARD.width + 1.2;
+  return { ...box, x: Math.max(content.x - 0.8, Math.min(content.x - 0.8, boardEnd - box.w)) };
 }
 
 export function BreadboardView({
@@ -813,7 +866,7 @@ export function BreadboardView({
   }, [circuit, current, complete]);
 
   const target = useMemo<Box>(() => {
-    if (!follow || !focus.length) return fit(whole, aspect, 30);
+    if (!follow || !focus.length) return alignLeft(fit(whole, aspect, 30), whole);
     // Se encuadra a lo ancho; el alto siempre muestra la protoboard completa (y los módulos
     // del montaje), para no perder la orientación entre un paso y el siguiente.
     const box = boundsOf(
@@ -824,7 +877,7 @@ export function BreadboardView({
     // Sin salirse del montaje por los lados.
     const min = whole.x - 1;
     const max = whole.x + whole.w + 1;
-    if (framed.w >= max - min) return fit(whole, aspect, 30);
+    if (framed.w >= max - min) return alignLeft(fit(whole, aspect, 30), whole);
     return { ...framed, x: Math.min(Math.max(framed.x, min), max - framed.w) };
   }, [follow, focus, whole, aspect]);
 
@@ -1109,7 +1162,7 @@ export function BreadboardView({
           tone="dark"
           onClick={() => {
             setFollow(false);
-            setView(fit(whole, aspect, 30));
+            setView(alignLeft(fit(whole, aspect, 30), whole));
           }}
         />
         {!complete && (

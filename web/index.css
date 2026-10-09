@@ -1,8 +1,31 @@
 @import "tailwindcss";
-@import "@fontsource-variable/montserrat/index.css";
-@import "@fontsource-variable/nunito-sans/index.css";
-@import "@fontsource-variable/jetbrains-mono/index.css";
 @import "./brand/tokens.css";
+
+/* Recursos locales latinos para español, sin descargar alfabetos que el taller no usa. */
+@font-face {
+  font-family: "Montserrat Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("@fontsource-variable/montserrat/files/montserrat-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "Nunito Sans Variable";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("@fontsource-variable/nunito-sans/files/nunito-sans-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
@@ -35,6 +58,8 @@
   --color-danger: var(--danger);
   --color-danger-light: var(--danger-light);
   --color-info: var(--info);
+  --color-signal-cyan: var(--signal-cyan);
+  --color-terracotta: var(--terracotta);
 
   --color-pilar-datos: var(--pilar-datos);
   --color-pilar-software: var(--pilar-software);
@@ -281,10 +306,10 @@
   font-variant-ligatures: none;
 }
 
-/* Fondo de las pantallas inmersivas: azul noche con degradado, igual en ambos temas. */
+/* Bosque nocturno: la escena conserva el mismo contraste en ambos temas. */
 @utility bg-night {
   background-image: linear-gradient(
-    160deg,
+    145deg,
     var(--primary-deep) 0%,
     var(--primary) 46%,
     var(--primary-soft) 100%
@@ -337,6 +362,13 @@
     background: var(--paper);
     font-size: 1rem;
     line-height: 1.5rem;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
   h1,
   h2,
@@ -397,6 +429,182 @@
 }
 
 @layer components {
+  .living-hero {
+    border: 1px solid color-mix(in srgb, var(--accent-soft) 18%, transparent);
+    box-shadow: var(--elev-card);
+  }
+  .living-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .living-hero-copy {
+    padding: clamp(1.5rem, 3vw, 3rem);
+    position: relative;
+    z-index: 2;
+  }
+  .living-hero-title {
+    font-family: var(--font-display);
+    font-weight: 850;
+    font-size: clamp(2.9rem, 4.3vw, 4.7rem);
+    letter-spacing: -0.055em;
+    line-height: 1.025;
+    text-wrap: initial;
+  }
+  .living-hero-scene {
+    min-width: 0;
+    min-height: 420px;
+    position: relative;
+    isolation: isolate;
+    padding-top: 2.8rem;
+    background: radial-gradient(
+      ellipse at 50% 48%,
+      rgba(110, 170, 89, 0.15),
+      transparent 64%
+    );
+  }
+  .living-scene-heading {
+    position: absolute;
+    inset: 1.5rem 1.5rem auto;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .living-station-view {
+    height: 100%;
+    min-height: 390px;
+  }
+  .scene-loading {
+    min-height: 390px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--accent-soft);
+    font-size: 0.875rem;
+  }
+  .signal-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+  .living-chain {
+    border-top: 1px solid
+      color-mix(in srgb, var(--accent-soft) 16%, transparent);
+    background: color-mix(in srgb, var(--accent-soft) 12%, transparent);
+  }
+  .moment-card {
+    display: flex;
+    position: relative;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    min-height: 124px;
+    overflow: hidden;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    text-align: left;
+  }
+  .moment-card:hover {
+    border-color: var(--ink-accent);
+    box-shadow: var(--elev-soft);
+  }
+  .moment-number {
+    align-self: flex-start;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    border-top: 2px solid var(--ink-accent);
+    padding-top: 0.4rem;
+  }
+  .moment-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .moment-icon {
+    color: var(--ink-accent);
+    opacity: 0.8;
+  }
+  .moment-card:nth-child(2) .moment-number {
+    border-color: var(--terracotta);
+  }
+  .moment-card:nth-child(3) .moment-number {
+    border-color: var(--info);
+  }
+  .route-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-block: 1px solid var(--border);
+  }
+  .lesson-route-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 235px;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 240ms var(--curve-out);
+  }
+  .lesson-route-card:hover {
+    transform: translateY(-3px);
+  }
+  .route-card-number {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    font-weight: 500;
+    letter-spacing: -0.06em;
+  }
+  @media (min-width: 1100px) {
+    .living-hero-grid {
+      grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+    }
+    .living-hero-scene {
+      border-left: 1px solid
+        color-mix(in srgb, var(--accent-soft) 10%, transparent);
+    }
+    .living-station-view {
+      min-height: 480px;
+    }
+  }
+  @media (max-width: 639px) {
+    .living-hero-title {
+      font-size: clamp(2.65rem, 11vw, 3.8rem);
+    }
+    .living-hero-scene {
+      min-height: 355px;
+      padding-top: 2rem;
+    }
+    .living-scene-heading {
+      inset: 0.7rem 1rem auto;
+    }
+    .living-scene-heading .t-overline {
+      font-size: 10px;
+    }
+    .living-station-view,
+    .scene-loading {
+      min-height: 330px;
+    }
+    .moment-card {
+      min-height: 106px;
+    }
+    .moment-icon {
+      margin-left: auto;
+    }
+    .route-status > :last-child {
+      flex-basis: 100%;
+    }
+  }
+
   /* Deslizador: pista con relleno hasta el valor (--fill) y perilla de 24 px. */
   .rd-slider::-webkit-slider-runnable-track {
     height: 8px;

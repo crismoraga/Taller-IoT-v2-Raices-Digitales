@@ -222,6 +222,8 @@ export class SerialLink {
 }
 
 export class MicroPythonSerial extends SerialLink {
+  /** Avisa cuando el programa del estudiante termina, falla o se detiene. */
+  onRunEnd: (failed: boolean) => void = () => {};
   private execution: {
     stage: number;
     decoder: TextDecoder;
@@ -263,8 +265,11 @@ export class MicroPythonSerial extends SerialLink {
         this.execution = null;
         this.protocol = false;
         void this.send([2]).catch(() => {});
-        if (execution.error && !execution.error.includes("KeyboardInterrupt"))
-          this.onOutput(`\n[Programa terminado con error]\n`);
+        const failed = Boolean(
+          execution.error && !execution.error.includes("KeyboardInterrupt"),
+        );
+        if (failed) this.onOutput(`\n[Programa terminado con error]\n`);
+        this.onRunEnd(failed);
         this.wake();
       }
     }
@@ -392,6 +397,7 @@ export class MicroPythonSerial extends SerialLink {
       this.protocol = false;
       this.inbox = [];
     });
+    this.onRunEnd(false);
   }
   private async save(path: string, content: string) {
     if (
@@ -452,6 +458,7 @@ export class MicroPythonSerial extends SerialLink {
     });
   }
   override async disconnect() {
+    if (this.execution) this.onRunEnd(false);
     this.execution = null;
     await super.disconnect();
   }

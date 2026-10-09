@@ -1,6 +1,6 @@
 # Verificación de Raíces Digitales
 
-La aplicación conserva la distinción entre software verificado, telemetría simulada y hardware físico pendiente. Fecha de trabajo: 7–8 de octubre de 2026, America/Santiago.
+La aplicación conserva la distinción entre software verificado, telemetría simulada y hardware físico pendiente. Revisión de la experiencia y del código: 8 de octubre de 2026, America/Santiago.
 
 ## Comandos
 
@@ -12,12 +12,17 @@ Arduino CLI oficial 1.4.1 descargado con checksum SHA-256 verificado. Core AVR 1
 
 ## Resultados finales
 
-- TypeScript estricto y build Vite completados. Contenido y editor autocontenidos: 39 assets en caché offline, API excluida.
-- 28 pruebas Vitest de backend y protocolos USB, y 14 pruebas Python de drivers/conectividad, aprobadas.
-- 13 flujos Playwright aprobados en Chrome: escritorio/móvil, 3D/2D, grupos/progreso/borradores, sensores/calibración, telemetría/umbrales/recuperación/CSV, diagnóstico, docente, USB raw-paste/flash/reconexión, instalación/revocación y recarga offline con sincronización posterior. Los diálogos retienen el foco y lo devuelven al activador.
-- Los 29 sketches de lecciones compilaron para Uno; la estación integrada compiló en Uno/Nano/Nano-old. El sketch de parada compila y sustituye el programa Arduino por pines en alta impedancia.
-- Diez estaciones virtuales simultáneas, seis rondas a cinco segundos: 540 lecturas aceptadas, identidad por dispositivo/grupo y cruce/recuperación de umbral comprobados vía API. La herramienta elimina sus propias sesiones con `--cleanup`.
-- `npm audit` sin vulnerabilidades conocidas al ejecutar la revisión. Caddy oficial: configuración adaptada y validada.
+- TypeScript estricto y build Vite completados. Contenido, escenas, tipografías y editor autocontenidos: 45 assets en caché offline, API excluida. La revisión de caché depende del contenido de todos los recursos, incluidas las guías.
+- 315 pruebas Vitest aprobadas: 204 de contenido, 71 de circuitos, 18 de backend, 14 de protocolos serial y 8 de sincronización offline. Además, 14 pruebas Python de drivers/conectividad aprobadas.
+- 17 flujos Playwright aprobados en Chrome aislado: escritorio/móvil, planta animada, conexiones incrementales 3D/2D, checkpoints con explicación, grupos/progreso/borradores, cambios de código y undo, variantes Arduino, sensores/calibración, telemetría/umbrales/recuperación/CSV, diagnóstico, docente, USB raw-paste/reconexión, instalación/revocación y recarga offline. Los diálogos retienen el foco y lo devuelven al activador.
+- La recuperación del servidor sin evento `online` conserva el borrador más reciente. Se prueban modificaciones sucesivas y simultáneas, grupos independientes, almacenamiento no disponible y respuestas antiguas que llegan después de una nueva edición.
+- Las 33 actividades contienen 68 preguntas con feedback. Se validan terminales y coordenadas del cableado, pines según placa y sintaxis de los ejemplos MicroPython originales, soluciones y cambios guiados. La ruta esencial suma 60 minutos.
+- En esta revisión se completaron 14 compilaciones AVR reales de nuevos sketches, soluciones y cambios guiados. En la construcción anterior compilaron los 29 sketches originales para Uno y la estación integrada para Uno/Nano/Nano-old. El sketch de parada sustituye el programa Arduino por pines en alta impedancia.
+- Revisión visual adicional de siete rutas en anchos de 320 y 390 px: sin desbordamiento horizontal ni errores de consola. WebGL deshabilitado conserva explicaciones accesibles y cableado 2D; se respetan movimiento reducido y navegación por teclado.
+- El editor Monaco se carga al entrar en Programa o Experimenta. El bloque de lección ronda 117 kB antes de compresión; el editor separado ronda 2,39 MB y genera el aviso esperado de tamaño de Vite. Las tres tipografías latinas son locales e incluyen sus licencias.
+- `npm audit` sin vulnerabilidades conocidas al ejecutar la revisión.
+
+La verificación anterior del backend también ejercitó diez estaciones virtuales simultáneas, seis rondas a cinco segundos: 540 lecturas aceptadas, identidad por dispositivo/grupo y cruce/recuperación de umbral comprobados vía API. La herramienta elimina sus propias sesiones con `--cleanup`. La configuración Caddy se adaptó y validó con el ejecutable oficial; no equivale a desplegar un servidor público.
 
 Las capturas y trazas del runner quedan en `test-results/` y el reporte en `playwright-report/`. Las pruebas del peer USB verifican bytes y comportamiento de interfaz; no sustituyen una placa física. El backend no precarga lecturas para la experiencia del estudiante.
 

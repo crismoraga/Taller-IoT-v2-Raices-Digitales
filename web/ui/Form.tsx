@@ -40,7 +40,10 @@ export function Field({
     undefined;
   return (
     <div className={cx("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="t-label flex items-baseline gap-2 text-ink">
+      <label
+        htmlFor={id}
+        className="t-label flex items-baseline gap-2 text-ink"
+      >
         {label}
         {optional && (
           <span className="text-xs font-semibold text-ink-soft">opcional</span>
@@ -51,8 +54,11 @@ export function Field({
         "aria-describedby": describedBy,
         "aria-invalid": error ? true : undefined,
       })}
-      {hint && !error && (
-        <p id={`${id}-hint`} className="text-[13px] leading-[18px] text-ink-soft">
+      {hint && (
+        <p
+          id={`${id}-hint`}
+          className="text-[13px] leading-[18px] text-ink-soft"
+        >
           {hint}
         </p>
       )}
@@ -74,7 +80,9 @@ export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement>
 >(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cx(control, "h-12", className)} {...rest} />;
+  return (
+    <input ref={ref} className={cx(control, "h-12", className)} {...rest} />
+  );
 });
 
 export const Textarea = forwardRef<

@@ -139,16 +139,28 @@ async function groupAndConnect(page: Page) {
   await protocolPeer(page);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Comenzar el taller", exact: true })
+    .getByRole("button", { name: "Comenzar taller", exact: true })
     .click();
   await page.getByLabel("Nombre del equipo").fill("USB protocolo QA");
   await page.getByLabel("Número de estación").selectOption("9");
-  await page.getByRole("button", { name: "Comenzar mi recorrido" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Comenzar el taller", exact: true })
+    .click();
   await expect(page).toHaveURL(/taller\/welcome/);
   await page.goto("/taller/led");
+  await page
+    .getByRole("navigation", { name: "Partes de la actividad" })
+    .getByRole("button", { name: /Programa/ })
+    .click();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
-  await page.getByRole("button", { name: "Conectar USB", exact: true }).click();
-  await expect(page.locator(".connection-status")).toHaveText("USB conectado");
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
   await expect
     .poll(
       async () =>
@@ -175,17 +187,26 @@ test("real UI executes raw-paste, edits UTF8 code, saves bytes, stops and reconn
 }) => {
   await groupAndConnect(page);
   await page.getByRole("button", { name: "Ejecutar", exact: true }).click();
-  await expect(page.locator(".serial-output")).toContainText("LED encendido");
+  await expect(
+    page.getByRole("log", { name: "Salida de la placa" }),
+  ).toContainText("LED encendido");
   const code = '# CAMBIO_UTF8: raíces 🌱\nprint("CAMBIO_UTF8: raíces 🌱")\n';
   await replaceCode(page, code);
   await page.getByRole("button", { name: "Ejecutar", exact: true }).click();
-  await expect(page.locator(".serial-output")).toContainText(
-    "CAMBIO_UTF8: raíces 🌱",
-  );
+  await expect(
+    page.getByRole("log", { name: "Salida de la placa" }),
+  ).toContainText("CAMBIO_UTF8: raíces 🌱");
   await page
-    .getByRole("button", { name: "Guardar en la placa", exact: true })
+    .getByRole("button", {
+      name: "Guardar en la Pico como main.py",
+      exact: true,
+    })
     .click();
-  await expect(page.getByRole("status")).toContainText("main.py guardado");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Sí, guardar", exact: true })
+    .click();
+  await expect(page.getByText(/Guardado como main.py/)).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -196,24 +217,27 @@ test("real UI executes raw-paste, edits UTF8 code, saves bytes, stops and reconn
 
   await replaceCode(page, 'while True:\n    print("LED: 1")\n');
   await page.getByRole("button", { name: "Ejecutar", exact: true }).click();
-  await expect(page.locator(".serial-output")).toContainText("LED: 1");
-  await page
-    .getByRole("button", { name: "Detener código", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toContainText("Programa detenido");
+  await expect(
+    page.getByRole("log", { name: "Salida de la placa" }),
+  ).toContainText("LED: 1");
+  await page.getByRole("button", { name: "Detener", exact: true }).click();
+  await expect(page.getByText(/Programa detenido/)).toBeVisible();
   await page.evaluate(() =>
     (
       window as unknown as { __usbPeer: { unplug: () => void } }
     ).__usbPeer.unplug(),
   );
-  await expect(page.locator(".connection-status")).toHaveText(
-    "Sin placa conectada",
-  );
+  await expect(page.getByText("Sin placa", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Ejecutar", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Conectar USB", exact: true }).click();
-  await expect(page.locator(".connection-status")).toHaveText("USB conectado");
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
   const data = await (await page.request.get("/api/dashboard")).json();
   expect(
     data.devices.filter(
@@ -304,8 +328,13 @@ test("station installation writes the complete bundle and fresh group credential
 }) => {
   test.setTimeout(75000);
   await groupAndConnect(page);
-  await page.locator(".group-avatar").click();
-  await expect(page).toHaveURL(/configuracion/);
+  await page
+    .getByRole("button", {
+      name: "Grupo USB protocolo QA, ver estación",
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveURL(/estacion/);
   await page
     .locator(".sensor-toggle")
     .filter({ hasText: "Humedad del suelo" })
@@ -337,7 +366,7 @@ test("station installation writes the complete bundle and fresh group credential
   await page
     .getByRole("button", { name: "Instalar en mi placa", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("Estación instalada", {
+  await expect(page.getByText(/Estación instalada/)).toBeVisible({
     timeout: 45000,
   });
   const files = await page.evaluate(
@@ -380,4 +409,57 @@ test("station installation writes the complete bundle and fresh group credential
   expect(await page.locator("body").innerText()).not.toContain(
     configuration.password,
   );
+  const reinstall = async () => {
+    const executions = () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as { __usbPeer: { programs: string[] } }
+          ).__usbPeer.programs.filter(
+            (code) => code === "exec(open('main.py').read())",
+          ).length,
+      );
+    const beforeExecution = await executions();
+    await page.getByLabel("Contraseña Wi-Fi").fill("QA-password-solo-fixture");
+    await page
+      .getByRole("button", {
+        name: "Vincular e instalar estación",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Instalar en mi placa", exact: true })
+      .click();
+    await expect.poll(executions, { timeout: 45000 }).toBe(beforeExecution + 1);
+    await expect(
+      page.getByRole("button", {
+        name: "Vincular e instalar estación",
+        exact: true,
+      }),
+    ).toBeEnabled({ timeout: 45000 });
+    return page.evaluate(() =>
+      JSON.parse(
+        (window as unknown as { __usbPeer: { files: Record<string, string> } })
+          .__usbPeer.files["config.json"],
+      ),
+    );
+  };
+  const repeated = await reinstall();
+  expect(repeated.deviceId).toBe(configuration.deviceId);
+  expect(repeated.token).toBe(configuration.token);
+  await page
+    .locator(`.device-row[data-device-id="${configuration.deviceId}"]`)
+    .getByRole("button", { name: "Revocar acceso", exact: true })
+    .click();
+  const denied = await page.request.post("/api/device/ingest", {
+    headers: { Authorization: `Bearer ${configuration.token}` },
+    data: {
+      readings: [{ sensor: "soil", value: 42, unit: "%", status: "READING" }],
+      source: "hardware",
+    },
+  });
+  expect(denied.status()).toBe(401);
+  const renewed = await reinstall();
+  expect(renewed.deviceId).not.toBe(configuration.deviceId);
+  expect(renewed.token).not.toBe(configuration.token);
 });

@@ -1,7 +1,19 @@
 import type { Session } from "./api";
 const sessionKey = "raices.session.cache";
 const pendingKey = "raices.session.pending";
-type Pending = { id: string; patch: Partial<Session> };
+type Pending = { id: string; patch: Partial<Session>; revision?: string };
+/** Respeta la misma combinación parcial que la base de datos, con el cambio más reciente al final. */
+export function mergeSessionPatch(
+  older: Partial<Session>,
+  newer: Partial<Session>,
+): Partial<Session> {
+  const combined = { ...older, ...newer };
+  for (const key of ["drafts", "calibrations", "sensorEnabled"] as const) {
+    if (older[key] || newer[key])
+      Object.assign(combined, { [key]: { ...older[key], ...newer[key] } });
+  }
+  return combined;
+}
 function read<T>(key: string): T | null {
   try {
     return JSON.parse(localStorage.getItem(key) || "null") as T | null;
@@ -24,10 +36,12 @@ export const offline = {
     const old = read<Pending>(pendingKey);
     write(pendingKey, {
       id,
-      patch: { ...(old?.id === id ? old.patch : {}), ...patch },
+      revision: crypto.randomUUID(),
+      patch: mergeSessionPatch(old?.id === id ? old.patch : {}, patch),
     });
   },
-  synced: () => {
+  synced: (revision?: string) => {
+    if (read<Pending>(pendingKey)?.revision !== revision) return;
     try {
       localStorage.removeItem(pendingKey);
     } catch {}

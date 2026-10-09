@@ -10,7 +10,7 @@ import { cx } from "./cx";
 /**
  * Variantes del botón de la marca:
  *  - primary: acción principal sobre superficies del tema. Una sola por vista.
- *  - cream: acción principal sobre fondos azul noche.
+ *  - cream: acción principal sobre fondos de bosque nocturno.
  *  - accent: avanzar en una secuencia («Siguiente»).
  *  - secondary / subtle: acciones de apoyo dentro de tarjetas.
  *  - outline / outlineLight: alternativas y reintentos (Light sobre azul noche).
@@ -48,7 +48,7 @@ const variants: Record<ButtonVariant, string> = {
   ghostLight: "bg-transparent text-accent-soft hover:bg-primary-soft",
 };
 const sizes: Record<ButtonSize, string> = {
-  sm: "min-h-10 rounded-sm px-4 gap-2 text-sm font-body font-bold",
+  sm: "min-h-11 rounded-sm px-4 gap-2 text-sm font-body font-bold",
   md: "min-h-12 rounded-md px-5 gap-2.5 text-base font-display font-bold",
   lg: "min-h-14 rounded-md px-7 gap-3 text-[1.0625rem] font-display font-bold",
 };
@@ -85,50 +85,52 @@ export function DotsLoader({ className }: { className?: string }) {
 const base =
   "pressable focus-ring inline-flex select-none items-center justify-center whitespace-nowrap text-center leading-5 disabled:bg-border disabled:text-ink-soft disabled:border-transparent disabled:hover:brightness-100 aria-disabled:pointer-events-none aria-disabled:bg-border aria-disabled:text-ink-soft";
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {
-    variant = "primary",
-    size = "md",
-    icon,
-    iconRight,
-    loading,
-    fullWidth,
-    className,
-    children,
-    disabled,
-    type = "button",
-    ...rest
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    {
+      variant = "primary",
+      size = "md",
+      icon,
+      iconRight,
+      loading,
+      fullWidth,
+      className,
+      children,
+      disabled,
+      type = "button",
+      ...rest
+    },
+    ref,
+  ) {
+    const iconSize = size === "sm" ? 16 : size === "lg" ? 22 : 19;
+    return (
+      <button
+        ref={ref}
+        type={type}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
+        className={cx(
+          base,
+          variants[variant],
+          sizes[size],
+          fullWidth && "w-full",
+          className,
+        )}
+        {...rest}
+      >
+        {loading ? (
+          <DotsLoader />
+        ) : (
+          <>
+            {icon && <Icon name={icon} size={iconSize} />}
+            {children}
+            {iconRight && <Icon name={iconRight} size={iconSize} />}
+          </>
+        )}
+      </button>
+    );
   },
-  ref,
-) {
-  const iconSize = size === "sm" ? 16 : size === "lg" ? 22 : 19;
-  return (
-    <button
-      ref={ref}
-      type={type}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
-      className={cx(
-        base,
-        variants[variant],
-        sizes[size],
-        fullWidth && "w-full",
-        className,
-      )}
-      {...rest}
-    >
-      {loading ? (
-        <DotsLoader />
-      ) : (
-        <>
-          {icon && <Icon name={icon} size={iconSize} />}
-          {children}
-          {iconRight && <Icon name={iconRight} size={iconSize} />}
-        </>
-      )}
-    </button>
-  );
-});
+);
 
 /** Mismo aspecto que Button, para enlaces reales (navegación externa o descargas). */
 export function LinkButton({
@@ -181,7 +183,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   badge?: ReactNode;
 }
 
-/** Botón de solo ícono. Área táctil de 44 px (36 px en barras densas con `size="sm"`). */
+/** Botón de solo ícono. Área táctil mínima de 44 px en ambos tamaños. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   function IconButton(
     {
@@ -206,7 +208,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         aria-pressed={active}
         className={cx(
           "pressable focus-ring relative inline-flex shrink-0 items-center justify-center disabled:opacity-45",
-          size === "md" ? "size-11 rounded-[14px]" : "size-9 rounded-sm",
+          size === "md" ? "size-11 rounded-[14px]" : "size-11 rounded-sm",
           iconTones[tone],
           active && "bg-action! text-action-ink!",
           className,

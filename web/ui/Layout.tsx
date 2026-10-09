@@ -1,5 +1,10 @@
 import { useId, useState, type ReactNode } from "react";
-import { Backdrop, Icon, type BackdropPattern, type IconName } from "../brand/Graphics";
+import {
+  Backdrop,
+  Icon,
+  type BackdropPattern,
+  type IconName,
+} from "../brand/Graphics";
 import { cx } from "./cx";
 
 /** Ancho máximo y márgenes laterales de toda pantalla. */
@@ -27,7 +32,7 @@ export function Page({
 }
 
 /**
- * Cabecera azul noche de las pantallas: kicker celeste, título crema y subtítulo.
+ * Cabecera de bosque nocturno: kicker lima, título crema y subtítulo.
  * Es `primary` con texto `cream` en los dos temas.
  */
 export function PageHeader({
@@ -75,7 +80,9 @@ export function PageHeader({
             </p>
           )}
           {actions && (
-            <div className="mt-5 flex flex-wrap items-center gap-3">{actions}</div>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              {actions}
+            </div>
           )}
         </div>
         {art && <div className="hidden shrink-0 sm:block">{art}</div>}
@@ -109,7 +116,9 @@ export function SectionHeader({
       )}
     >
       <div className="min-w-0">
-        {kicker && <p className="t-overline mb-1.5 text-ink-accent">{kicker}</p>}
+        {kicker && (
+          <p className="t-overline mb-1.5 text-ink-accent">{kicker}</p>
+        )}
         <Heading className="t-title text-ink">{title}</Heading>
         {description && (
           <p className="mt-1 max-w-2xl text-[15px] leading-[22px] text-ink-soft">
@@ -117,7 +126,9 @@ export function SectionHeader({
           </p>
         )}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
+      )}
     </div>
   );
 }
@@ -155,7 +166,9 @@ export function Stat({
           <span
             className={cx(
               "flex size-8 shrink-0 items-center justify-center rounded-[10px]",
-              onDark ? "bg-primary text-accent-soft" : "bg-highlight text-ink-accent",
+              onDark
+                ? "bg-primary text-accent-soft"
+                : "bg-highlight text-ink-accent",
             )}
           >
             <Icon name={icon} size={17} />
@@ -233,7 +246,9 @@ export function ListRow({
       <div className="min-w-0 flex-1">
         <p className="t-label truncate text-[15px] text-ink">{title}</p>
         {detail && (
-          <p className="mt-0.5 text-[13px] leading-[18px] text-ink-soft">{detail}</p>
+          <p className="mt-0.5 text-[13px] leading-[18px] text-ink-soft">
+            {detail}
+          </p>
         )}
       </div>
       {end}
@@ -278,7 +293,9 @@ export function Disclosure({
         )}
       >
         {icon && <Icon name={icon} size={19} className="text-ink-accent" />}
-        <span className="t-label min-w-0 flex-1 text-[15px] text-ink">{title}</span>
+        <span className="t-label min-w-0 flex-1 text-[15px] text-ink">
+          {title}
+        </span>
         <Icon
           name="chevronDown"
           size={18}
@@ -343,8 +360,20 @@ export function Tabs<T extends string>({
         className,
       )}
       onKeyDown={(event) => {
-        if (event.key === "ArrowRight") move(1);
-        if (event.key === "ArrowLeft") move(-1);
+        if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+          event.preventDefault();
+          move(event.key === "ArrowRight" ? 1 : -1);
+        }
+        if (event.key === "Home" || event.key === "End") {
+          event.preventDefault();
+          const next = event.key === "Home" ? tabs[0] : tabs[tabs.length - 1];
+          if (next) {
+            onChange(next.id);
+            requestAnimationFrame(() =>
+              document.getElementById(`${idBase}-tab-${next.id}`)?.focus(),
+            );
+          }
+        }
       }}
     >
       {tabs.map((tab) => {

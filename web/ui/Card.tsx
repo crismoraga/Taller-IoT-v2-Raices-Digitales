@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useId,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type ReactNode,
@@ -40,14 +41,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 /** Contenedor de radio 20 y relleno 18–20. No anides tarjetas con borde dentro de otras con borde. */
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  {
-    tone = "surface",
-    elevated,
-    padded = true,
-    as = "div",
-    className,
-    ...rest
-  },
+  { tone = "surface", elevated, padded = true, as = "div", className, ...rest },
   ref,
 ) {
   // El elemento cambia (section, li…), pero los atributos son los comunes de HTML.
@@ -71,7 +65,10 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
 export const CardButton = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { tone?: CardTone }
->(function CardButton({ tone = "surface", className, type = "button", ...rest }, ref) {
+>(function CardButton(
+  { tone = "surface", className, type = "button", ...rest },
+  ref,
+) {
   return (
     <button
       ref={ref}
@@ -173,7 +170,7 @@ export function Chip({
       type={type}
       aria-pressed={active}
       className={cx(
-        "pressable focus-ring inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border-[1.5px] px-3.5 text-[13px] font-bold",
+        "pressable focus-ring inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border-[1.5px] px-3.5 text-[13px] font-bold",
         tone === "light"
           ? active
             ? "border-action bg-action text-action-ink"
@@ -219,30 +216,61 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
   className?: string;
 }) {
+  const id = useId();
+  const selectAt = (index: number) => {
+    const next = options[index];
+    if (!next) return;
+    onChange(next.value);
+    requestAnimationFrame(() =>
+      document.getElementById(`${id}-${index}`)?.focus(),
+    );
+  };
   return (
     <div
       role="radiogroup"
       aria-label={label}
+      onKeyDown={(event) => {
+        const current = Math.max(
+          0,
+          options.findIndex((option) => option.value === value),
+        );
+        const next =
+          event.key === "ArrowRight" || event.key === "ArrowDown"
+            ? (current + 1) % options.length
+            : event.key === "ArrowLeft" || event.key === "ArrowUp"
+              ? (current - 1 + options.length) % options.length
+              : event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? options.length - 1
+                  : undefined;
+        if (next !== undefined && options.length) {
+          event.preventDefault();
+          selectAt(next);
+        }
+      }}
       className={cx(
         "inline-flex gap-1 rounded-md p-1",
         tone === "light" ? "bg-surface-alt" : "bg-primary-deep/60",
         className,
       )}
     >
-      {options.map((option) => {
+      {options.map((option, index) => {
         const active = option.value === value;
         return (
           <button
             key={option.value}
+            id={`${id}-${index}`}
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cx(
               "pressable focus-ring inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-sm font-bold",
               size === "md"
-                ? "min-h-9 px-3.5 text-[13px]"
-                : "min-h-8 px-2.5 text-xs",
+                ? "min-h-11 px-3.5 text-[13px]"
+                : "min-h-11 px-2.5 text-xs",
               tone === "light"
                 ? active
                   ? "bg-action text-action-ink shadow-soft"

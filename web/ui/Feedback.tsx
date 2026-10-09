@@ -86,7 +86,11 @@ export function Callout({
           config.dot,
         )}
       >
-        <Icon name={icon ?? config.icon} size={compact ? 15 : 17} strokeWidth={2.4} />
+        <Icon
+          name={icon ?? config.icon}
+          size={compact ? 15 : 17}
+          strokeWidth={2.4}
+        />
       </span>
       <div className="min-w-0 flex-1">
         <p
@@ -115,14 +119,7 @@ export function Callout({
 /* ── CoachBubble: Rutix hablando ──────────────────────────────── */
 
 export type CoachMood =
-  | "intro"
-  | "tip"
-  | "good"
-  | "great"
-  | "bad"
-  | "think"
-  | "alert"
-  | "idle";
+  "intro" | "tip" | "good" | "great" | "bad" | "think" | "alert" | "idle";
 
 const moods: Record<
   CoachMood,
@@ -199,7 +196,9 @@ export function CoachBubble({
         {title && (
           <p className="t-overline mb-1 text-[10.5px] opacity-80">{title}</p>
         )}
-        <div className="font-semibold [&_strong]:font-extrabold">{children}</div>
+        <div className="font-semibold [&_strong]:font-extrabold">
+          {children}
+        </div>
         {action && <div className="mt-2.5">{action}</div>}
       </div>
     </div>
@@ -302,14 +301,21 @@ export function SignalSpinner({
           key={d}
           d={d}
           className="animate-twinkle"
-          style={{ animationDelay: `${index * 220}ms`, animationDuration: "660ms" }}
+          style={{
+            animationDelay: `${index * 220}ms`,
+            animationDuration: "660ms",
+          }}
         />
       ))}
     </svg>
   );
 }
 
-export function PageLoader({ label = "Preparando tu espacio…" }: { label?: string }) {
+export function PageLoader({
+  label = "Preparando tu espacio…",
+}: {
+  label?: string;
+}) {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-ink-accent">
       <SignalSpinner size={44} label={label} />

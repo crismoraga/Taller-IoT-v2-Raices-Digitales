@@ -61,6 +61,25 @@ export function Modal({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const items = [
+          ...event.currentTarget.querySelectorAll<HTMLElement>(
+            'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]',
+          ),
+        ].filter((item) => item.getClientRects().length > 0);
+        if (!items.length) {
+          event.preventDefault();
+          event.currentTarget.focus();
+        } else if (event.shiftKey && document.activeElement === items[0]) {
+          event.preventDefault();
+          items.at(-1)?.focus();
+        } else if (!event.shiftKey && document.activeElement === items.at(-1)) {
+          event.preventDefault();
+          items[0]?.focus();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
         if (dismissable) onClose();

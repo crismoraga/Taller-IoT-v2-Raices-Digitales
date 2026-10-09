@@ -36,9 +36,10 @@ Tras la primera carga del build, un grupo existente puede recargar las lecciones
 ## Lo que puedes hacer
 
 - Crear sesiones anónimas independientes, guardar progreso y borradores, exportar y eliminar datos.
-- Seguir seis etapas o explorar todos los sensores comprados y componentes del kit MCI.
-- Girar y seleccionar componentes/pines 3D, resaltar conexiones paso a paso y usar alternativa SVG 2D.
-- Editar, ejecutar, detener, guardar y descargar código; ver y enviar serial real.
+- Seguir seis actividades esenciales en 60 minutos o explorar las 33 actividades de programación, sensores y componentes del kit MCI.
+- Aprender en cinco fases: entiende, conecta, programa, experimenta y comprueba, con checkpoints explicados y progreso persistente.
+- Explorar la planta 3D con raíces, sensores y red animada; seleccionar terminales de la protoboard, seguir cada conexión y usar el plano SVG 2D con los mismos agujeros.
+- Aplicar y deshacer cambios guiados de MicroPython/C++, editar, ejecutar, detener, guardar y descargar código; ver y enviar serial real.
 - Calibrar suelo/agua con veinte muestras de ADC o valores RAW manuales.
 - Instalar estación modular en Pico W con Wi-Fi, TLS validado, identidad de dispositivo y token revocable.
 - Instalar estación Arduino Uno/Nano con los ocho drivers y puente USB hacia el servidor.
@@ -56,4 +57,4 @@ El servidor necesita almacenamiento persistente. Incluye Docker, SQLite en volum
 
 Los tests de software verifican protocolos, persistencia y aislamiento; no certifican el montaje eléctrico. Antes del taller se deben probar las diez placas, variantes reales de sensores, red 2,4 GHz y entrega al chat Telegram. Revisa [QA](docs/QA.md) para resultados y el procedimiento físico. No se han inventado lecturas ni afirmado pruebas con placas no conectadas.
 
-La marca es propia provisional, documentada en [BRAND_TOKENS](BRAND_TOKENS.md). El artifact SoyTEL original no fue accesible.
+La identidad Raíces Digitales adapta los recursos SoyTEL presentes en el proyecto a la temática de naturaleza y telemática: bosque nocturno, papel cálido, lima, cobre y cian. Está documentada en [BRAND_TOKENS](BRAND_TOKENS.md). Escenas, tipografías, gráficos y editor se sirven localmente; tema oscuro y movimiento reducido respetan las preferencias del navegador.
