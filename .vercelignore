@@ -1,7 +1,7 @@
 # Deployment uploads must never include local credentials or workshop data.
 .env
 .env.*
-data/
+/data/
 **/*.sqlite
 **/*.sqlite-wal
 **/*.sqlite-shm
@@ -9,7 +9,7 @@ data/
 
 # Vercel installs and builds from the source files in this deployment.
 node_modules/
-tools/
+/tools/
 dist/
 .git/
 .vercel/
