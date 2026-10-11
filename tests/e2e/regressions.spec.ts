@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { test, expect, type Download, type Page } from "@playwright/test";
 
+test.use({ reducedMotion: "reduce" });
+
 const ORIGIN = "http://127.0.0.1:5173";
 const ESSENTIALS = ["welcome", "led", "blink", "soil", "calibration", "cloud"];
 
@@ -280,12 +282,19 @@ test("mobile onboarding preserves Arduino and free mode through welcome and the 
   await expect(
     page.getByRole("radio", { name: "Libre", exact: true }),
   ).toBeChecked();
+  const connect = page.getByRole("region", {
+    name: /Conecta Cableado paso a paso/,
+  });
   await expect(
-    page.getByRole("heading", {
-      name: "La protoboard y tu Arduino Uno",
+    connect.getByRole("region", {
+      name: "Explorador interactivo de la placa",
       exact: true,
     }),
   ).toBeVisible();
+  await expect(
+    connect.getByRole("radio", { name: "Explorar en 3D", exact: true }),
+  ).toBeChecked();
+  await expect(connect.locator(".rdx-circuit canvas")).toBeVisible();
   await expectFitsScreen(page);
   await page.goto("/taller/cloud");
   await expect(

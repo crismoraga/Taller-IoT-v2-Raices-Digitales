@@ -11,6 +11,11 @@ import {
 } from "../web/circuit/breadboard.ts";
 import { PICO_PINS, picoPin, picoPinForStrip } from "../web/circuit/pico.ts";
 import { clearanceProblems } from "../web/circuit/geometry.ts";
+import {
+  circuitForBoard,
+  controllerPins,
+  controllerBox,
+} from "../web/circuit/boards.ts";
 
 const errors = (circuit: Circuit, options = {}) =>
   analyze(circuit, options)
@@ -18,6 +23,79 @@ const errors = (circuit: Circuit, options = {}) =>
     .map((issue) => `${issue.code}: ${issue.message}`);
 
 const clone = (circuit: Circuit): Circuit => structuredClone(circuit);
+
+describe("Arduino: conexiones físicas y eléctricas de Uno y Nano", () => {
+  for (const board of ["uno", "nano", "nano-old"] as const) {
+    for (const [id, circuit] of Object.entries(circuits)) {
+      it(`${board}/${id}: todos los terminales reales producen el netlist esperado`, () => {
+        const mapped = circuitForBoard(circuit, board);
+        expect(errors(mapped, { splitRails: true, vbus: 5.25 })).toEqual([]);
+        expect(clearanceProblems(mapped)).toEqual([]);
+        expect(
+          mapped.nets.flat().some((terminal) => terminal.startsWith("pico:")),
+        ).toBe(false);
+        const placed = mapped.steps.flatMap((step) => [
+          ...(step.parts ?? []),
+          ...(step.wires ?? []),
+        ]);
+        expect(new Set(placed).size).toBe(
+          mapped.parts.length + mapped.wires.length,
+        );
+      });
+    }
+  }
+  it("D2 va al LED, A0 al suelo y A1 a la LDR, como en el firmware", () => {
+    expect(
+      circuitForBoard(circuits.led, "uno").wires.find(
+        (wire) => wire.id === "w_led_sig",
+      )?.from,
+    ).toBe("controller.D2");
+    expect(circuitForBoard(circuits.soil, "nano").nets).toContainEqual([
+      "controller:A0",
+      "soil.AOUT",
+    ]);
+    expect(circuitForBoard(circuits.ldr, "uno").nets.flat()).toContain(
+      "controller:A1",
+    );
+  });
+  it("Arduino ECHO llega directo a D8 y no conserva el divisor exclusivo Pico", () => {
+    const mapped = circuitForBoard(circuits.hcsr04, "uno");
+    expect(mapped.parts.some((part) => part.id.startsWith("r_echo"))).toBe(
+      false,
+    );
+    expect(mapped.wires.find((wire) => wire.id === "w_hc_echo")).toMatchObject({
+      from: "c59",
+      to: "controller.D8",
+    });
+    expect(analyze(mapped).gpioVolts.D8).toBe(5);
+  });
+  it("los módulos de 5 V comparten una tira, sin apilar cables en el conector Arduino", () => {
+    const mapped = circuitForBoard(circuits.station, "nano");
+    expect(
+      mapped.wires
+        .flatMap((wire) => [wire.from, wire.to])
+        .filter((end) => end === "controller.5V"),
+    ).toHaveLength(1);
+    const broken = clone(mapped);
+    broken.wires.push(jumper("bad", "controller.5V", "a1", "naranja", "5 V"));
+    expect(
+      errors(broken).some((error) => error.startsWith("header-in-use")),
+    ).toBe(true);
+  });
+  it("el modelo Nano incluye A6/A7 analógicos y el Uno sólo A0–A5", () => {
+    expect(controllerPins("nano").map((pin) => pin.name)).toContain("A7");
+    expect(controllerPins("uno").map((pin) => pin.name)).not.toContain("A7");
+    for (const board of ["uno", "nano"] as const) {
+      const box = controllerBox(board);
+      for (const pin of controllerPins(board)) {
+        expect(pin.x).toBeGreaterThanOrEqual(box.x);
+        expect(pin.x).toBeLessThanOrEqual(box.x + box.w);
+        expect(pin.y).toBeGreaterThanOrEqual(box.y);
+        expect(pin.y).toBeLessThanOrEqual(box.y + box.h);
+      }
+    }
+  });
+});
 
 describe("protoboard: geometría y tiras", () => {
   it("une a–e y f–j por número, separadas por el canal", () => {
@@ -49,12 +127,46 @@ describe("protoboard: geometría y tiras", () => {
 describe("Pico W: pinout real", () => {
   // Fuente: Raspberry Pi Pico W datasheet, figura del pinout.
   const reference: Record<number, string> = {
-    1: "GP0", 2: "GP1", 3: "GND", 4: "GP2", 5: "GP3", 6: "GP4", 7: "GP5", 8: "GND",
-    9: "GP6", 10: "GP7", 11: "GP8", 12: "GP9", 13: "GND", 14: "GP10", 15: "GP11",
-    16: "GP12", 17: "GP13", 18: "GND", 19: "GP14", 20: "GP15", 21: "GP16", 22: "GP17",
-    23: "GND", 24: "GP18", 25: "GP19", 26: "GP20", 27: "GP21", 28: "GND", 29: "GP22",
-    30: "RUN", 31: "GP26", 32: "GP27", 33: "AGND", 34: "GP28", 35: "ADC_VREF",
-    36: "3V3", 37: "3V3_EN", 38: "GND", 39: "VSYS", 40: "VBUS",
+    1: "GP0",
+    2: "GP1",
+    3: "GND",
+    4: "GP2",
+    5: "GP3",
+    6: "GP4",
+    7: "GP5",
+    8: "GND",
+    9: "GP6",
+    10: "GP7",
+    11: "GP8",
+    12: "GP9",
+    13: "GND",
+    14: "GP10",
+    15: "GP11",
+    16: "GP12",
+    17: "GP13",
+    18: "GND",
+    19: "GP14",
+    20: "GP15",
+    21: "GP16",
+    22: "GP17",
+    23: "GND",
+    24: "GP18",
+    25: "GP19",
+    26: "GP20",
+    27: "GP21",
+    28: "GND",
+    29: "GP22",
+    30: "RUN",
+    31: "GP26",
+    32: "GP27",
+    33: "AGND",
+    34: "GP28",
+    35: "ADC_VREF",
+    36: "3V3",
+    37: "3V3_EN",
+    38: "GND",
+    39: "VSYS",
+    40: "VBUS",
   };
 
   it("cada número físico tiene el nombre de la hoja de datos", () => {
@@ -63,12 +175,24 @@ describe("Pico W: pinout real", () => {
   });
 
   it("ubica cada pin en la protoboard con el USB a la izquierda", () => {
-    expect(picoPin("GP2")).toMatchObject({ physical: 4, hole: "c4", free: ["a4", "b4"] });
+    expect(picoPin("GP2")).toMatchObject({
+      physical: 4,
+      hole: "c4",
+      free: ["a4", "b4"],
+    });
     expect(picoPin("GP15")).toMatchObject({ physical: 20, hole: "c20" });
-    expect(picoPin("GP16")).toMatchObject({ physical: 21, hole: "h20", free: ["j20", "i20"] });
+    expect(picoPin("GP16")).toMatchObject({
+      physical: 21,
+      hole: "h20",
+      free: ["j20", "i20"],
+    });
     expect(picoPin("VBUS")).toMatchObject({ physical: 40, hole: "h1" });
     expect(picoPin("3V3")).toMatchObject({ physical: 36, hole: "h5" });
-    expect(picoPin("GP26")).toMatchObject({ physical: 31, hole: "h10", adc: 0 });
+    expect(picoPin("GP26")).toMatchObject({
+      physical: 31,
+      hole: "h10",
+      adc: 0,
+    });
     expect(picoPin("GP27")).toMatchObject({ physical: 32, hole: "h9", adc: 1 });
     expect(picoPin("GP28")).toMatchObject({ physical: 34, hole: "h7", adc: 2 });
     expect(picoPinForStrip(stripOf("a4"))?.name).toBe("GP2");
@@ -124,7 +248,14 @@ describe("revisión eléctrica de cada montaje del taller", () => {
     // Solo los dos módulos de 5 V tocan VBUS; todo lo demás va a 3V3.
     same("hc.VCC", "pico:VBUS");
     same("pir.VCC", "pico:VBUS");
-    for (const terminal of ["soil.VCC", "water.VCC", "rain.VCC", "dht.VCC", "ds.VDD", "ldr.a"])
+    for (const terminal of [
+      "soil.VCC",
+      "water.VCC",
+      "rain.VCC",
+      "dht.VCC",
+      "ds.VDD",
+      "ldr.a",
+    ])
       same(terminal, "pico:3V3");
   });
 
@@ -140,7 +271,8 @@ describe("revisión eléctrica de cada montaje del taller", () => {
   it("el divisor sigue siendo seguro con resistencias al 5 % de tolerancia", () => {
     const circuit = clone(circuits.hcsr04);
     for (const part of circuit.parts) {
-      if (part.id === "r_echo1" || part.id === "r_echo2") part.props!.ohms = 950;
+      if (part.id === "r_echo1" || part.id === "r_echo2")
+        part.props!.ohms = 950;
       if (/r_echo[345]/.test(part.id)) part.props!.ohms = 1050;
     }
     const { gpioVolts } = analyze(circuit, { vbus: 5.25 });
@@ -301,17 +433,25 @@ describe("la revisión detecta los errores típicos de un principiante", () => {
   it("LED con las dos patas en la misma tira", () => {
     const circuit = clone(circuits.led);
     circuit.parts = circuit.parts.map((part) =>
-      part.id === "led" ? { ...part, holes: { anodo: "d26", catodo: "e26" } } : part,
+      part.id === "led"
+        ? { ...part, holes: { anodo: "d26", catodo: "e26" } }
+        : part,
     );
     expect(errors(circuit).join("\n")).toMatch(/shorted-part/);
   });
 
   it("riel cortado al centro sin puente", () => {
     const circuit = clone(circuits.hcsr04);
-    circuit.wires = circuit.wires.filter((wire) => !wire.id.startsWith("w_bridge"));
-    circuit.steps = circuit.steps.filter((step) => !step.id.startsWith("bridge"));
+    circuit.wires = circuit.wires.filter(
+      (wire) => !wire.id.startsWith("w_bridge"),
+    );
+    circuit.steps = circuit.steps.filter(
+      (step) => !step.id.startsWith("bridge"),
+    );
     expect(errors(circuit)).toEqual([]);
-    expect(errors(circuit, { splitRails: true }).join("\n")).toMatch(/module-gnd|net-open/);
+    expect(errors(circuit, { splitRails: true }).join("\n")).toMatch(
+      /module-gnd|net-open/,
+    );
   });
 
   it("pulsador entre 3V3 y GND", () => {

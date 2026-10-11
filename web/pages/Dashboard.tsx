@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import {
   Activity,
   Download,
@@ -34,6 +34,8 @@ import {
 } from "../lib/api";
 import { Button, Badge, EmptyState, Notice, Modal } from "../components/Common";
 import { downloadExport } from "../lib/export";
+const LivingStation = lazy(() => import("../experience/LivingStation"));
+
 const initial: DashboardData = {
   devices: [],
   latest: [],
@@ -211,6 +213,42 @@ export default function Dashboard() {
     )
       latestMap.set(r.sensor, r);
   }
+  // One source drives the whole model: never combine simulated soil with a physical light sensor.
+  const sceneSource: "hardware" | "simulation" =
+    source === "hardware" || source === "simulation"
+      ? source
+      : latest
+            .filter((reading) => reading.status !== "DISABLED")
+            .sort(
+              (a, b) =>
+                new Date(b.timestamp || 0).getTime() -
+                new Date(a.timestamp || 0).getTime(),
+            )[0]?.source === "simulation"
+        ? "simulation"
+        : "hardware";
+  const sceneMap = new Map<string, Reading>();
+  for (const reading of latest) {
+    if (
+      (reading.source === "simulation" ? "simulation" : "hardware") !==
+      sceneSource
+    )
+      continue;
+    const previous = sceneMap.get(reading.sensor);
+    if (
+      !previous ||
+      new Date(reading.timestamp || 0) >= new Date(previous.timestamp || 0)
+    )
+      sceneMap.set(reading.sensor, reading);
+  }
+  const sceneValue = (sensor: string) => {
+    const reading = sceneMap.get(sensor);
+    return reading &&
+      ["READING", "OUT_OF_RANGE"].includes(reading.status) &&
+      typeof reading.value === "number" &&
+      Number.isFinite(reading.value)
+      ? reading.value
+      : undefined;
+  };
   const history = data.history.filter(
     (r) =>
       r.sensor === chartSensor && (source === "all" || r.source === source),
@@ -297,9 +335,9 @@ export default function Dashboard() {
   return (
     <div className="dashboard-page">
       <PageHeader
-        kicker="Prueba · Mi planta"
-        title="Tus lecturas, en vivo"
-        subtitle="Observa qué cambia y comprueba de dónde viene cada lectura."
+        kicker="Descubre · Mi planta"
+        title="Tu planta tiene algo que contarte"
+        subtitle="Toca la estación, observa una variable y descubre cómo cambia."
         art={
           <Icon
             name="sprout"
@@ -401,119 +439,156 @@ export default function Dashboard() {
           </div>
           {latest.some((r) => r.source === "simulation") &&
             source !== "hardware" && (
-              <Notice tone="warning">
-                Ves lecturas de <strong>simulación educativa</strong>. Las
-                tarjetas indican su fuente; puedes filtrar por hardware real.
+              <Notice>
+                Experimento en <strong>simulación educativa</strong>. Cada
+                tarjeta conserva su fuente; elige «Hardware real» para mirar tu
+                placa.
               </Notice>
             )}
-          {!relevantSensors.length && (
-            <EmptyState
-              title="Todo listo para tu primera lectura"
-              description="Conecta y configura los sensores que usarás, o abre el simulador para practicar."
-              action={
-                <Button
-                  variant="secondary"
-                  onClick={() => app.navigate("/estacion")}
-                >
-                  Preparar mis sensores <ArrowRight size={16} />
-                </Button>
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+            <Suspense
+              fallback={
+                <div className="grid min-h-[450px] place-items-center rounded-2xl border border-border bg-surface text-ink-soft">
+                  Tu estación está tomando forma…
+                </div>
               }
-            />
-          )}
-          <div className="sensor-grid">
-            {visibleSensors.map(({ id, unit, Icon }) => {
-              const reading = latestMap.get(id);
-              const rule = data.rules.find((r) => r.sensor === id);
-              const outside =
-                reading?.value != null &&
-                rule &&
-                (reading.value < rule.min || reading.value > rule.max);
-              const sensorProblem =
-                reading &&
-                ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
-                  reading.status,
-                );
-              return (
-                <button
-                  key={id}
-                  className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside || sensorProblem ? "alerting" : ""}`}
-                  aria-pressed={chartSensor === id}
-                  onClick={() => {
-                    setChartSensor(id);
-                    setHistoryOpen(true);
-                  }}
-                >
-                  <div className="sensor-card-top">
-                    <span className="sensor-icon">
-                      <Icon size={19} />
-                    </span>
-                    <span
-                      className={`sensor-state ${reading?.status === "READING" ? "good" : ""}`}
-                    >
-                      {reading
-                        ? statusLabels[reading.status] || reading.status
-                        : "Esperando"}
-                    </span>
-                  </div>
-                  <h3>{sensorLabels[id]}</h3>
-                  <div className="sensor-value">
-                    {format(reading)}
-                    <span>
-                      {reading?.value != null && unit !== "0/1" ? unit : ""}
-                    </span>
-                  </div>
-                  <div className="sensor-card-bottom">
-                    <span>
-                      {reading?.source === "simulation"
-                        ? "SIMULACIÓN"
-                        : reading
-                          ? "HARDWARE REAL"
-                          : "SIN LECTURAS"}
-                    </span>
-                    <span>
-                      {reading?.timestamp ? age(reading.timestamp) : "—"}
-                    </span>
-                  </div>
-                  {outside && (
-                    <span className="threshold-flag">
-                      Fuera del rango {rule!.min}–{rule!.max}
-                    </span>
-                  )}
-                  {reading?.status === "NEEDS_CALIBRATION" && (
-                    <span className="threshold-flag">
-                      RAW {reading.raw} · necesita referencias
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {relevantSensors.some(({ id }) =>
-            ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
-              latestMap.get(id)?.status || "",
-            ),
-          ) && (
-            <Notice tone="warning">
-              Hay sensores que necesitan revisión. Desconecta la alimentación
-              antes de cambiar cables.{" "}
-              <button
-                className="text-button"
-                onClick={() => app.navigate("/diagnostico")}
-              >
-                Revisar diagnóstico <ArrowRight size={13} />
-              </button>
-            </Notice>
-          )}
-          {relevantSensors.length > 4 && (
-            <Button
-              variant="ghost"
-              onClick={() => setShowAllSensors(!showAllSensors)}
             >
-              {showAllSensors
-                ? "Mostrar menos sensores"
-                : `Ver los ${relevantSensors.length} sensores activos`}
-            </Button>
-          )}
+              <LivingStation
+                mode="explore"
+                board={app.board}
+                readings={{
+                  soil: sceneValue("soil"),
+                  light: sceneValue("light"),
+                  source: sceneSource,
+                }}
+              />
+            </Suspense>
+            <div className="min-w-0 space-y-4">
+              <div className="rounded-xl border border-border bg-surface p-4">
+                <p className="t-overline text-ink-accent">Sigue la señal</p>
+                <h2 className="mt-2 font-display text-lg font-bold text-ink">
+                  Toca una lectura para ver su historia
+                </h2>
+                <p className="mt-1 text-sm text-ink-soft">
+                  Las tarjetas y el modelo muestran la fuente elegida arriba.
+                </p>
+              </div>
+              {!relevantSensors.length && (
+                <EmptyState
+                  title="Todo listo para tu primera lectura"
+                  description="Conecta y configura los sensores que usarás, o abre el simulador para practicar."
+                  action={
+                    <Button
+                      variant="secondary"
+                      onClick={() => app.navigate("/estacion")}
+                    >
+                      Elegir mis sensores <ArrowRight size={16} />
+                    </Button>
+                  }
+                />
+              )}
+              <div
+                className="sensor-grid"
+                style={{
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+                }}
+              >
+                {visibleSensors.map(({ id, unit, Icon }) => {
+                  const reading = latestMap.get(id);
+                  const rule = data.rules.find((r) => r.sensor === id);
+                  const outside =
+                    reading?.value != null &&
+                    rule &&
+                    (reading.value < rule.min || reading.value > rule.max);
+                  const sensorProblem =
+                    reading &&
+                    ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
+                      reading.status,
+                    );
+                  return (
+                    <button
+                      key={id}
+                      className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside || sensorProblem ? "alerting" : ""}`}
+                      aria-pressed={chartSensor === id}
+                      onClick={() => {
+                        setChartSensor(id);
+                        setHistoryOpen(true);
+                      }}
+                    >
+                      <div className="sensor-card-top">
+                        <span className="sensor-icon">
+                          <Icon size={19} />
+                        </span>
+                        <span
+                          className={`sensor-state ${reading?.status === "READING" ? "good" : ""}`}
+                        >
+                          {reading
+                            ? statusLabels[reading.status] || reading.status
+                            : "Esperando"}
+                        </span>
+                      </div>
+                      <h3>{sensorLabels[id]}</h3>
+                      <div className="sensor-value">
+                        {format(reading)}
+                        <span>
+                          {reading?.value != null && unit !== "0/1" ? unit : ""}
+                        </span>
+                      </div>
+                      <div className="sensor-card-bottom">
+                        <span>
+                          {reading?.source === "simulation"
+                            ? "SIMULACIÓN"
+                            : reading
+                              ? "HARDWARE REAL"
+                              : "SIN LECTURAS"}
+                        </span>
+                        <span>
+                          {reading?.timestamp ? age(reading.timestamp) : "—"}
+                        </span>
+                      </div>
+                      {outside && (
+                        <span className="threshold-flag">
+                          Fuera del rango {rule!.min}–{rule!.max}
+                        </span>
+                      )}
+                      {reading?.status === "NEEDS_CALIBRATION" && (
+                        <span className="threshold-flag">
+                          RAW {reading.raw} · necesita referencias
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {relevantSensors.some(({ id }) =>
+                ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
+                  latestMap.get(id)?.status || "",
+                ),
+              ) && (
+                <Notice tone="warning">
+                  Veamos qué necesita ese sensor. La conexión del experimento te
+                  muestra el siguiente paso.{" "}
+                  <button
+                    className="text-button"
+                    onClick={() => app.navigate("/diagnostico")}
+                  >
+                    Revisar diagnóstico <ArrowRight size={13} />
+                  </button>
+                </Notice>
+              )}
+              {relevantSensors.length > 4 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowAllSensors(!showAllSensors)}
+                >
+                  {showAllSensors
+                    ? "Mostrar menos sensores"
+                    : `Ver los ${relevantSensors.length} sensores activos`}
+                </Button>
+              )}
+            </div>
+          </div>
           <details
             className="chart-panel simple-details"
             open={historyOpen}
@@ -665,8 +740,8 @@ export default function Dashboard() {
             <Badge tone="orange">DATOS SIMULADOS</Badge>
           </div>
           <p>
-            Mueve los controles y observa cómo cambian tus datos y reglas. No
-            ejecuta MicroPython ni reemplaza las pruebas eléctricas.
+            Mueve un control, envía la lectura y mira cómo responde tu planta
+            3D. Son datos simulados; tu placa conserva sus propias lecturas.
           </p>
           <div className="simulation-grid">
             {simulationDefinitions.map((d) => (

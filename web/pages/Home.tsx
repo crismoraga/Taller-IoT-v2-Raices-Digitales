@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
 import { Icon } from "../brand/Graphics";
 import {
   essentials,
@@ -14,16 +14,15 @@ import { Segmented, Tag } from "../ui/Card";
 import { Page } from "../ui/Layout";
 import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
-import { FinalReview, Preparation } from "../workshop/Preparation";
+import { FinalReview } from "../workshop/Preparation";
 import { resumeWorkshop, workshopRoute } from "../workshop/flow";
 
 const LivingStation = lazy(() => import("../experience/LivingStation"));
 
-/** One clear starting point; extra explanations appear when the team needs them. */
+/** A living, touchable entry point into the workshop. */
 export default function Home() {
   const app = useApp();
   const progress = useProgress();
-  const [sceneOpen, setSceneOpen] = useState(false);
   const route = workshopRoute(app.guided);
   const done = route.filter((lesson) => progress.done.has(lesson.id)).length;
   const finished = done === route.length;
@@ -38,28 +37,34 @@ export default function Home() {
       : app.openOnboarding(`/taller/${lesson.id}`);
 
   return (
-    <Page className="experience-home home-calm">
+    <Page wide className="experience-home home-solarpunk">
       <section
-        className="workshop-welcome bg-night"
+        className="workshop-welcome solar-hero bg-night"
         aria-labelledby="welcome-title"
       >
         <div className="workshop-welcome-copy">
-          <p className="t-overline text-accent">Taller IoT · Telemática USM</p>
+          <span className="solar-live-badge">
+            <span aria-hidden="true" /> Un laboratorio vivo
+          </span>
+          <p className="t-overline mt-6 text-accent">
+            Taller IoT · Telemática USM
+          </p>
           <h1 id="welcome-title" className="workshop-welcome-title text-cream">
-            Haz que tu planta <span className="text-accent">hable.</span>
+            Haz que tu planta <span className="solar-title-light">hable.</span>
           </h1>
           <p className="mt-3 max-w-[46ch] text-base leading-6 text-on-dark">
             {app.session
               ? finished
                 ? `${app.session.name}, ya completaron la ruta. Es momento de ver qué cuenta su planta.`
                 : `${app.session.name}, continuemos. Conecta, programa y comprueba una cosa a la vez.`
-              : "Construye una planta conectada, desde el primer LED. Te acompañamos cable a cable."}
+              : "Tu kit está listo. Conecta tu placa por USB y descubre una planta que siente, se comunica y cobra vida. Un cable, un paso y un hallazgo a la vez."}
           </p>
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button
               size="lg"
               variant="accent"
               iconRight="arrowRight"
+              className="solar-start-button"
               onClick={() =>
                 app.session
                   ? app.navigate(resume ? `/taller/${resume.id}` : "/planta")
@@ -78,43 +83,43 @@ export default function Home() {
               {app.guided ? "paso a paso" : "ruta completa"}
             </span>
           </div>
+          <p className="solar-kit-note">
+            <Icon name="usb" size={17} /> Raspberry Pi Pico W o Arduino · desde
+            tu PC
+          </p>
         </div>
-        <img
-          src="/brand/raices-station.svg"
-          alt=""
-          width={210}
-          height={190}
-          className="workshop-welcome-art"
-          aria-hidden="true"
-        />
+        <div className="solar-hero-world">
+          <Suspense
+            fallback={
+              <div className="scene-loading" role="status">
+                <img
+                  src="/brand/raices-station.svg"
+                  alt=""
+                  width={170}
+                  height={154}
+                />
+                <span>Tu laboratorio está despertando…</span>
+              </div>
+            }
+          >
+            <LivingStation
+              mode="hero"
+              board={app.board}
+              className="living-station-view"
+            />
+          </Suspense>
+        </div>
       </section>
 
-      <details className="home-disclosure mt-4">
-        <summary className="home-disclosure-summary focus-ring">
-          <Icon name="board" size={19} className="text-ink-accent" />
-          <span className="min-w-0 flex-1">
-            Antes de empezar: prepara tu mesa
-          </span>
-          <Icon
-            name="chevronDown"
-            size={18}
-            className="disclosure-chevron text-ink-soft"
-          />
-        </summary>
-        <div className="home-preparation">
-          <Preparation />
-        </div>
-      </details>
-
-      <section className="mt-7" aria-labelledby="ruta">
+      <section className="solar-route-section mt-7" aria-labelledby="ruta">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="ruta" className="t-heading text-ink">
-              Tu ruta, paso a paso
+              Pequeños pasos. Grandes descubrimientos.
             </h2>
             <p className="mt-1 text-sm text-ink-soft">
               {app.guided
-                ? "Seis actividades. Empieza por la primera."
+                ? "Desde encender una luz hasta escuchar a tu planta. Toca una actividad para entrar."
                 : "Abre una etapa para ver sus actividades."}
             </p>
           </div>
@@ -182,41 +187,6 @@ export default function Home() {
         </div>
       )}
 
-      <details
-        className="home-disclosure mt-5"
-        onToggle={(event) => setSceneOpen(event.currentTarget.open)}
-      >
-        <summary className="home-disclosure-summary focus-ring">
-          <Icon name="sprout" size={19} className="text-ink-accent" />
-          <span className="min-w-0 flex-1">Explorar la estación 3D</span>
-          <span className="hidden text-xs font-normal text-ink-soft sm:inline">
-            Opcional
-          </span>
-          <Icon
-            name="chevronDown"
-            size={18}
-            className="disclosure-chevron text-ink-soft"
-          />
-        </summary>
-        {sceneOpen && (
-          <div className="home-optional-scene bg-night">
-            <p className="px-4 pt-3 text-sm text-on-dark">
-              Ilustración con Pico W. El montaje exacto se muestra en cada
-              actividad.
-            </p>
-            <Suspense
-              fallback={
-                <div className="scene-loading" role="status">
-                  Preparando la estación 3D…
-                </div>
-              }
-            >
-              <LivingStation mode="hero" className="living-station-view" />
-            </Suspense>
-          </div>
-        )}
-      </details>
-
       <nav
         className="home-utilities mt-4"
         aria-label="Más herramientas del taller"
@@ -263,11 +233,10 @@ function LessonRow({
       )}
     >
       <span className={cx("home-lesson-number", done && "home-lesson-done")}>
-        {done ? (
-          <Icon name="check" size={19} />
-        ) : (
-          String(number).padStart(2, "0")
-        )}
+        <span className="home-lesson-icon" aria-hidden="true">
+          <Icon name={done ? "check" : lesson.icon} size={21} />
+        </span>
+        {String(number).padStart(2, "0")}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display text-[15px] font-bold leading-5 text-ink">

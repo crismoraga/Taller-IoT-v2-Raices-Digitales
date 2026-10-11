@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+test.use({ reducedMotion: "reduce" });
+
 // Exercise the built application and its service worker, not Vite's dev server.
 test.use({ baseURL: "http://127.0.0.1:3001" });
 test.afterEach(async ({ context, page }) => {

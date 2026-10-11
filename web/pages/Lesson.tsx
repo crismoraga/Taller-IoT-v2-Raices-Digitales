@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Icon, Medallion, Rutix, type IconName } from "../brand/Graphics";
-import { BreadboardView } from "../circuit/BreadboardView";
+import { circuitForBoard } from "../circuit/boards";
 import { circuits } from "../circuit/layouts";
 import type { Circuit } from "../circuit/model";
 import {
@@ -17,6 +17,7 @@ import {
   stageOf,
   type Lesson as LessonData,
 } from "../content";
+import { lessonForBoard } from "../content/boardLesson";
 import { sensorLabels, statusLabels } from "../lib/api";
 import { BOARD_NAMES, useApp, type Board } from "../lib/context";
 import { useProgress } from "../lib/progress";
@@ -33,7 +34,8 @@ import { Checkbox, Select } from "../ui/Form";
 import { Disclosure, Page } from "../ui/Layout";
 import { Modal } from "../ui/Overlay";
 import { cx } from "../ui/cx";
-import { FinalReview } from "../workshop/Preparation";
+import { ConnectButton, ConnectionChip } from "../shell/ConnectButton";
+import { BoardDiscovery } from "../lesson/BoardDiscovery";
 import { lessonFlow, lessonIdFromRoute, workshopRoute } from "../workshop/flow";
 const CodeWorkbench = lazy(() =>
   import("../lesson/CodeWorkbench").then((module) => ({
@@ -47,7 +49,7 @@ const PHASES: Record<Phase, { label: string; icon: IconName; hint: string }> = {
   entiende: {
     label: "Entiende",
     icon: "lightbulb",
-    hint: "Qué vas a hacer y con qué",
+    hint: "Toca, explora y descubre",
   },
   conecta: { label: "Conecta", icon: "cable", hint: "Cableado paso a paso" },
   programa: {
@@ -58,7 +60,7 @@ const PHASES: Record<Phase, { label: string; icon: IconName; hint: string }> = {
   experimenta: {
     label: "Experimenta",
     icon: "flask",
-    hint: "Prueba, rompe y resuelve",
+    hint: "Juega con tu idea y descubre qué cambia",
   },
   comprueba: {
     label: "Comprueba",
@@ -70,7 +72,7 @@ const PHASES: Record<Phase, { label: string; icon: IconName; hint: string }> = {
 /** Protoboard vacía para explorar: solo la placa y los agujeros. */
 const EXPLORER: Circuit = {
   id: "explorer",
-  title: "Protoboard con la Pico W",
+  title: "Placa y protoboard",
   parts: [],
   wires: [],
   steps: [],
@@ -82,7 +84,12 @@ export default function Lesson() {
   const app = useApp();
   const progress = useProgress();
   const id = lessonIdFromRoute(app.route);
-  const lesson = lessonById(id);
+  const originalLesson = lessonById(id);
+  const lesson = useMemo(
+    () =>
+      originalLesson ? lessonForBoard(originalLesson, app.board) : undefined,
+    [originalLesson, app.board],
+  );
   const storage = `raices.lesson.${app.session?.id ?? "anon"}.${id}`;
   const [phase, setPhaseState] = useState<Phase>(() =>
     readLocal<Phase>(storage, "entiende"),
@@ -94,7 +101,17 @@ export default function Lesson() {
   const [saving, setSaving] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
   const workbench = useRef<WorkbenchHandle>(null);
-  const top = useRef<HTMLDivElement>(null);
+  const phasePanel = useRef<HTMLDivElement>(null);
+  const pendingPhaseScroll = useRef(false);
+
+  useEffect(() => {
+    if (!pendingPhaseScroll.current) return;
+    pendingPhaseScroll.current = false;
+    const target = app.guided
+      ? phasePanel.current
+      : document.getElementById(`phase-panel-${phase}`);
+    target?.scrollIntoView({ block: "start" });
+  }, [phase, app.guided]);
 
   useEffect(() => {
     setPhaseState(readLocal<Phase>(storage, "entiende"));
@@ -117,6 +134,14 @@ export default function Lesson() {
       "comprueba",
     ];
   }, [lesson]);
+  const referenceCircuit = useMemo(
+    () =>
+      circuitForBoard(
+        lesson?.circuit ? circuits[lesson.circuit] : EXPLORER,
+        app.board,
+      ),
+    [lesson?.circuit, app.board],
+  );
 
   if (!lesson)
     return (
@@ -137,9 +162,9 @@ export default function Lesson() {
   const stage = stageOf(lesson);
   const active = phases.includes(phase) ? phase : "entiende";
   const setPhase = (next: Phase) => {
+    pendingPhaseScroll.current = next !== phase;
     setPhaseState(next);
     writeLocal(storage, next);
-    top.current?.scrollIntoView({ block: "start" });
   };
   const index = phases.indexOf(active);
   const done = progress.done.has(lesson.id);
@@ -190,194 +215,125 @@ export default function Lesson() {
   /* ── Partes de la actividad ─────────────────────────────────── */
 
   const understand = (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-      <Card as="section" className="flex flex-col gap-4">
-        <div>
-          <p className="t-overline text-ink-accent">Qué hace</p>
-          <h2 className="t-title mt-1 text-ink">{lesson.concept.title}</h2>
-        </div>
-        <div className="prose-rd max-w-[68ch]">
-          {lesson.concept.body.slice(0, 1).map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-        </div>
-        {lesson.concept.body.length > 1 && (
-          <Disclosure
-            title="Entender un poco más"
-            icon="lightbulb"
-            tone="plain"
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.8fr)]">
+      <BoardDiscovery
+        key={`${lesson.id}:${app.board}:discover`}
+        circuit={referenceCircuit}
+      />
+      <div className="flex flex-col gap-4 xl:sticky xl:top-36">
+        <Card
+          as="section"
+          tone="navy"
+          className="solarpunk-discovery-card flex flex-col gap-3"
+        >
+          <p className="t-overline text-accent">Tu misión</p>
+          <h2 className="t-title text-cream">{lesson.concept.title}</h2>
+          <p className="text-[15px] leading-6 text-cream">
+            {lesson.concept.body[0]}
+          </p>
+          <p className="rounded-lg bg-primary-soft/70 p-3 text-sm font-semibold leading-6 text-accent-soft">
+            {lesson.objective}
+          </p>
+          <Button
+            variant="cream"
+            size="lg"
+            iconRight="arrowRight"
+            onClick={() =>
+              setPhase(phases.includes("conecta") ? "conecta" : "programa")
+            }
           >
-            <div className="prose-rd max-w-[68ch]">
+            {lesson.id === "welcome"
+              ? "Descubrir mi placa"
+              : phases.includes("conecta")
+                ? "Vamos a conectar"
+                : "Vamos al código"}
+          </Button>
+        </Card>
+        {lesson.id === "welcome" && (
+          <Card as="section" className="flex flex-col gap-3">
+            <p className="t-overline text-ink-accent">
+              El mundo real entra por USB
+            </p>
+            <p className="text-sm leading-6 text-ink">
+              Conecta tu placa al computador y pulsa el botón. La guía se adapta
+              a tu Pico o Arduino.
+            </p>
+            <ConnectionChip />
+            <ConnectButton size="lg" />
+          </Card>
+        )}
+        {lesson.concept.body.length > 1 && (
+          <Disclosure title="La idea detrás del experimento" icon="lightbulb">
+            <div className="prose-rd">
               {lesson.concept.body.slice(1).map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
             </div>
           </Disclosure>
         )}
-        {lesson.concept.facts && (
-          <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            {lesson.concept.facts.map((fact) => (
-              <div key={fact.label} className="rounded-md bg-surface-alt p-3">
-                <dt className="text-xs font-bold leading-4 text-ink-soft">
-                  {fact.label}
-                </dt>
-                <dd className="mt-1 font-display text-[15px] font-extrabold leading-5 text-ink">
-                  {fact.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </Card>
-      <div className="flex flex-col gap-4">
-        <Card as="section" tone="navy" className="flex gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-sm bg-primary-soft text-accent-soft">
-            <Icon name="target" size={22} />
-          </span>
-          <div>
-            <p className="t-overline text-accent">Objetivo</p>
-            <p className="mt-1 text-[15px] font-semibold leading-[22px] text-cream">
-              {lesson.objective}
-            </p>
-          </div>
-        </Card>
-        <Card as="section">
-          <p className="t-overline text-ink-accent">Qué necesitas</p>
-          <ul className="mt-2 flex flex-col">
-            {lesson.materials.map((material) => (
-              <li
-                key={material.name}
-                className="border-b border-border last:border-b-0"
-              >
-                <MaterialCheck
-                  name={material.name}
-                  qty={material.qty}
-                  note={material.note}
-                />
-              </li>
-            ))}
-          </ul>
-        </Card>
-        {lesson.safety?.map((rule) => (
-          <Callout key={rule} tone="warning" compact title="Seguridad">
-            {lesson.id === "welcome" &&
-            arduino &&
-            rule.startsWith("Los pines GP")
-              ? "Los pines digitales de Uno/Nano trabajan a 5 V. Alimenta cada sensor según su guía y mantén separados los rieles de 5 V y 3,3 V."
-              : rule}
-          </Callout>
-        ))}
       </div>
     </div>
   );
 
   const connect = (
     <div className="flex flex-col gap-4">
-      {lesson.id === "welcome" && arduino ? (
-        <Card as="section">
-          <p className="t-overline text-ink-accent">Reconoce tu placa</p>
-          <h2 className="t-heading mt-1 text-ink">
-            La protoboard y tu {BOARD_NAMES[app.board]}
-          </h2>
-          <p className="mt-2 max-w-3xl text-[15px] leading-6 text-ink-soft">
-            Con el USB desconectado, busca estos nombres impresos en tu placa.
-            Los números D y A identifican señales; no son posiciones de una
-            Pico. Compara cada etiqueta antes de usar la tabla de conexiones de
-            la actividad.
-          </p>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-            {[
-              [
-                "USB",
-                "Conecta al computador con un cable de datos. La página autoriza su puerto y permite programar.",
-              ],
-              [
-                "GND",
-                "Es la referencia eléctrica común. El riel azul de la protoboard se une a GND.",
-              ],
-              [
-                "5V y 3V3",
-                "Son alimentaciones diferentes. Usa la indicada por cada sensor; los pines digitales de Uno/Nano trabajan a 5 V.",
-              ],
-              [
-                "D2 y A0",
-                "D2 controla el LED del taller. A0 lee la señal analógica de la sonda de suelo en la guía Arduino.",
-              ],
-            ].map(([name, detail]) => (
-              <div key={name} className="rounded-md bg-surface-alt p-4">
-                <dt className="font-mono font-bold text-ink-accent">{name}</dt>
-                <dd className="mt-1 text-sm leading-6 text-ink">{detail}</dd>
-              </div>
-            ))}
-          </dl>
-          <Callout
-            tone="info"
-            title="Cómo se une la protoboard"
-            compact
-            className="mt-4"
+      {lesson.id === "welcome" ? (
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.8fr)]">
+          <BoardDiscovery
+            key={`welcome:${app.board}:connect`}
+            circuit={referenceCircuit}
+          />
+          <Card
+            as="section"
+            className="solarpunk-discovery-card flex flex-col gap-4"
           >
-            Los cinco agujeros a–e de una fila están unidos; f–j forman otro
-            grupo. El canal central los separa. Los rieles laterales pueden
-            estar cortados a la mitad: revisa tu modelo antes de distribuir
-            alimentación.
-          </Callout>
-          <p className="mt-3 text-sm leading-6 text-ink-soft">
-            En la siguiente actividad, selecciona Conecta y sigue la guía de
-            pines de tu Arduino. Conecta el USB después de revisar el montaje.
-          </p>
-        </Card>
-      ) : lesson.id === "welcome" ? (
-        <Card as="section" padded={false} className="overflow-hidden">
-          <div className="p-[18px] pb-3">
-            <p className="t-overline text-ink-accent">Explora</p>
-            <h2 className="t-heading mt-1 text-ink">
-              La protoboard y la Pico W, por dentro
+            <p className="t-overline text-ink-accent">Toca y descubre</p>
+            <h2 className="t-title text-ink">
+              Conoce tu {BOARD_NAMES[app.board]}
             </h2>
-            <p className="mt-1 text-[15px] leading-[22px] text-ink-soft">
-              Toca cualquier agujero para ver con cuáles está unido. Toca un pin
-              de la Pico para saber qué hace y qué voltaje maneja.
+            <p className="text-sm leading-6 text-ink">
+              Toca un pin GND, después {arduino ? "D2" : "GP2"}. Gira el modelo
+              para seguir su posición. En la protoboard, toca a26 y e26:
+              pertenecen a la misma tira.
             </p>
-          </div>
-          <div className="h-[380px] sm:h-[460px]">
-            <BreadboardView
-              circuit={EXPLORER}
-              stepIndex={0}
-              complete
-              className="rounded-none"
-            />
-          </div>
-        </Card>
-      ) : arduino ? (
-        lesson.arduino ? (
-          <>
-            <Callout
-              tone="info"
-              compact
-              title={`Guía de pines para ${BOARD_NAMES[app.board]}`}
+            <ConnectionChip />
+            <ConnectButton size="lg" />
+            <p className="text-sm leading-6 text-ink-soft">
+              {app.connected
+                ? "¡La placa ya está conectada! Ahora puedes escribirle tu primer mensaje."
+                : "Elige el puerto de tu placa en la ventana del navegador. Continuarás aquí mismo."}
+            </p>
+            <Button
+              variant="accent"
+              iconRight="arrowRight"
+              onClick={() => setPhase("programa")}
             >
-              El plano de protoboard paso a paso está hecho para la Pico W. Para
-              Arduino, sigue esta tabla de conexiones: los componentes son los
-              mismos.
-            </Callout>
-            <PinGuide
-              storageKey={`raices.pins.${app.session?.id ?? "anon"}.${lesson.id}.${app.board}`}
-              rows={lesson.arduino.rows}
-              notes={lesson.arduino.notes}
-              board="arduino"
-            />
-          </>
-        ) : (
-          <Callout tone="info" title="Esta actividad es para la Pico W">
-            No tiene una guía de conexiones para Arduino. Cambia la placa a
-            Raspberry Pi Pico W.
-          </Callout>
-        )
-      ) : lesson.circuit ? (
+              Escribir mi primer mensaje
+            </Button>
+          </Card>
+        </div>
+      ) : lesson.circuit && (!arduino || lesson.arduino) ? (
         <WiringGuide
-          circuit={circuits[lesson.circuit]}
-          storageKey={`raices.wiring.${app.session?.id ?? "anon"}.${lesson.circuit}`}
+          circuit={referenceCircuit}
+          storageKey={`raices.wiring.${app.session?.id ?? "anon"}.${lesson.circuit}.${app.board}`}
           onDone={() => setPhase("programa")}
         />
+      ) : arduino ? (
+        lesson.arduino ? (
+          <PinGuide
+            storageKey={`raices.pins.${app.session?.id ?? "anon"}.${lesson.id}.${app.board}`}
+            rows={lesson.arduino.rows}
+            notes={lesson.arduino.notes}
+            board="arduino"
+          />
+        ) : (
+          <Card>
+            <p className="text-sm text-ink">
+              Este experimento usa las funciones de la Pico W. Elige esa placa
+              para descubrirlo.
+            </p>
+          </Card>
+        )
       ) : lesson.pins ? (
         <PinGuide
           storageKey={`raices.pins.${app.session?.id ?? "anon"}.${lesson.id}.${app.board}`}
@@ -393,7 +349,7 @@ export default function Lesson() {
           icon="lightbulb"
           tone="alt"
         >
-          <p className="mt-1 max-w-[80ch] text-[15px] leading-[23px] text-ink">
+          <p className="max-w-[80ch] text-[15px] leading-[23px] text-ink">
             {lesson.why}
           </p>
         </Disclosure>
@@ -650,7 +606,7 @@ export default function Lesson() {
                 />
                 {lesson.id === "welcome" && arduino
                   ? item.startsWith("En el explorador")
-                    ? "En tu protoboard desconectada, compara a26 con e26 y luego a26 con f26. Explica cuáles forman un mismo nodo."
+                    ? "En el explorador, toca a26 y e26. Después toca f26 y observa cómo cambia la tira."
                     : item.startsWith("Localiza GP2")
                       ? "Localiza D2, A0, 5V y GND en tu Arduino. Explica cuáles son señales y cuáles distribuyen alimentación."
                       : item
@@ -682,13 +638,12 @@ export default function Lesson() {
       <Card as="section">
         <p className="t-overline mb-3 text-ink-accent">Checkpoint</p>
         <Quiz
-          key={lesson.id}
+          key={`${lesson.id}:${app.board}`}
           questions={lesson.checkpoint}
           onComplete={() => setQuizDone(true)}
         />
       </Card>
       <div className="flex flex-col gap-4">
-        {closesGuidedRoute && <FinalReview />}
         <Disclosure title="Resolver un problema" icon="stethoscope">
           <Troubles lesson={lesson} />
           <button
@@ -752,9 +707,8 @@ export default function Lesson() {
 
   return (
     <Page wide>
-      <div ref={top} className="scroll-mt-20" />
       {/* Cabecera de la actividad */}
-      <header className="relative isolate rounded-xl border border-border bg-surface px-4 py-4 sm:px-5">
+      <header className="solarpunk-lesson-header relative isolate rounded-xl border border-border bg-surface px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
           <div className="min-w-0 flex-1">
             <button
@@ -838,7 +792,7 @@ export default function Lesson() {
           {app.connected
             ? `USB conectado · ${BOARD_NAMES[app.board]}`
             : app.serialSupported
-              ? "Sin USB · puedes preparar el montaje y el código."
+              ? "Conecta tu placa para ver el experimento en el mundo real."
               : "Para programar la placa, usa Chrome o Edge de escritorio."}
         </p>
         {flow.previous && (
@@ -902,7 +856,11 @@ export default function Lesson() {
               })}
             </ol>
           </nav>
-          <div key={`${lesson.id}:${active}`} className="mt-4 animate-fade">
+          <div
+            ref={phasePanel}
+            key={`${lesson.id}:${active}`}
+            className="mt-4 scroll-mt-40 animate-fade"
+          >
             <p
               className="mb-3 text-sm font-semibold text-ink-soft"
               role="status"
@@ -937,7 +895,12 @@ export default function Lesson() {
         /* Modo libre: todo a la vista, en el orden de las 14 partes */
         <div className="mt-5 flex flex-col gap-9">
           {phases.map((item, itemIndex) => (
-            <section key={item} aria-labelledby={`fase-${item}`}>
+            <section
+              key={item}
+              id={`phase-panel-${item}`}
+              className="scroll-mt-24"
+              aria-labelledby={`fase-${item}`}
+            >
               <h2
                 id={`fase-${item}`}
                 className="t-title mb-3.5 flex items-center gap-3 text-ink"
@@ -1058,31 +1021,6 @@ export default function Lesson() {
         </div>
       </Modal>
     </Page>
-  );
-}
-
-function MaterialCheck({
-  name,
-  qty,
-  note,
-}: {
-  name: string;
-  qty?: number;
-  note?: string;
-}) {
-  const [have, setHave] = useState(false);
-  return (
-    <Checkbox checked={have} onChange={setHave} className="py-2.5">
-      <span className="block">
-        {qty && qty > 1 ? `${qty} × ` : ""}
-        {name}
-      </span>
-      {note && (
-        <span className="block text-[13px] font-semibold leading-[18px] text-ink-soft">
-          {note}
-        </span>
-      )}
-    </Checkbox>
   );
 }
 

@@ -2,6 +2,7 @@ import { isPoint, parsePoint, pointXY, stripOf } from "./breadboard";
 import type { Circuit, PartInstance } from "./model";
 import { LED_VF, partDef } from "./parts";
 import { PICO_COLUMNS, PICO_PINS, type PicoPin } from "./pico";
+import { controllerPins, controllerPin, controllerTerminal } from "./boards";
 
 /**
  * Revisión eléctrica de un montaje (ERC). Calcula qué queda unido con qué según las tiras
@@ -83,8 +84,18 @@ export function picoTerminal(pin: PicoPin): string {
 
 const stripKey = (strip: string) => `strip:${strip}`;
 
-export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysis {
+export function analyze(
+  circuit: Circuit,
+  options: AnalyzeOptions = {},
+): Analysis {
   const { splitRails = false, vbus = 5 } = options;
+  const isPico = !circuit.board || circuit.board === "pico";
+  const boardPins = isPico ? PICO_PINS : controllerPins(circuit.board);
+  const prefix = isPico ? "pico" : "controller";
+  const gpioMaximum = isPico ? GPIO_MAX_VOLTS : vbus;
+  const gpioCurrent = isPico ? GPIO_SAFE_MA : 20;
+  const signalVoltage = isPico ? 3.3 : vbus;
+  const pinTerminal = (name: string) => `${prefix}:${name}`;
   const issues: Issue[] = [];
   const error = (code: string, message: string) =>
     issues.push({ level: "error", code, message });
@@ -97,9 +108,28 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
   const node = (endpoint: string): string | null => {
     if (isPoint(endpoint)) return stripKey(stripOf(endpoint, splitRails));
     const [partId, pinId] = endpoint.split(".");
+    if (partId === "controller" && !isPico) {
+      try {
+        controllerPin(circuit.board, pinId);
+      } catch {
+        error(
+          "unknown-pin",
+          `La placa ${circuit.board} no tiene el pin "${pinId}".`,
+        );
+        return null;
+      }
+      const previous = occupied.get(endpoint);
+      if (previous)
+        error("header-in-use", `El conector ${endpoint} ya tiene un cable.`);
+      occupied.set(endpoint, "cable");
+      return `pin:${controllerTerminal(pinId)}`;
+    }
     const part = parts.get(partId);
     if (!part) {
-      error("unknown-part", `El terminal "${endpoint}" nombra una pieza que no existe.`);
+      error(
+        "unknown-part",
+        `El terminal "${endpoint}" nombra una pieza que no existe.`,
+      );
       return null;
     }
     if (!partDef(part).pins.some((pin) => pin.id === pinId)) {
@@ -117,19 +147,28 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
       error("bad-hole", (problem as Error).message);
       return false;
     }
-    if (parsed.kind === "hole" && parsed.column <= PICO_COLUMNS) {
+    if (isPico && parsed.kind === "hole" && parsed.column <= PICO_COLUMNS) {
       if (parsed.letter === "c" || parsed.letter === "h") {
-        error("pico-pin", `${hole} lo ocupa un pin de la Pico; ${by} debe usar un agujero libre de esa tira.`);
+        error(
+          "pico-pin",
+          `${hole} lo ocupa un pin de la Pico; ${by} debe usar un agujero libre de esa tira.`,
+        );
         return false;
       }
       if ("defg".includes(parsed.letter)) {
-        error("under-pico", `${hole} queda tapado por la Pico; ${by} no puede ir ahí.`);
+        error(
+          "under-pico",
+          `${hole} queda tapado por la Pico; ${by} no puede ir ahí.`,
+        );
         return false;
       }
     }
     const previous = occupied.get(hole);
     if (previous) {
-      error("hole-in-use", `El agujero ${hole} lo usan a la vez ${previous} y ${by}.`);
+      error(
+        "hole-in-use",
+        `El agujero ${hole} lo usan a la vez ${previous} y ${by}.`,
+      );
       return false;
     }
     occupied.set(hole, by);
@@ -137,12 +176,16 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
   };
 
   // La Pico: cada pin unido a su tira; todos los GND unidos por dentro de la placa.
-  for (const pin of PICO_PINS) {
-    union.join(`pin:${picoTerminal(pin)}`, stripKey(stripOf(pin.hole, splitRails)));
+  for (const pin of isPico ? PICO_PINS : []) {
+    union.join(
+      `pin:${picoTerminal(pin)}`,
+      stripKey(stripOf(pin.hole, splitRails)),
+    );
   }
 
   for (const part of circuit.parts) {
-    if (parts.has(part.id)) error("duplicate-part", `Hay dos piezas con el id "${part.id}".`);
+    if (parts.has(part.id))
+      error("duplicate-part", `Hay dos piezas con el id "${part.id}".`);
     parts.set(part.id, part);
     const def = partDef(part);
     for (const pin of def.pins) union.find(`pin:${part.id}.${pin.id}`);
@@ -153,15 +196,24 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
           continue;
         }
         if (occupy(hole, `${part.label} (${pinId})`))
-          union.join(`pin:${part.id}.${pinId}`, stripKey(stripOf(hole, splitRails)));
+          union.join(
+            `pin:${part.id}.${pinId}`,
+            stripKey(stripOf(hole, splitRails)),
+          );
       }
       if (def.mount === "board") {
         for (const pin of def.pins)
           if (!(pin.id in part.holes))
-            error("pin-not-placed", `${part.label}: falta indicar el agujero de "${pin.label}".`);
+            error(
+              "pin-not-placed",
+              `${part.label}: falta indicar el agujero de "${pin.label}".`,
+            );
       }
     } else if (def.mount === "board") {
-      error("not-placed", `${part.label} va en la protoboard y no tiene agujeros asignados.`);
+      error(
+        "not-placed",
+        `${part.label} va en la protoboard y no tiene agujeros asignados.`,
+      );
     }
     if (def.model.kind === "switch")
       for (const [a, b] of def.model.joined)
@@ -187,11 +239,14 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
 
   const wireIds = new Set<string>();
   for (const wire of circuit.wires) {
-    if (wireIds.has(wire.id)) error("duplicate-wire", `Hay dos cables con el id "${wire.id}".`);
+    if (wireIds.has(wire.id))
+      error("duplicate-wire", `Hay dos cables con el id "${wire.id}".`);
     wireIds.add(wire.id);
     const ends = [wire.from, wire.to].map((endpoint) => {
       if (isPoint(endpoint))
-        return occupy(endpoint, `el cable ${wire.color} (${wire.carries})`) ? node(endpoint) : null;
+        return occupy(endpoint, `el cable ${wire.color} (${wire.carries})`)
+          ? node(endpoint)
+          : null;
       return node(endpoint);
     });
     if (ends[0] && ends[1]) {
@@ -202,11 +257,20 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
         stripOf(wire.from) === stripOf(wire.to) &&
         parsePoint(wire.from).kind === "rail";
       if (union.find(ends[0]) === union.find(ends[1]) && !bridge)
-        warning("redundant-wire", `El cable ${wire.id} une dos puntos que ya estaban unidos.`);
+        warning(
+          "redundant-wire",
+          `El cable ${wire.id} une dos puntos que ya estaban unidos.`,
+        );
       union.join(ends[0], ends[1]);
     }
-    if (wire.kind === "jumper" && (!isPoint(wire.from) || !isPoint(wire.to)))
-      error("jumper-ends", `El cable ${wire.id} es macho-macho: sus dos puntas van en agujeros.`);
+    const socket = (endpoint: string) =>
+      isPoint(endpoint) ||
+      (circuit.board === "uno" && endpoint.startsWith("controller."));
+    if (wire.kind === "jumper" && (!socket(wire.from) || !socket(wire.to)))
+      error(
+        "jumper-ends",
+        `El cable ${wire.id} es macho-macho: sus dos puntas van en agujeros.`,
+      );
   }
 
   // Pasos: cada pieza y cable se coloca exactamente en un paso.
@@ -214,14 +278,21 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
   for (const step of circuit.steps) {
     for (const id of [...(step.parts ?? []), ...(step.wires ?? [])]) {
       if (!parts.has(id) && !wireIds.has(id))
-        error("step-unknown", `El paso "${step.id}" nombra "${id}", que no existe.`);
+        error(
+          "step-unknown",
+          `El paso "${step.id}" nombra "${id}", que no existe.`,
+        );
       if (placed.has(id))
-        error("step-twice", `"${id}" se coloca en dos pasos: ${placed.get(id)} y ${step.id}.`);
+        error(
+          "step-twice",
+          `"${id}" se coloca en dos pasos: ${placed.get(id)} y ${step.id}.`,
+        );
       placed.set(id, step.id);
     }
   }
   for (const id of [...parts.keys(), ...wireIds])
-    if (!placed.has(id)) error("step-missing", `Ningún paso indica cuándo colocar "${id}".`);
+    if (!placed.has(id))
+      error("step-missing", `Ningún paso indica cuándo colocar "${id}".`);
 
   const netOf = (terminal: string) => {
     const key = `pin:${terminal}`;
@@ -229,27 +300,53 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
   };
 
   /* ── Nodos de alimentación y cortocircuitos ─────────────────── */
-  const gnd = union.find("pin:pico:GND");
-  const v33 = union.find("pin:pico:3V3");
-  const v5 = union.find("pin:pico:VBUS");
+  const gnd = union.find(`pin:${prefix}:GND`);
+  const v33 = union.find(`pin:${prefix}:3V3`);
+  const v5 = union.find(`pin:${prefix}:${isPico ? "VBUS" : "5V"}`);
   const fixed = new Map<string, number>([
     [gnd, 0],
     [v33, 3.3],
     [v5, vbus],
   ]);
-  if (gnd === v33) error("short", "Cortocircuito: 3V3 quedó unido directamente con GND.");
-  if (gnd === v5) error("short", "Cortocircuito: VBUS (5 V) quedó unido directamente con GND.");
-  if (v33 === v5) error("short", "3V3 y VBUS (5 V) quedaron unidos: nunca deben tocarse.");
-  for (const name of ["VSYS", "3V3_EN", "RUN", "ADC_VREF"]) {
-    const net = union.find(`pin:pico:${name}`);
-    if (union.keys().some((key) => key !== `pin:pico:${name}` && key.startsWith("pin:") && union.find(key) === net))
-      error("reserved-pin", `El pin ${name} de la Pico no se usa en el taller y quedó conectado.`);
+  if (gnd === v33)
+    error("short", "Cortocircuito: 3V3 quedó unido directamente con GND.");
+  if (gnd === v5)
+    error(
+      "short",
+      "Cortocircuito: VBUS (5 V) quedó unido directamente con GND.",
+    );
+  if (v33 === v5)
+    error("short", "3V3 y VBUS (5 V) quedaron unidos: nunca deben tocarse.");
+  for (const name of isPico
+    ? ["VSYS", "3V3_EN", "RUN", "ADC_VREF"]
+    : ["VIN", "RESET", "AREF", "IOREF"]) {
+    const net = union.find(`pin:${pinTerminal(name)}`);
+    if (
+      union
+        .keys()
+        .some(
+          (key) =>
+            key !== `pin:${pinTerminal(name)}` &&
+            key.startsWith("pin:") &&
+            union.find(key) === net,
+        )
+    )
+      error(
+        "reserved-pin",
+        `El pin ${name} de la Pico no se usa en el taller y quedó conectado.`,
+      );
   }
 
   /* ── Red resistiva: fuentes, resistencias y voltajes ────────── */
   type Edge = { a: string; b: string; ohms: number; id: string };
   const edges: Edge[] = [];
-  const leds: { id: string; anode: string; cathode: string; vf: number; label: string }[] = [];
+  const leds: {
+    id: string;
+    anode: string;
+    cathode: string;
+    vf: number;
+    label: string;
+  }[] = [];
   for (const part of circuit.parts) {
     const def = partDef(part);
     const net = (pin: string) => union.find(`pin:${part.id}.${pin}`);
@@ -260,11 +357,17 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
         continue;
       }
       if (net("a") === net("b"))
-        error("shorted-part", `${part.label}: sus dos patas quedaron en la misma tira; no hace nada.`);
+        error(
+          "shorted-part",
+          `${part.label}: sus dos patas quedaron en la misma tira; no hace nada.`,
+        );
       edges.push({ a: net("a"), b: net("b"), ohms, id: part.id });
     } else if (def.model.kind === "led") {
       if (net("anodo") === net("catodo"))
-        error("shorted-part", `${part.label}: sus dos patas quedaron en la misma tira.`);
+        error(
+          "shorted-part",
+          `${part.label}: sus dos patas quedaron en la misma tira.`,
+        );
       leds.push({
         id: part.id,
         anode: net("anodo"),
@@ -275,21 +378,34 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
     } else if (def.model.kind === "variable") {
       const [a, b] = def.model.between;
       if (net(a) === net(b))
-        error("shorted-part", `${part.label}: sus patas quedaron en la misma tira.`);
+        error(
+          "shorted-part",
+          `${part.label}: sus patas quedaron en la misma tira.`,
+        );
       // Peor caso para el voltaje: la resistencia variable en su valor más bajo.
-      else edges.push({ a: net(a), b: net(b), ohms: 100, id: `${part.id}:min` });
+      else
+        edges.push({ a: net(a), b: net(b), ohms: 100, id: `${part.id}:min` });
     } else if (def.model.kind === "switch") {
       const [[a], [b]] = def.model.joined;
       if (net(a) === net(b))
-        error("shorted-part", `${part.label}: quedó siempre cerrado; gíralo o usa patas en diagonal.`);
+        error(
+          "shorted-part",
+          `${part.label}: quedó siempre cerrado; gíralo o usa patas en diagonal.`,
+        );
     } else if (def.model.kind === "active") {
       const model = def.model;
       const supplyNet = net(model.vcc);
       const supply = fixed.get(supplyNet);
       if (net(model.gnd) !== gnd)
-        error("module-gnd", `${part.label}: su pin ${model.gnd} no llega a GND.`);
+        error(
+          "module-gnd",
+          `${part.label}: su pin ${model.gnd} no llega a GND.`,
+        );
       if (supply === undefined || supply === 0) {
-        error("module-power", `${part.label}: su pin ${model.vcc} no llega a 3V3 ni a 5 V.`);
+        error(
+          "module-power",
+          `${part.label}: su pin ${model.vcc} no llega a 3V3 ni a 5 V.`,
+        );
         continue;
       }
       const nominal = supply === vbus ? 5 : supply;
@@ -303,14 +419,22 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
         if (level === "open") continue;
         if (level === "pullup") {
           // Colector abierto con resistencia interna a su alimentación.
-          edges.push({ a: outNet, b: supplyNet, ohms: 10000, id: `${part.id}.${pin}:pullup` });
+          edges.push({
+            a: outNet,
+            b: supplyNet,
+            ohms: 10000,
+            id: `${part.id}.${pin}:pullup`,
+          });
           continue;
         }
         const volts = level === "vcc" ? supply : level;
         const existing = fixed.get(outNet);
         if (existing === undefined) fixed.set(outNet, volts);
         else if (outNet === gnd || outNet === v33 || outNet === v5)
-          error("output-short", `${part.label}: su salida ${pin} quedó unida a una línea de alimentación.`);
+          error(
+            "output-short",
+            `${part.label}: su salida ${pin} quedó unida a una línea de alimentación.`,
+          );
       }
     }
   }
@@ -318,65 +442,89 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
   const volts = solve(edges, fixed);
 
   const gpioVolts: Record<string, number> = {};
-  for (const pin of PICO_PINS) {
+  for (const pin of boardPins) {
     if (pin.kind !== "gpio" && pin.kind !== "adc") continue;
-    const net = union.find(`pin:pico:${pin.name}`);
-    const alone = !union
-      .keys()
-      .some((key) => key !== `pin:pico:${pin.name}` && key.startsWith("pin:") && union.find(key) === net) &&
-      !edges.some((edge) => edge.a === net || edge.b === net);
+    const net = union.find(`pin:${pinTerminal(pin.name)}`);
+    const alone =
+      !union
+        .keys()
+        .some(
+          (key) =>
+            key !== `pin:${pinTerminal(pin.name)}` &&
+            key.startsWith("pin:") &&
+            union.find(key) === net,
+        ) && !edges.some((edge) => edge.a === net || edge.b === net);
     if (alone) continue;
     if (net === gnd)
-      error("gpio-gnd", `${pin.name} quedó unido directo a GND: si el programa lo pone en 1 hay un cortocircuito.`);
+      error(
+        "gpio-gnd",
+        `${pin.name} quedó unido directo a GND: si el programa lo pone en 1 hay un cortocircuito.`,
+      );
     if (net === v33)
-      error("gpio-3v3", `${pin.name} quedó unido directo a 3V3: si el programa lo pone en 0 hay un cortocircuito.`);
+      error(
+        "gpio-3v3",
+        `${pin.name} quedó unido directo a 3V3: si el programa lo pone en 0 hay un cortocircuito.`,
+      );
     const value = volts.get(net);
     if (value === undefined) continue;
     gpioVolts[pin.name] = Math.round(value * 100) / 100;
-    if (value > GPIO_MAX_VOLTS + 1e-9)
+    if (value > gpioMaximum + 1e-9)
       error(
         "gpio-overvoltage",
-        `${pin.name} recibiría ${value.toFixed(2).replace(".", ",")} V. Los pines de la Pico soportan 3,3 V: falta un divisor de voltaje.`,
+        `${pin.name} recibiría ${value.toFixed(2).replace(".", ",")} V. ${isPico ? "Los pines de la Pico soportan 3,3 V" : "Los pines de Arduino trabajan con la alimentación de 5 V"}: falta adaptar el voltaje.`,
       );
   }
 
   /* ── LED: resistencia en serie y corriente ──────────────────── */
   const ledMilliamps: Record<string, number> = {};
   const sources = new Map<string, number>();
-  for (const pin of PICO_PINS)
+  for (const pin of boardPins)
     if (pin.kind === "gpio" || pin.kind === "adc")
-      sources.set(union.find(`pin:pico:${pin.name}`), 3.3);
+      sources.set(union.find(`pin:${pinTerminal(pin.name)}`), signalVoltage);
   sources.set(v33, 3.3);
   sources.set(v5, vbus);
   for (const led of leds) {
-    const up = nearest(led.anode, edges, (net) => sources.has(net) && net !== gnd);
+    const up = nearest(
+      led.anode,
+      edges,
+      (net) => sources.has(net) && net !== gnd,
+    );
     const down = nearest(led.cathode, edges, (net) => net === gnd);
     if (!up || !down) continue;
     const series = up.ohms + down.ohms;
     const supply = sources.get(up.net)!;
     if (series < 68) {
-      error("led-no-resistor", `${led.label} no tiene resistencia en serie: se quemaría o dañaría el pin.`);
+      error(
+        "led-no-resistor",
+        `${led.label} no tiene resistencia en serie: se quemaría o dañaría el pin.`,
+      );
       continue;
     }
     const milliamps = Math.max(0, ((supply - led.vf) / series) * 1000);
     ledMilliamps[led.id] = Math.round(milliamps * 10) / 10;
-    if (milliamps > GPIO_SAFE_MA)
+    if (milliamps > gpioCurrent)
       error(
         "led-current",
-        `${led.label} pediría ${milliamps.toFixed(1)} mA, más de lo seguro para un pin (${GPIO_SAFE_MA} mA).`,
+        `${led.label} pediría ${milliamps.toFixed(1)} mA, más de lo seguro para un pin (${gpioCurrent} mA).`,
       );
   }
 
   /* ── Netlist esperado: ni más ni menos uniones ──────────────── */
   const universe = new Set<string>();
-  for (const pin of PICO_PINS) universe.add(picoTerminal(pin));
+  for (const pin of boardPins)
+    universe.add(
+      isPico ? picoTerminal(pin as PicoPin) : controllerTerminal(pin.name),
+    );
   for (const part of circuit.parts)
     for (const pin of partDef(part).pins) universe.add(`${part.id}.${pin.id}`);
   const expected = new Map<string, number>();
   circuit.nets.forEach((group, index) => {
     for (const terminal of group) {
       if (!universe.has(terminal))
-        error("net-unknown", `El netlist nombra "${terminal}", que no existe en el montaje.`);
+        error(
+          "net-unknown",
+          `El netlist nombra "${terminal}", que no existe en el montaje.`,
+        );
       if (expected.has(terminal) && expected.get(terminal) !== index)
         error("net-twice", `"${terminal}" aparece en dos grupos del netlist.`);
       expected.set(terminal, index);
@@ -391,19 +539,29 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
     const [first, ...rest] = group;
     for (const terminal of rest)
       if (union.find(`pin:${first}`) !== union.find(`pin:${terminal}`))
-        error("net-open", `Falta una conexión: ${pretty(first)} debería llegar a ${pretty(terminal)}.`);
+        error(
+          "net-open",
+          `Falta una conexión: ${pretty(first)} debería llegar a ${pretty(terminal)}.`,
+        );
   }
   for (const members of physical.values()) {
     if (members.length < 2) continue;
-    const groups = new Set(members.map((terminal) => expected.get(terminal) ?? `solo:${terminal}`));
+    const groups = new Set(
+      members.map((terminal) => expected.get(terminal) ?? `solo:${terminal}`),
+    );
     if (groups.size > 1) {
       const [a, b] = members.filter(
         (terminal, index, all) =>
           all.findIndex(
-            (other) => (expected.get(other) ?? `solo:${other}`) === (expected.get(terminal) ?? `solo:${terminal}`),
+            (other) =>
+              (expected.get(other) ?? `solo:${other}`) ===
+              (expected.get(terminal) ?? `solo:${terminal}`),
           ) === index,
       );
-      error("net-bridge", `Unión que no debería existir: ${pretty(a)} quedó conectado con ${pretty(b)}.`);
+      error(
+        "net-bridge",
+        `Unión que no debería existir: ${pretty(a)} quedó conectado con ${pretty(b)}.`,
+      );
     }
   }
 
@@ -417,7 +575,9 @@ export function analyze(circuit: Circuit, options: AnalyzeOptions = {}): Analysi
 }
 
 function pretty(terminal: string) {
-  return terminal.startsWith("pico:") ? `${terminal.slice(5)} de la Pico` : terminal;
+  return terminal.startsWith("pico:")
+    ? `${terminal.slice(5)} de la Pico`
+    : terminal;
 }
 
 /**
@@ -430,7 +590,11 @@ function solve(
 ): Map<string, number> {
   const result = new Map(fixed);
   const unknown = [
-    ...new Set(edges.flatMap((edge) => [edge.a, edge.b]).filter((net) => !fixed.has(net))),
+    ...new Set(
+      edges
+        .flatMap((edge) => [edge.a, edge.b])
+        .filter((net) => !fixed.has(net)),
+    ),
   ];
   // Solo se resuelven los nodos con algún camino hasta una fuente.
   const reachable = new Set<string>();
@@ -454,7 +618,9 @@ function solve(
   const size = nodes.length;
   if (!size) return result;
   const index = new Map(nodes.map((net, position) => [net, position]));
-  const matrix = Array.from({ length: size }, () => new Array<number>(size + 1).fill(0));
+  const matrix = Array.from({ length: size }, () =>
+    new Array<number>(size + 1).fill(0),
+  );
   for (const edge of edges) {
     const conductance = 1 / edge.ohms;
     for (const [self, other] of [
@@ -476,7 +642,8 @@ function solve(
   for (let pivot = 0; pivot < size; pivot++) {
     let best = pivot;
     for (let row = pivot + 1; row < size; row++)
-      if (Math.abs(matrix[row][pivot]) > Math.abs(matrix[best][pivot])) best = row;
+      if (Math.abs(matrix[row][pivot]) > Math.abs(matrix[best][pivot]))
+        best = row;
     if (Math.abs(matrix[best][pivot]) < 1e-15) continue;
     [matrix[pivot], matrix[best]] = [matrix[best], matrix[pivot]];
     for (let row = 0; row < size; row++) {
@@ -489,7 +656,8 @@ function solve(
   }
   nodes.forEach((net, position) => {
     const diagonal = matrix[position][position];
-    if (Math.abs(diagonal) > 1e-15) result.set(net, matrix[position][size] / diagonal);
+    if (Math.abs(diagonal) > 1e-15)
+      result.set(net, matrix[position][size] / diagonal);
   });
   return result;
 }
@@ -513,7 +681,8 @@ function nearest(
     pending.delete(current);
     if (accept(current)) return { net: current, ohms: smallest };
     for (const edge of edges) {
-      const next = edge.a === current ? edge.b : edge.b === current ? edge.a : null;
+      const next =
+        edge.a === current ? edge.b : edge.b === current ? edge.a : null;
       if (!next) continue;
       const total = smallest + edge.ohms;
       if (total < (distance.get(next) ?? Infinity)) {

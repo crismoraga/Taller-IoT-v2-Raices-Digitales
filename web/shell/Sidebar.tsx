@@ -74,7 +74,7 @@ export function Sidebar({
         title={collapsed ? entry.label : undefined}
         onClick={() => go(entry.path)}
         className={cx(
-          "pressable focus-ring flex min-h-11 w-full items-center gap-3 rounded-md text-left text-[15px] font-bold",
+          "solar-nav-item pressable focus-ring flex min-h-11 w-full items-center gap-3 rounded-md text-left text-[15px] font-bold",
           collapsed ? "justify-center px-0" : "px-3.5",
           active
             ? "bg-cream text-primary"
@@ -90,7 +90,7 @@ export function Sidebar({
   return (
     <aside
       className={cx(
-        "scrollbar-thin relative isolate flex h-full flex-col overflow-x-hidden overflow-y-auto bg-night transition-[width] duration-300 ease-out",
+        "solar-sidebar scrollbar-thin relative isolate flex h-full flex-col overflow-x-hidden overflow-y-auto bg-night transition-[width] duration-300 ease-out",
         collapsed ? "w-[76px]" : "w-[264px]",
         className,
       )}

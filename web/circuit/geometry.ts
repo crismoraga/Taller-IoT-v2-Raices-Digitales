@@ -1,6 +1,7 @@
 import { isPoint, pointXY } from "./breadboard";
 import type { Circuit, PartInstance } from "./model";
 import { partDef } from "./parts";
+import { controllerPin } from "./boards";
 
 /**
  * Geometría de dibujo compartida por la vista 2D, la escena 3D y la revisión de espacio.
@@ -17,7 +18,12 @@ export type Outline =
   | { kind: "rect"; x: number; y: number; w: number; h: number };
 
 /** Tamaño de la tarjeta de un módulo que queda fuera de la protoboard. */
-export function moduleBox(part: PartInstance): { x: number; y: number; w: number; h: number } {
+export function moduleBox(part: PartInstance): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
   const pins = partDef(part).pins.length;
   const at = part.at ?? { x: 0, y: -9.5 };
   return { x: at.x, y: at.y, w: Math.max(6.4, pins * 1.7 + 1.2), h: 4.4 };
@@ -37,6 +43,7 @@ export function modulePinXY(part: PartInstance, pinId: string): XY {
 export function endpointXY(circuit: Circuit, endpoint: string): XY {
   if (isPoint(endpoint)) return pointXY(endpoint);
   const [partId, pinId] = endpoint.split(".");
+  if (partId === "controller") return controllerPin(circuit.board, pinId);
   const part = circuit.parts.find((candidate) => candidate.id === partId);
   if (!part) throw new Error(`No existe la pieza de "${endpoint}".`);
   const hole = part.holes?.[pinId];
@@ -88,9 +95,16 @@ export function bodyOutline(part: PartInstance): Outline[] {
   }
 }
 
-export function insideOutline(point: XY, outline: Outline, margin = 0): boolean {
+export function insideOutline(
+  point: XY,
+  outline: Outline,
+  margin = 0,
+): boolean {
   if (outline.kind === "circle")
-    return Math.hypot(point.x - outline.cx, point.y - outline.cy) < outline.r + margin;
+    return (
+      Math.hypot(point.x - outline.cx, point.y - outline.cy) <
+      outline.r + margin
+    );
   return (
     point.x > outline.x - margin &&
     point.x < outline.x + outline.w + margin &&
@@ -126,7 +140,10 @@ export function clearanceProblems(circuit: Circuit): string[] {
 }
 
 /** Caja que contiene un conjunto de puntos, con margen. */
-export function boundsOf(points: XY[], pad = 2): { x: number; y: number; w: number; h: number } {
+export function boundsOf(
+  points: XY[],
+  pad = 2,
+): { x: number; y: number; w: number; h: number } {
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
   const x = Math.min(...xs) - pad;

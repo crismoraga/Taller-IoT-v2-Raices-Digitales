@@ -20,7 +20,7 @@ export function ConnectionChip({ className }: { className?: string }) {
         }
     : app.connecting
       ? {
-          text: "Conectando…",
+          text: "Descubriendo placa…",
           tone: "bg-warning-soft text-warning-ink",
           dot: "bg-warning",
         }
@@ -99,10 +99,10 @@ export function ConnectButton({
       {compactLabel ? (
         <>
           <span className="sm:hidden">Conectar</span>
-          <span className="hidden sm:inline">Conectar placa</span>
+          <span className="hidden sm:inline">Conectar y descubrir</span>
         </>
       ) : (
-        "Conectar placa"
+        "Conectar y descubrir"
       )}
     </Button>
   );

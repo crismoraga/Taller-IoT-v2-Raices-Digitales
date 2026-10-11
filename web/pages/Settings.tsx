@@ -21,7 +21,11 @@ import { downloadExport, readSessionBackup } from "../lib/export";
 import { offline } from "../lib/offline";
 import { sensors } from "../data/lessons";
 import { Button, Notice, Badge, Modal, EmptyState } from "../components/Common";
-import CalibrationWizard from "../components/CalibrationWizard";
+import { CalibrationTool } from "../lesson/CalibrationTool";
+import { BoardDiscovery } from "../lesson/BoardDiscovery";
+import { circuitForBoard } from "../circuit/boards";
+import { circuits } from "../circuit/layouts";
+import { BOARD_NAMES } from "../lib/context";
 export default function Settings() {
   const app = useApp();
   const [name, setName] = useState(app.session?.name || ""),
@@ -41,7 +45,12 @@ export default function Settings() {
     [exporting, setExporting] = useState(false),
     [saving, setSaving] = useState(false),
     [savingSensors, setSavingSensors] = useState(false);
+  const [stage, setStage] = useState<1 | 2 | 3>(app.connected ? 2 : 1);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const arduino = app.board !== "pico";
+  useEffect(() => {
+    if (app.connected) setStage(2);
+  }, [app.connected]);
   useEffect(() => {
     let active = true;
     setName(app.session?.name || "");
@@ -150,8 +159,8 @@ export default function Settings() {
       <div className="settings-page">
         <PageHeader
           kicker="Telemática USM · Taller IoT"
-          title="Prepara tu estación"
-          subtitle="Crea tu grupo y conecta la placa para empezar."
+          title="Dale vida a tu estación"
+          subtitle="Tu kit está listo. Dale un espacio a tu experimento y conecta tu placa."
           art={
             <Icon
               name="board"
@@ -224,8 +233,8 @@ export default function Settings() {
     <div className="settings-page">
       <PageHeader
         kicker={`Estación ${String(app.session.groupNumber).padStart(2, "0")} · tu laboratorio`}
-        title="Prepara tu estación"
-        subtitle="Conecta la placa, elige tus sensores y carga el programa."
+        title="Dale vida a tu estación"
+        subtitle="USB → sensores → programa. Tú eliges el ritmo de cada descubrimiento."
         art={
           <Icon
             name="board"
@@ -235,338 +244,400 @@ export default function Settings() {
           />
         }
       />
-      <ol className="setup-journey" aria-label="Orden de preparación">
-        <li>
-          <span>01</span>Conecta
-        </li>
-        <li>
-          <span>02</span>Prepara sensores
-        </li>
-        <li>
-          <span>03</span>Programa y prueba
-        </li>
-      </ol>
-      <div>
-        <section className="settings-card">
-          <div className="settings-card-title">
-            <Usb size={20} />
-            <h3>1. Conecta tu placa</h3>
-            <Badge tone={app.connected ? "sage" : "neutral"}>
-              {app.connected ? "USB CONECTADO" : "SIN CONEXIÓN USB"}
-            </Badge>
-          </div>
-          <label>
-            Placa de trabajo
-            <select
-              value={app.board}
-              disabled={app.connected || app.connecting || app.busy}
-              onChange={(e) => app.setBoard(e.target.value as typeof app.board)}
-            >
-              <option value="pico">Raspberry Pi Pico W · MicroPython</option>
-              <option value="uno">Arduino Uno · ATmega328P</option>
-              <option value="nano">Arduino Nano · ATmega328P</option>
-              <option value="nano-old">
-                Arduino Nano · bootloader antiguo
-              </option>
-            </select>
-          </label>
-          {!app.serialSupported && (
-            <Notice tone="warning">
-              Para conectar por USB, abre este taller en Chrome o Edge de
-              escritorio. Puedes explorar y simular desde este navegador.
-            </Notice>
-          )}
-          <p>
-            {arduino
-              ? "Usa un cable USB de datos. Arduino se programa directamente desde esta web."
-              : "Usa una Pico W con MicroPython y un cable USB de datos."}
-          </p>
-          <Button
-            variant="secondary"
-            disabled={app.busy || app.connecting || !app.serialSupported}
-            onClick={() =>
-              void (app.connected ? app.disconnect() : app.connect())
-            }
+      <nav
+        className="mb-5 grid gap-3 sm:grid-cols-3"
+        aria-label="Etapas de tu estación"
+      >
+        {(
+          [
+            [1, "Conecta tu placa", "Un clic para reconocerla por USB"],
+            [2, "Elige tus sensores", "Activa los que acabas de conectar"],
+            [3, "Instala tu estación", "Haz que el código se vuelva datos"],
+          ] as const
+        ).map(([number, title, description]) => (
+          <button
+            key={number}
+            className={`flex min-h-24 items-center gap-3 rounded-xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 ${stage === number ? "border-accent bg-highlight text-ink" : "border-border bg-surface text-ink-soft"}`}
+            aria-current={stage === number ? "step" : undefined}
+            onClick={() => setStage(number)}
           >
-            <Usb size={16} />
-            {app.connected ? "Desconectar USB" : "Conectar USB"}
-          </Button>
-          {app.connected && (
-            <p>Desconecta USB antes de cambiar cables o cambiar de placa.</p>
-          )}
-          <details className="simple-details">
-            <summary>Nombre y número de tu grupo</summary>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save();
-              }}
+            <span
+              aria-hidden="true"
+              className={`grid size-10 shrink-0 place-items-center rounded-full font-display font-extrabold ${stage === number ? "bg-action text-action-ink" : "bg-surface-alt text-ink-accent"}`}
             >
+              {number}
+            </span>
+            <span>
+              <strong className="block text-sm">
+                {number}. {title}
+              </strong>
+              <small className="mt-1 block text-xs">{description}</small>
+            </span>
+          </button>
+        ))}
+      </nav>
+      {stage === 1 && (
+        <div>
+          <section className="settings-card">
+            <div className="settings-card-title">
+              <Usb size={20} />
+              <h3>1. Conecta tu placa</h3>
+              <Badge tone={app.connected ? "sage" : "neutral"}>
+                {app.connected ? "USB CONECTADO" : "SIN CONEXIÓN USB"}
+              </Badge>
+            </div>
+            <details className="simple-details">
+              <summary>Modelo de placa · {BOARD_NAMES[app.board]}</summary>
               <label>
-                Nombre del grupo
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={60}
-                  required
-                  minLength={1}
-                />
-              </label>
-              <label>
-                Estación
+                Placa de trabajo
                 <select
-                  value={group}
-                  onChange={(e) => setGroup(Number(e.target.value))}
+                  value={app.board}
+                  disabled={app.connected || app.connecting || app.busy}
+                  onChange={(e) =>
+                    app.setBoard(e.target.value as typeof app.board)
+                  }
                 >
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <option key={i} value={i + 1}>
-                      Estación {String(i + 1).padStart(2, "0")}
-                    </option>
-                  ))}
+                  <option value="pico">
+                    Raspberry Pi Pico W · MicroPython
+                  </option>
+                  <option value="uno">Arduino Uno · ATmega328P</option>
+                  <option value="nano">Arduino Nano · ATmega328P</option>
+                  <option value="nano-old">
+                    Arduino Nano · bootloader antiguo
+                  </option>
                 </select>
               </label>
-              <Button
-                type="submit"
-                variant="secondary"
-                loading={saving}
-                disabled={!name.trim()}
-              >
-                <Save size={15} />
-                Guardar equipo
-              </Button>
-            </form>
-          </details>
-        </section>
-      </div>
-      <section className="settings-card sensor-config">
-        <div className="settings-card-title">
-          <Radio size={21} />
-          <h3>2. Elige los sensores que conectaste</h3>
-        </div>
-        <p>
-          Marca solo los sensores que ya cableaste. Esta selección no verifica
-          el circuito.
-        </p>
-        {[false, true].map((advanced) => {
-          const options = sensors
-            .filter(
-              (s) =>
-                s.id !== "air_humidity" &&
-                (advanced
-                  ? !["soil", "air_temperature"].includes(s.id)
-                  : ["soil", "air_temperature"].includes(s.id)),
-            )
-            .map((s) => {
-              // Sensor IDs in the inventory are the canonical telemetry keys.
-              // The DHT11 is one physical sensor and enables both measurements.
-              const key = s.id;
-              const isDht = key === "air_temperature";
-              return (
-                <label className="sensor-toggle" key={s.id} data-sensor={key}>
-                  <input
-                    type="checkbox"
-                    aria-label={s.name}
-                    checked={
-                      isDht
-                        ? !!enabled.air_temperature && !!enabled.air_humidity
-                        : !!enabled[key]
-                    }
-                    disabled={savingSensors || app.busy}
-                    onChange={(e) => {
-                      setSavingSensors(true);
-                      void app
-                        .updateSession({
-                          sensorEnabled: {
-                            ...enabled,
-                            ...(isDht
-                              ? {
-                                  air_temperature: e.target.checked,
-                                  air_humidity: e.target.checked,
-                                }
-                              : { [key]: e.target.checked }),
-                          },
-                        })
-                        .catch((err) => app.notify(err.message, true))
-                        .finally(() => setSavingSensors(false));
-                    }}
-                  />
-                  <span>
-                    <strong>{s.name}</strong>
-                    <small>
-                      {s.model}
-                      {isDht ? " · temperatura y humedad" : ""} ·{" "}
-                      {arduino
-                        ? (
-                            {
-                              soil: "A0",
-                              soil_temperature: "D5",
-                              air_temperature: "D4",
-                              light: "A1",
-                              rain: "D6",
-                              water_level: "A2",
-                              distance: "D7 TRIG · D8 ECHO",
-                              motion: "D9",
-                            } as Record<string, string>
-                          )[key] || s.gpio
-                        : s.gpio}
-                    </small>
-                  </span>
-                  <span className="toggle-visual" />
-                </label>
-              );
-            });
-          return advanced ? (
-            <details className="simple-details" key="advanced-sensors">
-              <summary>
-                Más sensores del kit
-                {advancedSensorCount
-                  ? ` · ${advancedSensorCount} seleccionados`
-                  : ""}
-              </summary>
-              <div className="enabled-sensors">{options}</div>
             </details>
-          ) : (
-            <div className="enabled-sensors" key="basic-sensors">
-              {options}
-            </div>
-          );
-        })}
-        {!arduino && (enabled.distance || enabled.soil_temperature) && (
-          <Notice tone="warning">
-            {enabled.distance &&
-              "HC-SR04: conecta ECHO mediante el divisor resistivo. "}
-            {enabled.soil_temperature &&
-              "DS18B20: conecta dos resistencias de 10 kΩ en paralelo entre DATA y 3V3. "}
-            Revisa el esquema de la actividad antes de alimentar la placa.
-          </Notice>
-        )}
-        <Button
-          variant="secondary"
-          onClick={() => setCalibration(!calibration)}
-        >
-          <Settings2 size={16} />
-          {calibration ? "Cerrar calibración" : "Calibrar suelo y agua"}
-        </Button>
-        {calibration && <CalibrationWizard />}
-      </section>
-      <section className="settings-card connection-card">
-        <div className="settings-card-title">
-          <Wifi size={21} />
-          <h3>3. Programa y prueba</h3>
-          <Badge tone="sage">{arduino ? "PUENTE USB" : "PICO W"}</Badge>
-        </div>
-        <p>
-          {arduino
-            ? "El navegador recibe los sensores por USB y envía sus datos al servidor. Mantén esta pestaña abierta."
-            : "La Pico W enviará sus lecturas al servidor aun si cierras el navegador. Las credenciales se escriben solo en tu placa."}
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!Object.values(enabled).some(Boolean)) {
-              app.notify(
-                "Habilita al menos un sensor que hayas cableado.",
-                true,
-              );
-              return;
-            }
-            setInstallConfirm(true);
-          }}
-        >
-          {!arduino && (
-            <>
-              <label>
-                Red Wi-Fi de 2,4 GHz
-                <input
-                  value={ssid}
-                  onChange={(e) => setSsid(e.target.value)}
-                  required
-                  maxLength={32}
-                  autoComplete="off"
-                  placeholder="Nombre de la red del taller"
-                />
-              </label>
-              <label>
-                Contraseña Wi-Fi
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="off"
-                  maxLength={63}
-                  placeholder="Nunca se guarda en el servidor"
-                />
-              </label>
-              <details className="simple-details">
-                <summary>Dirección del servidor · avanzado</summary>
+            {!app.serialSupported && (
+              <Notice tone="warning">
+                Para conectar por USB, abre este taller en Chrome o Edge de
+                escritorio. Puedes explorar y simular desde este navegador.
+              </Notice>
+            )}
+            <p>
+              Conecta el USB de tu placa al PC y pulsa «Conectar USB». El
+              navegador te muestra los puertos; elegimos el protocolo de tu
+              placa y, si el adaptador no informa el modelo, te pedimos elegirlo
+              una vez.
+            </p>
+            <Button
+              variant="secondary"
+              loading={app.connecting}
+              disabled={app.busy || app.connecting || !app.serialSupported}
+              onClick={() =>
+                void (app.connected ? app.disconnect() : app.connect())
+              }
+            >
+              <Usb size={16} />
+              {app.connected ? "Desconectar USB" : "Conectar USB"}
+            </Button>
+            {app.connected && (
+              <Notice>
+                <strong>{BOARD_NAMES[app.board]} conectada.</strong> Ya puedes
+                elegir tus sensores.
+              </Notice>
+            )}
+            <Button variant="ghost" onClick={() => setStage(2)}>
+              Elegir mis sensores <ArrowRight size={16} />
+            </Button>
+            <details className="simple-details">
+              <summary>Nombre y número de tu grupo</summary>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save();
+                }}
+              >
                 <label>
-                  Endpoint HTTPS de telemetría
+                  Nombre del grupo
                   <input
-                    type="url"
-                    value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={60}
                     required
-                    placeholder="https://taller.tudominio.cl/api/device/ingest"
+                    minLength={1}
                   />
                 </label>
+                <label>
+                  Estación
+                  <select
+                    value={group}
+                    onChange={(e) => setGroup(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <option key={i} value={i + 1}>
+                        Estación {String(i + 1).padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  loading={saving}
+                  disabled={!name.trim()}
+                >
+                  <Save size={15} />
+                  Guardar equipo
+                </Button>
+              </form>
+            </details>
+          </section>
+        </div>
+      )}
+      {stage === 2 && (
+        <section className="settings-card sensor-config">
+          <div className="settings-card-title">
+            <Radio size={21} />
+            <h3>2. Elige tus sensores</h3>
+          </div>
+          <p>
+            Toca los sensores de tu experimento. Cada selección añade sus
+            lecturas al programa de estación.
+          </p>
+          {[false, true].map((advanced) => {
+            const options = sensors
+              .filter(
+                (s) =>
+                  s.id !== "air_humidity" &&
+                  (advanced
+                    ? !["soil", "air_temperature"].includes(s.id)
+                    : ["soil", "air_temperature"].includes(s.id)),
+              )
+              .map((s) => {
+                // Sensor IDs in the inventory are the canonical telemetry keys.
+                // The DHT11 is one physical sensor and enables both measurements.
+                const key = s.id;
+                const isDht = key === "air_temperature";
+                return (
+                  <label className="sensor-toggle" key={s.id} data-sensor={key}>
+                    <input
+                      type="checkbox"
+                      aria-label={s.name}
+                      checked={
+                        isDht
+                          ? !!enabled.air_temperature && !!enabled.air_humidity
+                          : !!enabled[key]
+                      }
+                      disabled={savingSensors || app.busy}
+                      onChange={(e) => {
+                        setSavingSensors(true);
+                        void app
+                          .updateSession({
+                            sensorEnabled: {
+                              ...enabled,
+                              ...(isDht
+                                ? {
+                                    air_temperature: e.target.checked,
+                                    air_humidity: e.target.checked,
+                                  }
+                                : { [key]: e.target.checked }),
+                            },
+                          })
+                          .catch((err) => app.notify(err.message, true))
+                          .finally(() => setSavingSensors(false));
+                      }}
+                    />
+                    <span>
+                      <strong>{s.name}</strong>
+                      <small>
+                        {s.model}
+                        {isDht ? " · temperatura y humedad" : ""} ·{" "}
+                        {arduino
+                          ? (
+                              {
+                                soil: "A0",
+                                soil_temperature: "D5",
+                                air_temperature: "D4",
+                                light: "A1",
+                                rain: "D6",
+                                water_level: "A2",
+                                distance: "D7 TRIG · D8 ECHO",
+                                motion: "D9",
+                              } as Record<string, string>
+                            )[key] || s.gpio
+                          : s.gpio}
+                      </small>
+                    </span>
+                    <span className="toggle-visual" />
+                  </label>
+                );
+              });
+            return advanced ? (
+              <details className="simple-details" key="advanced-sensors">
+                <summary>
+                  Más sensores del kit
+                  {advancedSensorCount
+                    ? ` · ${advancedSensorCount} seleccionados`
+                    : ""}
+                </summary>
+                <div className="enabled-sensors">{options}</div>
               </details>
-              {!endpoint.startsWith("https://") && (
-                <Notice tone="warning">
-                  La dirección del servidor debe usar HTTPS. Abre «Dirección del
-                  servidor» para corregirla; puedes usar la dirección de este
-                  taller.
-                </Notice>
-              )}
-            </>
+            ) : (
+              <div className="enabled-sensors" key="basic-sensors">
+                {options}
+              </div>
+            );
+          })}
+          {!arduino && (enabled.distance || enabled.soil_temperature) && (
+            <Notice>
+              {enabled.distance &&
+                "HC-SR04: conecta ECHO mediante el divisor resistivo. "}
+              {enabled.soil_temperature &&
+                "DS18B20: conecta dos resistencias de 10 kΩ en paralelo entre DATA y 3V3. "}
+              Puedes tocar cada conexión en la vista 3D de su actividad.
+            </Notice>
           )}
-          <Notice>
-            <strong>Antes de cargar:</strong> revisa el cableado con la
-            alimentación desconectada.
-            {arduino
-              ? " Se reemplazará el programa de tu Arduino."
-              : " Tu Pico W debe tener MicroPython. Se reemplazarán main.py y los archivos de estación."}
-          </Notice>
           <Button
-            type="submit"
-            disabled={
-              !app.connected ||
-              savingSensors ||
-              !Object.values(enabled).some(Boolean) ||
-              (!arduino && !endpoint.startsWith("https://"))
-            }
-            loading={app.busy}
+            variant="secondary"
+            onClick={() => setCalibration(!calibration)}
           >
-            <Link2 size={16} />
-            {arduino
-              ? "Compilar e instalar estación USB"
-              : "Vincular e instalar estación"}
+            <Settings2 size={16} />
+            {calibration ? "Cerrar calibración" : "Calibrar suelo y agua"}
           </Button>
-        </form>
-        {!app.connected && <p>Conecta tu placa en el paso 1 para instalar.</p>}
-        {!Object.values(enabled).some(Boolean) && (
-          <p>Selecciona al menos un sensor en el paso 2.</p>
+          {calibration && <CalibrationTool />}
+          <Button
+            onClick={() => setStage(3)}
+            disabled={savingSensors || !Object.values(enabled).some(Boolean)}
+          >
+            Continuar al programa <ArrowRight size={16} />
+          </Button>
+        </section>
+      )}
+      {stage === 3 && (
+        <section className="settings-card connection-card">
+          <div className="settings-card-title">
+            <Wifi size={21} />
+            <h3>3. Instala tu estación</h3>
+            <Badge tone="sage">{arduino ? "PUENTE USB" : "PICO W"}</Badge>
+          </div>
+          <p>
+            {arduino
+              ? "El navegador recibe los sensores por USB y envía sus datos al servidor. Mantén esta pestaña abierta."
+              : "La Pico W enviará sus lecturas al servidor aun si cierras el navegador. Las credenciales se escriben solo en tu placa."}
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!Object.values(enabled).some(Boolean)) {
+                app.notify(
+                  "Habilita al menos un sensor que hayas cableado.",
+                  true,
+                );
+                return;
+              }
+              setInstallConfirm(true);
+            }}
+          >
+            {!arduino && (
+              <>
+                <label>
+                  Red Wi-Fi de 2,4 GHz
+                  <input
+                    value={ssid}
+                    onChange={(e) => setSsid(e.target.value)}
+                    required
+                    maxLength={32}
+                    autoComplete="off"
+                    placeholder="Nombre de la red del taller"
+                  />
+                </label>
+                <label>
+                  Contraseña Wi-Fi
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="off"
+                    maxLength={63}
+                    placeholder="Nunca se guarda en el servidor"
+                  />
+                </label>
+                <details className="simple-details">
+                  <summary>Dirección del servidor · avanzado</summary>
+                  <label>
+                    Endpoint HTTPS de telemetría
+                    <input
+                      type="url"
+                      value={endpoint}
+                      onChange={(e) => setEndpoint(e.target.value)}
+                      required
+                      placeholder="https://taller.tudominio.cl/api/device/ingest"
+                    />
+                  </label>
+                </details>
+                {!endpoint.startsWith("https://") && (
+                  <Notice tone="warning">
+                    La dirección del servidor debe usar HTTPS. Abre «Dirección
+                    del servidor» para corregirla; puedes usar la dirección de
+                    este taller.
+                  </Notice>
+                )}
+              </>
+            )}
+            <details className="simple-details">
+              <summary>¿Qué programa se instala?</summary>
+              <p>
+                {arduino
+                  ? "La estación reemplaza el sketch actual de Arduino y envía sus lecturas por USB. Tu borrador del editor se conserva."
+                  : "La estación escribe main.py y su configuración en MicroPython, y envía tus lecturas por Wi-Fi y USB. Tu borrador del editor se conserva."}
+              </p>
+            </details>
+            <Button
+              type="submit"
+              disabled={
+                !app.connected ||
+                savingSensors ||
+                !Object.values(enabled).some(Boolean) ||
+                (!arduino && !endpoint.startsWith("https://"))
+              }
+              loading={app.busy}
+            >
+              <Link2 size={16} />
+              {arduino
+                ? "Compilar e instalar estación USB"
+                : "Vincular e instalar estación"}
+            </Button>
+          </form>
+          {!app.connected && (
+            <p>Conecta tu placa en el paso 1 para instalar.</p>
+          )}
+          {!Object.values(enabled).some(Boolean) && (
+            <p>Selecciona al menos un sensor en el paso 2.</p>
+          )}
+          {!arduino && (
+            <details className="simple-details">
+              <summary>¿Cómo preparo MicroPython?</summary>
+              <p>
+                Mantén BOOTSEL al conectar USB, copia el firmware UF2 oficial de{" "}
+                <a
+                  href="https://micropython.org/download/RPI_PICO_W/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Pico W
+                </a>{" "}
+                a la unidad RPI-RP2 y vuelve a conectar desde esta web. No uses
+                la imagen de Pico sin Wi-Fi.
+              </p>
+            </details>
+          )}
+          <Button variant="ghost" onClick={() => app.navigate("/planta")}>
+            Ver mis lecturas <ArrowRight size={16} />
+          </Button>
+        </section>
+      )}
+      <details
+        className="settings-card simple-details"
+        onToggle={(event) => setPreviewOpen(event.currentTarget.open)}
+      >
+        <summary>
+          Toca los pines de {BOARD_NAMES[app.board]} · explorador 3D y 2D
+        </summary>
+        {previewOpen && (
+          <BoardDiscovery circuit={circuitForBoard(circuits.led, app.board)} />
         )}
-        {!arduino && (
-          <details className="simple-details">
-            <summary>¿Cómo preparo MicroPython?</summary>
-            <p>
-              Mantén BOOTSEL al conectar USB, copia el firmware UF2 oficial de{" "}
-              <a
-                href="https://micropython.org/download/RPI_PICO_W/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Pico W
-              </a>{" "}
-              a la unidad RPI-RP2 y vuelve a conectar desde esta web. No uses la
-              imagen de Pico sin Wi-Fi.
-            </p>
-          </details>
-        )}
-        <Button variant="ghost" onClick={() => app.navigate("/planta")}>
-          Ver mis lecturas <ArrowRight size={16} />
-        </Button>
-      </section>
+      </details>
       <details className="settings-card simple-details">
         <summary>
           Dispositivos vinculados (
@@ -642,7 +713,7 @@ export default function Settings() {
       </div>
       {installConfirm && (
         <Modal
-          title="¿Todo está listo en la protoboard?"
+          title="Tu estación está a un clic"
           onClose={() => setInstallConfirm(false)}
         >
           <p>
@@ -650,8 +721,9 @@ export default function Settings() {
             borrador del editor sigue guardado en la web.
           </p>
           <Notice>
-            Revisa GND común, alimentación y sensores habilitados. No cambies
-            cables con la alimentación conectada.
+            {Object.values(enabled).filter(Boolean).length} variables activadas.
+            Cuando termine, toca «Ver mis lecturas» para descubrir tu
+            experimento.
           </Notice>
           <Button loading={app.busy} onClick={() => void install()}>
             Instalar en mi placa <ArrowRight size={16} />

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+test.use({ reducedMotion: "reduce" });
 const ORIGIN = "http://127.0.0.1:5173";
 test.afterEach(async ({ page }) => {
   await page.request
@@ -27,8 +28,17 @@ async function phase(page: Page, name: string) {
 test("living 3D home, six-step 60-minute journey, theme and narrow screens", async ({
   page,
 }) => {
+  test.setTimeout(90000);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /React|THREE|Unhandled|Error:/.test(message.text())
+    )
+      errors.push(message.text());
+  });
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: /Haz que tu planta hable/ }),
@@ -36,20 +46,60 @@ test("living 3D home, six-step 60-minute journey, theme and narrow screens", asy
   await expect(
     page.getByText("60 minutos · paso a paso", { exact: true }),
   ).toBeVisible();
-  const scene = page
-    .locator("details")
-    .filter({ hasText: "Explorar la estación 3D" });
-  await expect(scene).not.toHaveAttribute("open", "");
-  await expect(page.locator(".rdx-living canvas")).toHaveCount(0);
-  await scene.locator("summary").click();
-  await expect(page.locator(".rdx-living canvas")).toBeVisible();
   await expect(
-    page.getByText(/flujo animado ilustra información/),
+    page.getByRole("heading", {
+      name: "Pequeños pasos. Grandes descubrimientos.",
+      exact: true,
+    }),
   ).toBeVisible();
+  await expect(page.getByText("Preparación", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".rdx-living canvas")).toBeVisible();
+  await expect(page.getByText("Exploración 3D", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Planta", exact: true }).click();
+  await page
+    .getByLabel("Humedad de la exploración", { exact: true })
+    .fill("20");
+  await page.getByLabel("Luz de la exploración", { exact: true }).fill("35");
+  await expect(page.locator(".rdx-experiment-controls")).toContainText("20%");
+  await expect(page.locator(".rdx-experiment-controls")).toContainText("35%");
+  const roots = page.getByRole("button", {
+    name: "Ver raíces de la planta",
+    exact: true,
+  });
+  await roots.click();
+  await expect(roots).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "LED", exact: true }).click();
+  await page.getByRole("button", { name: "Encender LED", exact: true }).click();
+  await expect(page.locator(".rdx-world-feedback")).toContainText(
+    "¡LED encendido!",
+  );
+  await expect(
+    page.locator(".rdx-living").getByText("LED · encendido", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Pico W", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Enviar una señal", exact: true })
+    .click();
+  await expect(page.locator(".rdx-world-feedback")).toContainText(
+    "humedad 20% → placa → red",
+  );
+  await page.getByRole("button", { name: "Red", exact: true }).click();
   await page.getByRole("button", { name: "Sensor", exact: true }).click();
   await expect(page.locator(".rdx-selection")).toContainText(
-    /sonda capacitiva/i,
+    /El sensor convierte humedad en una señal/i,
   );
+  await expect(
+    page.getByLabel("5 de 5 partes descubiertas", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Pausar animación", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Reanudar animación", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: "Reanudar animación", exact: true })
+    .click();
   await page.screenshot({
     path: "test-results/home-desktop.png",
     fullPage: true,
@@ -114,104 +164,123 @@ test("checkpoint feedback and group progress survive reload", async ({
     (await (await page.request.get("/api/session")).json()).session.progress,
   ).toContain("led");
 });
-test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity", async ({
+test("3D wiring guides one cable and one end at a time without preparation gates", async ({
   page,
 }) => {
+  test.setTimeout(90000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await createGroup(page);
   await page.goto("/taller/led");
   await phase(page, "Conecta");
+  const instruction = page.getByRole("region", {
+    name: "Instrucción de montaje",
+  });
   await expect(
-    page.getByRole("radio", { name: "Plano 2D", exact: true }),
+    page.getByRole("radio", { name: "3D interactivo", exact: true }),
   ).toBeChecked();
-  await expect(page.locator(".rdx-circuit canvas")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Empezar a cablear", exact: true })
-    .click();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Primero, sin energía", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Confirma esta preparación antes de empezar a cablear.", {
+    instruction.getByRole("heading", {
+      name: "Toma un cable negro",
       exact: true,
     }),
   ).toBeVisible();
-  await page
-    .getByRole("checkbox", {
-      name: /Retiré físicamente el USB y las fuentes externas/,
-    })
-    .press("Space");
-  await page
-    .getByRole("button", { name: "Empezar a cablear", exact: true })
-    .click();
-  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
-  await expect(page.getByText("a3", { exact: true }).first()).toBeVisible();
-  const endpoints = page
-    .getByRole("region", { name: "Instrucción de montaje" })
-    .locator('[aria-label="Extremos del cable"]');
-  await expect(endpoints).toContainText("a3");
-  await expect(endpoints).toContainText("− · 3");
-  await page
-    .getByRole("radio", { name: "3D interactivo", exact: true })
-    .click();
-  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
-  await expect(page.locator(".rdx-terminal-overlay")).toContainText("A · a3");
-  await expect(page.locator(".rdx-terminal-overlay")).toContainText("B · − 3");
-  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
-  await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
-  await expect(page.getByRole("img", { name: /^Lleva GND/ })).toBeVisible();
-  const index = page.getByRole("button", { name: /Ver los \d+ pasos/ });
+  await expect(instruction.getByRole("checkbox")).toHaveCount(0);
+  await expect(
+    page.getByText("Primero, sin energía", { exact: true }),
+  ).toHaveCount(0);
+  const index = page.getByRole("button", { name: /Explorar los \d+ pasos/ });
   await expect(index).toHaveAttribute("aria-expanded", "false");
   await index.click();
-  const future = page.getByRole("button", { name: /Coloca el LED/ });
-  await expect(future).toHaveAttribute("aria-disabled", "true");
-  // aria-disabled still requires the click handler to refuse a future step.
-  await future.click({ force: true });
-  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
   await expect(
-    page.getByRole("progressbar", { name: "Avance del cableado" }),
-  ).toHaveAttribute("aria-valuenow", "0");
-  await page.getByRole("checkbox").last().press("Space");
-  await page
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
+    page.getByRole("button", { name: /Coloca el LED: pata larga/ }),
+  ).toBeDisabled();
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: /Coloca el LED/ }),
+    instruction.getByRole("heading", { name: "Conecta A en a3", exact: true }),
   ).toBeVisible();
+  const a = instruction.getByRole("button", {
+    name: "Explorar extremo A: a3",
+    exact: true,
+  });
+  await page.getByRole("button", { name: /^Tocar extremo A: a3/ }).click();
+  await expect(a).toHaveAttribute("aria-pressed", "true");
+  await expect(instruction).toContainText("Encontraste a3 en el modelo");
+  await expect(page.locator(".rdx-terminal-overlay")).toContainText("A · a3");
+  await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "Conecta A en a3", exact: true }),
+  ).toBeVisible();
+  await expect(
+    instruction.getByRole("heading", { name: "Conecta A en a3", exact: true }),
+  ).toBeVisible();
+  await instruction
+    .getByRole("button", { name: "Ya conecté A", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("heading", {
+      name: "Conecta B en − · 3",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar extremo A: a3",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Primero, sin energía", exact: true }),
+    page.getByRole("radio", { name: "3D interactivo", exact: true }),
+  ).toBeChecked();
+  await expect(
+    instruction.getByRole("heading", {
+      name: "Conecta B en − · 3",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page
-    .getByRole("checkbox", {
-      name: /Retiré físicamente el USB y las fuentes externas/,
-    })
-    .press("Space");
-  await page
-    .getByRole("button", { name: "Continuar montaje", exact: true })
+  await expect(instruction.getByRole("checkbox")).toHaveCount(0);
+  await instruction
+    .getByRole("button", { name: "Ya conecté B", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: /Coloca el LED/ }),
+    instruction.getByRole("heading", {
+      name: "¡Cable conectado!",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Paso anterior", exact: true })
+  await expect(instruction.getByRole("status")).toContainText(
+    "A: a3 → B: − · 3",
+  );
+  await instruction
+    .getByRole("button", { name: "Conectado, siguiente", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
-  await expect(page.getByRole("checkbox").last()).toBeChecked();
-  await page
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
+  await expect(
+    instruction.getByRole("heading", { name: "Toma LED rojo", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Avance del montaje" }),
+  ).toHaveAttribute("aria-valuenow", "1");
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
-  await page
+  await expect(
+    instruction.getByRole("heading", { name: "Coloca LED rojo", exact: true }),
+  ).toBeVisible();
+  const legs = instruction.locator('[aria-label="Patas de la pieza"]');
+  await expect(legs).toContainText("d26");
+  await expect(legs).toContainText("d27");
+  await instruction
+    .getByRole("button", { name: "Ya lo coloqué", exact: true })
+    .click();
+  await instruction
     .getByRole("button", { name: "Listo, siguiente", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: /Coloca el LED/ }),
-  ).toBeVisible();
-  await page.getByRole("checkbox").last().press("Space");
-  await page
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: /resistencia/ }),
+    instruction.getByRole("heading", { name: /Toma.*220/ }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/wiring-desktop.png",
@@ -223,7 +292,40 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  expect(errors).toEqual([]);
 });
+
+async function completeAssemblyConnection(page: Page) {
+  const instruction = page.getByRole("region", {
+    name: "Instrucción de montaje",
+  });
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
+    .click();
+  if (
+    await instruction
+      .getByRole("button", { name: "Ya conecté A", exact: true })
+      .count()
+  ) {
+    await instruction
+      .getByRole("button", { name: "Ya conecté A", exact: true })
+      .click();
+    await instruction
+      .getByRole("button", { name: "Ya conecté B", exact: true })
+      .click();
+    await instruction
+      .getByRole("button", { name: "Conectado, siguiente", exact: true })
+      .click();
+  } else {
+    await instruction
+      .getByRole("button", { name: "Ya lo coloqué", exact: true })
+      .click();
+    await instruction
+      .getByRole("button", { name: "Listo, siguiente", exact: true })
+      .click();
+  }
+}
+
 test("guided code edit is undoable, persisted, restored and downloaded", async ({
   page,
 }) => {
@@ -264,9 +366,10 @@ test("guided code edit is undoable, persisted, restored and downloaded", async (
     .click();
   expect((await download).suggestedFilename()).toBe("led.py");
 });
-test("soil wiring shows a single sensor cable with matching A and B ends in 2D and 3D", async ({
+test("soil wiring discovers a single sensor cable and preserves its active end between 3D and 2D", async ({
   page,
 }) => {
+  test.setTimeout(90000);
   await page.setViewportSize({ width: 320, height: 844 });
   await createGroup(page, "Sonda cable a cable QA", 7);
   await page.goto("/taller/soil");
@@ -274,46 +377,47 @@ test("soil wiring shows a single sensor cable with matching A and B ends in 2D a
   const instruction = page.getByRole("region", {
     name: "Instrucción de montaje",
   });
-  await instruction
-    .getByRole("checkbox", { name: /Retiré físicamente el USB/ })
-    .press("Space");
-  await instruction
-    .getByRole("button", { name: "Empezar a cablear", exact: true })
-    .click();
-  for (let count = 0; count < 3; count++) {
-    await instruction.getByRole("checkbox").press("Space");
-    await instruction
-      .getByRole("button", { name: "Listo, siguiente", exact: true })
-      .click();
-  }
+  for (let count = 0; count < 3; count++)
+    await completeAssemblyConnection(page);
   await expect(
-    page.getByRole("heading", { name: /Hilo rojo \(VCC\)/ }),
-  ).toBeVisible();
-  await expect(
-    instruction.getByText("1 hilo o cable de sensor rojo", { exact: true }),
-  ).toBeVisible();
-  const ends = instruction.locator('[aria-label="Extremos del cable"]');
-  await expect(ends).toContainText("VCC");
-  await expect(ends).toContainText("+ · 11");
-  await expect(
-    page.getByRole("button", {
-      name: "Acercar extremo A: soil.VCC",
+    instruction.getByRole("heading", {
+      name: "Toma un cable rojo",
       exact: true,
     }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Acercar extremo B: tp:11", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("radio", { name: "3D interactivo", exact: true })
+  await expect(instruction).toContainText(
+    "Un solo cable de sensor o hembra-macho rojo.",
+  );
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
-  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: /Hilo rojo \(VCC\)/ }),
+    instruction.getByRole("heading", { name: "Conecta A en VCC", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  await instruction
+    .getByRole("button", { name: "Explorar extremo A: VCC", exact: true })
+    .click();
+  await expect(instruction).toContainText("Encontraste VCC en el modelo");
+  await instruction
+    .getByRole("button", { name: "Ya conecté A", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("heading", {
+      name: "Conecta B en + · 11",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
-  await expect(ends).toContainText("VCC");
-  await expect(ends).toContainText("+ · 11");
+  await expect(
+    page.getByRole("img", { name: "Conecta B en + · 11", exact: true }),
+  ).toBeVisible();
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar extremo B: + · 11",
+      exact: true,
+    }),
+  ).toBeVisible();
   const tabs = await page
     .getByRole("navigation", { name: "Partes de la actividad" })
     .getByRole("button")
@@ -334,25 +438,64 @@ test("soil wiring shows a single sensor cable with matching A and B ends in 2D a
     ),
   ).toBe(true);
 });
-test("Arduino pin table and guided C++ edits follow selected board", async ({
+
+test("Arduino uses its real board and breadboard in 3D and 2D with guided C++ edits", async ({
   page,
 }) => {
+  test.setTimeout(90000);
   await createGroup(page);
   await page.goto("/taller/led");
   await page.getByLabel("Tu placa").selectOption("uno");
   await phase(page, "Conecta");
   await expect(
-    page.getByText(/En Arduino Uno y Nano la salida es de 5 V/),
+    page.getByRole("radio", { name: "3D interactivo", exact: true }),
+  ).toBeChecked();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  const instruction = page.getByRole("region", {
+    name: "Instrucción de montaje",
+  });
+  await expect(
+    page.getByRole("region", { name: /Modelo 3D de.*Arduino Uno/ }),
+  ).toBeVisible();
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("heading", { name: "Conecta A en GND", exact: true }),
+  ).toBeVisible();
+  await expect(instruction).toContainText("Arduino Uno");
+  await expect(instruction.getByText("a3", { exact: true })).toHaveCount(0);
+  await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "Conecta A en GND", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Arduino Uno: conectores reales", { exact: true }),
+  ).toBeVisible();
+  await instruction
+    .getByRole("button", { name: "Ya conecté A", exact: true })
+    .click();
+  await instruction
+    .getByRole("button", { name: "Ya conecté B", exact: true })
+    .click();
+  await instruction
+    .getByRole("button", { name: "Conectado, siguiente", exact: true })
+    .click();
+  await completeAssemblyConnection(page);
+  await completeAssemblyConnection(page);
+  await instruction
+    .getByRole("button", { name: "Lo tengo", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("heading", { name: "Conecta A en D2", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("checkbox", {
-      name: /Retiré físicamente el USB y las fuentes externas/,
-    })
-    .press("Space");
-  await page
-    .getByRole("button", { name: "Empezar a conectar", exact: true })
+    .getByRole("radio", { name: "3D interactivo", exact: true })
     .click();
-  await expect(page.getByText("Pin D2", { exact: true })).toBeVisible();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  await expect(
+    instruction.getByRole("heading", { name: "Conecta A en D2", exact: true }),
+  ).toBeVisible();
   await phase(page, "Programa");
   await page
     .getByRole("button", { name: "Probar este cambio", exact: true })
@@ -422,11 +565,15 @@ test("sensor setup, DHT toggle and calibrated soil persist", async ({
 }) => {
   await createGroup(page);
   await page.goto("/estacion");
+  await page.getByRole("button", { name: /^2\. Elige tus sensores/ }).click();
+  await page.locator("summary", { hasText: "Más sensores del kit" }).click();
   await page
     .locator(".sensor-toggle")
     .filter({ hasText: "Temperatura del aire" })
     .click();
   await page.reload();
+  await page.getByRole("button", { name: /^2\. Elige tus sensores/ }).click();
+  await page.locator("summary", { hasText: "Más sensores del kit" }).click();
   await expect(
     page
       .locator(".sensor-toggle")
@@ -439,14 +586,32 @@ test("sensor setup, DHT toggle and calibrated soil persist", async ({
   expect(enabled.air_humidity).toBe(true);
   expect(enabled).not.toHaveProperty("dht11");
   await page.getByRole("button", { name: "Calibrar suelo y agua" }).click();
-  await page.getByLabel("RAW seco").fill("50000");
-  await page.getByLabel("RAW húmedo").fill("20000");
+  await page.getByLabel("Lectura cruda «seco»", { exact: true }).fill("50000");
+  await expect(
+    page.getByLabel("Lectura cruda «húmedo»", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", {
+      name: "Continuar a la referencia húmeda",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByLabel("Lectura cruda «húmedo»", { exact: true })
+    .fill("20000");
+  await page
+    .getByRole("button", { name: "Ver mi escala", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Guardar calibración", exact: true })
     .click();
   await expect(
-    page.getByText("Guardado: seco 50000 · húmedo 20000"),
+    page.getByText("Guardada: seco 50000 · húmedo 20000"),
   ).toBeVisible();
+  expect(
+    (await (await page.request.get("/api/session")).json()).session.calibrations
+      .soil,
+  ).toEqual({ dry: 50000, wet: 20000 });
   await page.screenshot({
     path: "test-results/settings-desktop.png",
     fullPage: true,
@@ -458,14 +623,27 @@ test("explicit practice telemetry crosses and recovers alerts, chart and CSV", a
   await createGroup(page);
   await page.goto("/planta");
   await expect(
-    page.getByText("Tu primera lectura está por llegar"),
+    page.getByText("Todo listo para tu primera lectura"),
   ).toBeVisible();
+  await expect(page.locator(".rdx-living canvas")).toBeVisible();
+  await expect(page.locator(".rdx-scene-eyebrow")).toContainText(
+    "Lecturas de tu estación",
+  );
+  await expect(
+    page.getByLabel("Humedad de la exploración", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Encender LED", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Practicar sin hardware" }).click();
   await page.getByRole("button", { name: "Enviar una lectura" }).click();
   await expect(page.locator(".sensor-card").first()).toContainText("55");
   await expect(
     page.getByText("SIMULACIÓN", { exact: true }).first(),
   ).toBeVisible();
+  await expect(page.locator(".rdx-scene-eyebrow")).toContainText(
+    "Simulación del dashboard",
+  );
   await page.getByRole("button", { name: "Crear mi primer umbral" }).click();
   await page.getByRole("button", { name: "Guardar umbral" }).click();
   const slider = page
@@ -484,6 +662,14 @@ test("explicit practice telemetry crosses and recovers alerts, chart and CSV", a
   const csv = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar CSV" }).click();
   expect((await csv).suggestedFilename()).toMatch(/\.csv$/);
+  await page.getByRole("radio", { name: "Hardware real", exact: true }).click();
+  await expect(page.locator(".rdx-scene-eyebrow")).toContainText(
+    "Lecturas de tu estación",
+  );
+  await expect(page.locator(".rdx-selection")).toContainText(
+    "El próximo dato de humedad aparecerá aquí.",
+  );
+  await expect(page.locator(".sensor-card")).toHaveCount(0);
   await page.screenshot({
     path: "test-results/dashboard-desktop.png",
     fullPage: true,
@@ -495,7 +681,7 @@ test("diagnostics honestly checks browser and disconnected hardware", async ({
   await page.goto("/diagnostico");
   await expect(page.locator(".diagnostic-card")).toHaveCount(6);
   await expect(
-    page.locator(".diagnostic-card").filter({ hasText: "Web Serial" }),
+    page.locator(".diagnostic-card").filter({ hasText: "USB del navegador" }),
   ).toContainText("DISPONIBLE");
   await expect(
     page.getByRole("button", { name: "Consultar Pico" }),
@@ -592,37 +778,40 @@ test("WebGL unavailable keeps accessible explanations and real 2D wiring", async
     } as typeof getContext;
   });
   await page.goto("/");
-  await page.locator("summary", { hasText: "Explorar la estación 3D" }).click();
-  await expect(page.getByText(/El render 3D necesita WebGL/)).toBeVisible();
+  await expect(
+    page.getByText("Tu estación sigue siendo interactiva", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Sensor", exact: true }).click();
   await expect(page.locator(".rdx-selection")).toContainText(
-    "sonda capacitiva",
+    "El sensor convierte humedad en una señal",
   );
   await page.goto("/taller/led");
   await phase(page, "Conecta");
   await expect(
-    page.getByRole("radio", { name: "Plano 2D", exact: true }),
+    page.getByRole("radio", { name: "3D interactivo", exact: true }),
   ).toBeChecked();
-  await page
-    .getByRole("radio", { name: "3D interactivo", exact: true })
-    .click();
   await expect(
     page.getByText(/Este navegador no dispone de WebGL/),
   ).toBeVisible();
   await expect(
-    page.getByRole("img", { name: /Tu primera señal|LED|Protoboard/ }).first(),
+    page
+      .getByRole("img", { name: /GND|Toma un cable negro|Protoboard/ })
+      .first(),
   ).toBeVisible();
   await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
   await expect(
-    page.getByRole("img", { name: /Tu primera señal|LED|Protoboard/ }).first(),
+    page
+      .getByRole("img", { name: /GND|Toma un cable negro|Protoboard/ })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Toma un cable negro", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("checkbox", {
-      name: /Retiré físicamente el USB y las fuentes externas/,
-    })
-    .press("Space");
-  await page
-    .getByRole("button", { name: "Empezar a cablear", exact: true })
+    .getByRole("region", { name: "Instrucción de montaje" })
+    .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Conecta A en a3", exact: true }),
+  ).toBeVisible();
 });

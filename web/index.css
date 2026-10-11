@@ -306,7 +306,7 @@
   font-variant-ligatures: none;
 }
 
-/* Azul noche: la escena conserva el mismo contraste en ambos temas. */
+/* Bosque nocturno: luz verde y papel cálido conservan el contraste. */
 @utility bg-night {
   background-image: linear-gradient(
     145deg,
@@ -359,7 +359,18 @@
   }
   body {
     min-height: 100dvh;
-    background: var(--paper);
+    background:
+      radial-gradient(
+        ellipse at 85% 0%,
+        color-mix(in srgb, var(--accent) 14%, transparent),
+        transparent 45rem
+      ),
+      radial-gradient(
+        ellipse at 25% 100%,
+        color-mix(in srgb, var(--botanical) 8%, transparent),
+        transparent 55rem
+      ),
+      var(--paper);
     font-size: 1rem;
     line-height: 1.5rem;
   }
@@ -439,39 +450,189 @@
   .legacy-page .notice.error > svg {
     color: var(--danger-ink);
   }
-  .workshop-welcome {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
+  .solarpunk-lesson-header {
     position: relative;
     overflow: hidden;
-    border-radius: 20px;
-    padding: clamp(1.35rem, 3vw, 2.25rem);
+    border-color: color-mix(in srgb, var(--botanical) 38%, var(--border));
+    background-image:
+      radial-gradient(
+        ellipse at 100% 0%,
+        color-mix(in srgb, var(--accent) 25%, transparent),
+        transparent 64%
+      ),
+      linear-gradient(
+        120deg,
+        var(--surface),
+        color-mix(in srgb, var(--highlight) 35%, var(--surface))
+      );
+    box-shadow: var(--elev-soft);
+  }
+  .solarpunk-lesson-header::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(var(--botanical), var(--accent), var(--solar));
+    content: "";
+    pointer-events: none;
+  }
+  .solarpunk-discovery-card {
+    border-color: color-mix(in srgb, var(--botanical) 32%, var(--border));
+    background-image: radial-gradient(
+      ellipse at 100% 0%,
+      color-mix(in srgb, var(--highlight) 55%, transparent),
+      transparent 70%
+    );
+    box-shadow: var(--elev-soft);
+  }
+  .solar-sidebar {
+    background-image:
+      radial-gradient(ellipse at 10% 2%, #60924438, transparent 42%),
+      radial-gradient(ellipse at 110% 85%, #36735a42, transparent 60%),
+      linear-gradient(155deg, #0d3229, #071e1a 60%, #153e2c);
+  }
+  .solar-sidebar::after {
+    position: absolute;
+    z-index: -1;
+    inset: auto -80px 50px auto;
+    width: 250px;
+    height: 250px;
+    border: 1px solid #d0ef8314;
+    border-radius: 52% 48% 25% 75%;
+    content: "";
+    transform: rotate(-30deg);
+    pointer-events: none;
+  }
+  .solar-nav-item[aria-current="page"] {
+    background: linear-gradient(105deg, #d0ef83, #d5edb9);
+    box-shadow: 0 3px 20px #bde98814;
+  }
+  .solar-topbar {
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--botanical) 10%, transparent);
+  }
+  .brand-mark {
+    filter: drop-shadow(0 0 12px #b8e87918);
+  }
+  .workshop-welcome {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+    align-items: stretch;
+    min-height: 570px;
+    overflow: hidden;
+    border: 1px solid #81b77838;
+    border-radius: 28px;
+    background-image:
+      radial-gradient(ellipse at 18% 0%, #819c3436, transparent 60%),
+      radial-gradient(ellipse at 90% 80%, #4c99513d, transparent 56%),
+      linear-gradient(130deg, #122f25 0%, #09271f 52%, #19482f 100%);
+    box-shadow:
+      0 20px 60px #0b312622,
+      inset 0 1px 0 #e5f7cd12;
+  }
+  .workshop-welcome::before {
+    position: absolute;
+    z-index: -1;
+    inset: -15% -15% -40% 20%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, #bcda6030, transparent 65%);
+    content: "";
+    animation: solar-breath 10s ease-in-out infinite alternate;
+    pointer-events: none;
   }
   .workshop-welcome-copy {
-    flex: 1;
+    position: relative;
+    z-index: 2;
+    align-self: center;
     min-width: 0;
+    padding: clamp(1.5rem, 3vw, 3.2rem);
+    padding-right: 0.75rem;
   }
   .workshop-welcome-title {
     font-family: var(--font-display);
-    max-width: 15ch;
-    margin-top: 0.8rem;
-    font-size: clamp(1.8rem, 3.1vw, 2.8rem);
-    font-weight: 750;
-    line-height: 1.12;
-    letter-spacing: -0.035em;
+    max-width: 13ch;
+    margin-top: 1rem;
+    font-size: clamp(2.25rem, 3.45vw, 4.5rem);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.05em;
     text-wrap: pretty;
   }
-  .workshop-welcome-art {
-    flex: 0 0 170px;
-    width: 170px;
-    height: auto;
+  .solar-title-light {
+    color: #d0ef83;
+    background: linear-gradient(110deg, #def49e 0%, #95d795 55%, #f3d56a 100%);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .solar-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid #bbdc9c40;
+    border-radius: 999px;
+    background: #92bd7620;
+    color: #d9e8ce;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .solar-live-badge > span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #d0ef83;
+    box-shadow: 0 0 14px #d0ef8350;
+  }
+  .solar-start-button {
+    box-shadow: 0 6px 30px #cbe77b20;
+  }
+  .solar-start-button:hover {
+    box-shadow: 0 6px 38px #cbe77b40;
+    transform: translateY(-2px);
+  }
+  .solar-kit-note {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.35rem;
+    color: #c3d7bf;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  .solar-kit-note svg {
+    flex-shrink: 0;
+    color: #d0ef83;
+  }
+  .solar-hero-world {
+    position: relative;
+    min-width: 0;
+    min-height: 570px;
+  }
+  .solar-hero-world .living-station-view {
+    height: 100%;
+    min-height: 570px;
+  }
+  .scene-loading {
+    min-height: 490px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--on-dark);
+  }
+  .scene-loading img {
+    animation: float 3s ease-in-out infinite;
+  }
+  .solar-route-section {
+    padding: 0.5rem 0.125rem;
   }
   .home-disclosure {
     overflow: hidden;
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 20px;
     background: var(--surface);
+    box-shadow: var(--elev-soft);
   }
   .home-disclosure-summary {
     display: flex;
@@ -492,86 +653,95 @@
   .home-disclosure[open] > summary .disclosure-chevron {
     transform: rotate(180deg);
   }
-  .home-preparation > section {
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    border-top: 1px solid var(--border);
+  .home-route:not(.home-stage-route) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
   }
-  .home-preparation h2 {
-    font-size: 1.125rem;
-    line-height: 1.5;
-  }
-  .home-route {
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: var(--surface);
-  }
-  .home-route > li + li {
-    border-top: 1px solid var(--border);
+  .home-route:not(.home-stage-route) > li {
+    display: flex;
+    min-width: 0;
   }
   .home-lesson {
+    position: relative;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     width: 100%;
-    min-height: 88px;
-    gap: 1rem;
-    padding: 1rem;
+    min-height: 205px;
+    gap: 0.75rem;
+    padding: 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--elev-soft);
     text-align: left;
-    transition: background 160ms ease;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms var(--curve-out);
   }
   .home-lesson:hover {
-    background: var(--surface-alt);
+    border-color: var(--border-strong);
+    background: color-mix(in srgb, var(--highlight) 30%, var(--surface));
+    box-shadow: var(--elev-card);
+    transform: translateY(-3px);
   }
   .home-lesson-current {
-    box-shadow: inset 3px 0 0 var(--ink-accent);
+    border-color: var(--ink-accent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--highlight) 55%, var(--surface)),
+      var(--surface)
+    );
   }
   .home-lesson-number {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.6rem;
     flex-shrink: 0;
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-    background: var(--surface-alt);
+    color: var(--ink-accent);
     font-family: var(--font-mono);
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--ink-soft);
   }
-  .home-lesson-current .home-lesson-number {
+  .home-lesson-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
     background: var(--highlight);
-    color: var(--ink-accent);
   }
-  .home-lesson-done {
+  .home-lesson-done .home-lesson-icon {
     background: var(--success-soft);
     color: var(--success-ink);
   }
   .home-lesson-state {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    flex-shrink: 0;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: auto;
   }
-  .home-stage-route {
+  .home-stage-route .home-lesson {
+    flex-direction: row;
+    align-items: center;
+    min-height: 88px;
     border: 0;
     border-top: 1px solid var(--border);
     border-radius: 0;
+    box-shadow: none;
   }
-  .home-optional-scene {
-    padding-bottom: 0.75rem;
+  .home-stage-route .home-lesson:hover {
+    transform: none;
   }
-  .home-optional-scene .living-station-view {
-    height: 390px;
-    min-height: 390px;
-  }
-  .scene-loading {
-    min-height: 250px;
-    display: grid;
-    place-items: center;
-    color: var(--on-dark);
+  .home-stage-route .home-lesson-state {
+    width: auto;
+    margin-top: 0;
+    flex-shrink: 0;
   }
   .home-utilities {
     display: flex;
@@ -592,42 +762,80 @@
   .home-utilities button:hover {
     background: var(--highlight);
   }
-  @media (max-width: 767px) {
-    .workshop-welcome-art {
-      display: none;
+  @keyframes solar-breath {
+    from {
+      opacity: 0.65;
+      transform: translate(-3%, -3%) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translate(3%, 3%) scale(1.08);
+    }
+  }
+  @media (max-width: 1100px) {
+    .workshop-welcome {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    }
+    .workshop-welcome-copy {
+      padding: 1.75rem;
+      padding-right: 0.5rem;
     }
     .workshop-welcome-title {
-      max-width: 17ch;
+      font-size: 2.8rem;
     }
-    .home-lesson {
+    .home-route:not(.home-stage-route) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 767px) {
+    .workshop-welcome {
+      grid-template-columns: minmax(0, 1fr);
+      border-radius: 24px;
+    }
+    .workshop-welcome-copy {
+      padding: 1.5rem 1.5rem 0.5rem;
+    }
+    .workshop-welcome-title {
+      max-width: 15ch;
+      font-size: clamp(2.25rem, 7.2vw, 3.4rem);
+    }
+    .solar-hero-world,
+    .solar-hero-world .living-station-view {
+      min-height: 530px;
+    }
+    .home-stage-route .home-lesson {
       align-items: flex-start;
       gap: 0.75rem;
     }
-    .home-lesson-state {
+    .home-stage-route .home-lesson-state {
       flex-direction: column;
       align-items: flex-end;
       gap: 0.5rem;
     }
   }
   @media (max-width: 479px) {
+    .home-route:not(.home-stage-route) {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .home-lesson {
+      min-height: 175px;
+    }
+    .home-stage-route .home-lesson {
       display: grid;
-      grid-template-columns: 32px minmax(0, 1fr);
-      gap: 0.5rem 0.65rem;
+      grid-template-columns: minmax(0, 1fr);
     }
-    .home-lesson-number {
-      width: 32px;
-      height: 32px;
-    }
-    .home-lesson-state {
-      grid-column: 2;
+    .home-stage-route .home-lesson-state {
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
+      width: 100%;
     }
-    .home-optional-scene .living-station-view {
-      height: 340px;
-      min-height: 340px;
+    .solar-hero-world,
+    .solar-hero-world .living-station-view {
+      min-height: 550px;
+    }
+    .solar-kit-note {
+      align-items: flex-start;
     }
   }
 

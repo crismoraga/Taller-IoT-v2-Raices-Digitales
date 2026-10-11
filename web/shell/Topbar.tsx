@@ -31,7 +31,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const app = useApp();
   const crumbs = useCrumbs(app.route);
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-2 border-b border-border bg-paper/92 px-3 backdrop-blur-md sm:gap-3 sm:px-6 lg:px-8">
+    <header className="solar-topbar sticky top-0 z-40 flex h-16 items-center gap-2 border-b border-border bg-paper/92 px-3 backdrop-blur-md sm:gap-3 sm:px-6 lg:px-8">
       <IconButton
         icon="menu"
         label="Abrir menú"

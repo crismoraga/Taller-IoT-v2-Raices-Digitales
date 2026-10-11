@@ -10,7 +10,7 @@ export const welcome = activity("welcome", {
   duration: 5,
   icon: "rocket",
   objective:
-    "Reconocer alimentación, señales y conexiones antes de ejecutar tu primer programa real.",
+    "Descubrir los pines y las conexiones de tu placa, y enviarle tu primer mensaje por USB.",
   materials: [
     { name: "Placa con conexión USB", qty: 1 },
     {
@@ -32,7 +32,7 @@ export const welcome = activity("welcome", {
       { label: "Ruta exprés", value: "60 minutos" },
       { label: "Grupo", value: "Una estación propia" },
       { label: "Cadena", value: "Sensor → código → red" },
-      { label: "Primero", value: "USB y seguridad" },
+      { label: "Primero", value: "Toca y descubre" },
     ],
   },
   safety: [
@@ -42,7 +42,7 @@ export const welcome = activity("welcome", {
   ],
   why: "Los cinco agujeros a–e de un mismo número están unidos; f–j forman otro grupo independiente. El canal central los separa. Los rieles largos distribuyen energía y a veces están cortados al centro. Un cable debe unir nodos distintos: poner dos patas en el mismo grupo puede anular el componente.",
   expected:
-    "Elige el modelo de tu placa, conecta un USB de datos y autoriza su puerto. Ejecuta: en Pico aparece la identificación de MicroPython. En Uno/Nano aparece el saludo del sketch a 115200 baudios. Antes de avanzar, cada persona señala alimentación, GND y el camino sensor → programa → red → pantalla.",
+    "Conecta tu placa por USB y pulsa Conectar y descubrir. En Pico aparece la identificación de MicroPython. En Uno/Nano aparece el saludo del sketch a 115200 baudios. Localiza un pin de señal y GND en el modelo, y sigue el camino sensor → programa → red → pantalla.",
   codeNotes: [
     {
       line: "import sys",
@@ -81,14 +81,14 @@ export const welcome = activity("welcome", {
       "Cada tira de cinco agujeros del mismo lado forma un nodo. El canal central separa ese nodo del otro lado.",
     ),
     quiz(
-      "¿Cuándo cambias una conexión del circuito?",
-      "Con el USB y otras fuentes desconectados",
+      "¿Qué permite hacer el cable USB en este taller?",
+      "Enviar un programa y recibir mensajes de la placa",
       [
-        "Mientras el programa está corriendo",
-        "Solo cuando el LED está encendido",
-        "Después de subir el brillo de la pantalla",
+        "Medir por sí solo la humedad de la planta",
+        "Unir todos los agujeros de la protoboard",
+        "Cambiar automáticamente el color de cualquier LED",
       ],
-      "Quitar alimentación evita un cortocircuito accidental mientras mueves piezas. Detener el código no quita alimentación al circuito.",
+      "USB conecta tu programa con la placa: envía instrucciones y trae sus mensajes y lecturas a la pantalla.",
     ),
   ],
   troubleshooting: [

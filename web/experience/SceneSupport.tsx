@@ -25,11 +25,14 @@ export function SceneHtml({
   position,
   center = false,
   zIndexRange = [3, 0],
+  screenSpace = false,
 }: {
   children: ReactNode;
   position: [number, number, number];
   center?: boolean;
   zIndexRange?: [number, number];
+  /** Anchor an already-projected overlay to the canvas, regardless of camera framing. */
+  screenSpace?: boolean;
 }) {
   const group = useRef<Group>(null);
   const element = useRef<HTMLDivElement | null>(null);
@@ -73,6 +76,15 @@ export function SceneHtml({
 
   useFrame(() => {
     if (!group.current || !element.current) return;
+    if (screenSpace) {
+      Object.assign(element.current.style, {
+        display: "block",
+        transform: "translate3d(0, 0, 0)",
+        zIndex: String(zIndexRange[0]),
+      });
+      return;
+    }
+    camera.updateMatrixWorld();
     group.current.getWorldPosition(point);
     const distance = point.distanceTo(camera.position);
     point.project(camera);
@@ -176,8 +188,10 @@ export function SafeCanvas({
 }
 
 export type CameraAction = {
-  type: "reset" | "top" | "zoom-in" | "zoom-out";
+  type: "reset" | "top" | "zoom-in" | "zoom-out" | "focus";
   sequence: number;
+  focusTarget?: [number, number, number];
+  focusPosition?: [number, number, number];
 };
 
 export interface SceneBounds {
@@ -220,24 +234,44 @@ export function SceneCamera({
   target,
   maxDistance = 18,
   bounds,
+  enablePan = false,
 }: {
   action: CameraAction;
   home: [number, number, number];
   target: [number, number, number];
   maxDistance?: number;
   bounds?: SceneBounds;
+  enablePan?: boolean;
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const { camera, invalidate, size } = useThree();
+  const reduced = useReducedMotion();
+  const initialized = useRef(false);
+  const transition = useRef<{
+    fromPosition: Vector3;
+    toPosition: Vector3;
+    fromTarget: Vector3;
+    toTarget: Vector3;
+    elapsed: number;
+  } | null>(null);
   const lastSize = useRef("");
   const orientation = useRef<"reset" | "top">("reset");
   const targetKey = target.join(",");
   const homeKey = home.join(",");
   const boundsKey = bounds ? [...bounds.min, ...bounds.max].join(",") : "";
+  const focusKey = [
+    ...(action.focusTarget ?? []),
+    ...(action.focusPosition ?? []),
+  ].join(",");
   useEffect(() => {
     if (!controls.current) return;
-    const destination = new Vector3(...target);
-    controls.current.target.copy(destination);
+    const destination =
+      action.type === "focus" && action.focusTarget
+        ? new Vector3(...action.focusTarget)
+        : action.type === "zoom-in" || action.type === "zoom-out"
+          ? controls.current.target.clone()
+          : new Vector3(...target);
+    const nextPosition = camera.position.clone();
     const sizeKey = `${size.width}:${size.height}`;
     const resized = lastSize.current !== sizeKey;
     lastSize.current = sizeKey;
@@ -259,12 +293,14 @@ export function SceneCamera({
         camera.fov,
         size.width / Math.max(1, size.height),
       );
-      camera.position.copy(
+      nextPosition.copy(
         destination.clone().add(outward.multiplyScalar(distance)),
       );
-    } else if (action.type === "reset") camera.position.set(...home);
+    } else if (action.type === "focus" && action.focusPosition)
+      nextPosition.set(...action.focusPosition);
+    else if (action.type === "reset") nextPosition.set(...home);
     else if (action.type === "top")
-      camera.position.set(target[0], target[1] + 9, target[2] + 0.01);
+      nextPosition.set(target[0], target[1] + 9, target[2] + 0.01);
     if (!resized && (action.type === "zoom-in" || action.type === "zoom-out")) {
       const offset = camera.position.clone().sub(destination);
       const factor = action.type === "zoom-in" ? 0.8 : 1.25;
@@ -272,9 +308,24 @@ export function SceneCamera({
         3,
         Math.min(maxDistance, offset.length() * factor),
       );
-      camera.position.copy(destination.add(offset.setLength(nextLength)));
+      nextPosition.copy(destination.clone().add(offset.setLength(nextLength)));
     }
+    if (initialized.current && !reduced && !resized) {
+      transition.current = {
+        fromPosition: camera.position.clone(),
+        toPosition: nextPosition,
+        fromTarget: controls.current.target.clone(),
+        toTarget: destination,
+        elapsed: 0,
+      };
+    } else {
+      transition.current = null;
+      camera.position.copy(nextPosition);
+      controls.current.target.copy(destination);
+    }
+    initialized.current = true;
     controls.current.update();
+    camera.updateMatrixWorld();
     invalidate();
     // Array values, not unstable array identities, determine the framing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,9 +338,32 @@ export function SceneCamera({
     invalidate,
     maxDistance,
     boundsKey,
+    focusKey,
+    reduced,
     size.width,
     size.height,
   ]);
+  useFrame((_, delta) => {
+    const movement = transition.current;
+    if (!movement || !controls.current) return;
+    movement.elapsed += Math.min(delta, 0.05);
+    const progress = Math.min(1, movement.elapsed / 0.48);
+    const eased = progress * progress * (3 - 2 * progress);
+    camera.position.lerpVectors(
+      movement.fromPosition,
+      movement.toPosition,
+      eased,
+    );
+    controls.current.target.lerpVectors(
+      movement.fromTarget,
+      movement.toTarget,
+      eased,
+    );
+    controls.current.update();
+    camera.updateMatrixWorld();
+    if (progress >= 1) transition.current = null;
+    else invalidate();
+  }, -2);
   return (
     <OrbitControls
       ref={controls}
@@ -300,7 +374,10 @@ export function SceneCamera({
       maxDistance={maxDistance}
       minPolarAngle={0.001}
       maxPolarAngle={Math.PI / 2.05}
-      enablePan={false}
+      enablePan={enablePan}
+      onStart={() => {
+        transition.current = null;
+      }}
       target={target}
     />
   );

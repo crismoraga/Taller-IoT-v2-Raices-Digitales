@@ -17,7 +17,7 @@ export function Brand({
         alt=""
         width={40}
         height={40}
-        className="size-10 shrink-0"
+        className="brand-mark size-10 shrink-0"
         decoding="async"
       />
       {!compact && (

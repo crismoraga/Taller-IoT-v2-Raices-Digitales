@@ -1,4 +1,5 @@
 import type { PointId } from "./breadboard";
+import type { Board } from "../lib/context";
 
 /**
  * Modelo declarativo de un montaje. De estos mismos datos salen:
@@ -64,7 +65,12 @@ export interface PartInstance {
   /** Nombre visible: "Resistencia de 220 Ω". */
   label: string;
   /** Valor en ohmios (resistencias), color del LED, etc. */
-  props?: { ohms?: number; color?: "rojo" | "amarillo" | "azul"; vf?: number; variant?: string };
+  props?: {
+    ohms?: number;
+    color?: "rojo" | "amarillo" | "azul";
+    vf?: number;
+    variant?: string;
+  };
   /** Piezas que se insertan en la protoboard: pin → agujero. */
   holes?: Record<string, PointId>;
   /**
@@ -86,6 +92,7 @@ export interface Wire {
    * cable: hilo propio del sensor o cable hembra-macho desde un módulo hasta un agujero.
    */
   kind?: "jumper" | "cable";
+  connector?: "macho-macho" | "hembra-macho" | "hembra-hembra";
   /** Qué transporta, para rotular sin depender del color: "3V3", "GND", "señal GP2". */
   carries: string;
 }
@@ -116,6 +123,8 @@ export interface WiringStep {
 }
 
 export interface Circuit {
+  /** Placa real que aparece en el plano. Ausente conserva el modelo Pico W. */
+  board?: Board;
   id: string;
   title: string;
   parts: PartInstance[];
@@ -189,7 +198,18 @@ export function resistorBands(ohms: number): [string, string, string, string] {
   return [colors[first], colors[second], colors[multiplier], "#c9a227"];
 }
 export function resistorBandNames(ohms: number): string {
-  const names = ["negro", "café", "rojo", "naranja", "amarillo", "verde", "azul", "violeta", "gris", "blanco"];
+  const names = [
+    "negro",
+    "café",
+    "rojo",
+    "naranja",
+    "amarillo",
+    "verde",
+    "azul",
+    "violeta",
+    "gris",
+    "blanco",
+  ];
   const digits = ohms.toExponential(1).replace(".", "").split("e");
   return `${names[Number(digits[0][0])]}, ${names[Number(digits[0][1])]}, ${names[Number(digits[1]) - 1]} y dorado`;
 }
@@ -208,7 +228,8 @@ export function compose(
   for (const fragment of fragments) {
     for (const part of fragment.parts) parts.set(part.id, part);
     for (const wire of fragment.wires) wires.set(wire.id, wire);
-    for (const step of fragment.steps) if (!steps.has(step.id)) steps.set(step.id, step);
+    for (const step of fragment.steps)
+      if (!steps.has(step.id)) steps.set(step.id, step);
     groups.push(...fragment.nets);
   }
   return {
@@ -226,7 +247,9 @@ export function compose(
 export function mergeGroups(groups: string[][]): string[][] {
   const merged: Set<string>[] = [];
   for (const group of groups) {
-    const touching = merged.filter((set) => group.some((terminal) => set.has(terminal)));
+    const touching = merged.filter((set) =>
+      group.some((terminal) => set.has(terminal)),
+    );
     const union = new Set(group);
     for (const set of touching) {
       for (const terminal of set) union.add(terminal);

@@ -1,5 +1,7 @@
 /** Real USB transports. MicroPython raw-paste and AVR STK500v1, no emulation. */
 export interface USBPort {
+  /** Present on real Web Serial ports; test peers may omit device metadata. */
+  getInfo?(): { usbVendorId?: number; usbProductId?: number };
   readable: ReadableStream<Uint8Array> | null;
   writable: WritableStream<Uint8Array> | null;
   open(options: { baudRate: number; bufferSize?: number }): Promise<void>;
@@ -9,8 +11,9 @@ export interface USBPort {
     requestToSend?: boolean;
   }): Promise<void>;
 }
-interface USBSerial extends EventTarget {
+export interface USBSerial extends EventTarget {
   requestPort(): Promise<USBPort>;
+  getPorts?(): Promise<USBPort[]>;
 }
 const encoder = new TextEncoder();
 const delay = (ms: number) =>
@@ -21,6 +24,64 @@ const navigatorSerial = (): USBSerial | undefined =>
     : (navigator as Navigator & { serial?: USBSerial }).serial;
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+export type USBDetectedBoard = "pico" | "uno";
+export interface USBBoardDetection {
+  /** Set only when the USB identifiers identify a supported board. */
+  board?: USBDetectedBoard;
+  label: string;
+}
+
+/** USB bridges identify an adapter, not the Uno/Nano connected behind it. */
+export function identifyUSBBoard(
+  port: Pick<USBPort, "getInfo">,
+): USBBoardDetection {
+  const { usbVendorId: vendor, usbProductId: product } = port.getInfo?.() ?? {};
+  if (vendor === 0x2e8a && product === 0x0005)
+    return { board: "pico", label: "Raspberry Pi Pico" };
+  if (
+    (vendor === 0x2341 || vendor === 0x2a03) &&
+    (product === 0x0043 || product === 0x0001)
+  )
+    return { board: "uno", label: "Arduino Uno" };
+  if (vendor === 0x1a86 && [0x7523, 0x5523, 0x55d4].includes(product ?? -1))
+    return { label: "Adaptador USB CH340 / CH9102" };
+  if (vendor === 0x0403 && product === 0x6001)
+    return { label: "Adaptador USB FTDI" };
+  if (vendor === 0x2e8a && (product === 0x0009 || product === 0x000a))
+    return { label: "Pico con firmware USB personalizado" };
+  return { label: "Puerto USB" };
+}
+
+/** A manual click always gives the participant the browser's real port picker. */
+export async function requestUSBPort(): Promise<USBPort> {
+  const api = navigatorSerial();
+  if (!api)
+    throw new Error(
+      "Conecta desde Chrome o Edge en tu PC para descubrir la placa por USB.",
+    );
+  return api.requestPort();
+}
+
+export async function authorizedUSBPorts(): Promise<USBPort[]> {
+  return (await navigatorSerial()?.getPorts?.()) ?? [];
+}
+
+/** Never guess between two ports, or identify an unknown adapter as a board. */
+export function automaticUSBPort(
+  ports: USBPort[],
+  remembered?: USBPort | null,
+): USBPort | undefined {
+  if (remembered && ports.includes(remembered)) return remembered;
+  if (ports.length === 1 && identifyUSBBoard(ports[0]).board) return ports[0];
+  return undefined;
+}
+
+export function watchUSBConnections(callback: () => void): () => void {
+  const api = navigatorSerial();
+  api?.addEventListener("connect", callback);
+  return () => api?.removeEventListener("connect", callback);
+}
 
 /** MicroPython loads one trust anchor per TLS context, selected for the host. */
 export function stationCaFile(endpoint: string): "ca.pem" | "ca-vercel.pem" {
@@ -46,8 +107,9 @@ export class SerialLink {
   private closing = false;
   private decoder = new TextDecoder();
   private disconnectListener = (event: Event) => {
-    if ((event as Event & { target: unknown }).target === this.port)
-      void this.disconnect();
+    const disconnected =
+      (event as Event & { port?: USBPort }).port ?? event.target;
+    if (disconnected === this.port) void this.disconnect();
   };
   get supported() {
     return Boolean(navigatorSerial());
@@ -237,8 +299,8 @@ export class MicroPythonSerial extends SerialLink {
     decoder: TextDecoder;
     error: string;
   } | null = null;
-  async connect() {
-    await this.open(115200);
+  async connect(port?: USBPort) {
+    await this.open(115200, port);
   }
   protected override consume(bytes: Uint8Array) {
     if (!this.execution) {
@@ -527,9 +589,9 @@ export function parseIntelHex(hex: string, maxSize = 32256): Uint8Array {
 
 export class ArduinoUSBSerial extends SerialLink {
   protected board: ArduinoBoard = "uno";
-  async connect(board: ArduinoBoard = "uno") {
+  async connect(board: ArduinoBoard = "uno", port?: USBPort) {
     this.board = board;
-    await this.open(115200);
+    await this.open(115200, port);
   }
   private async command(
     command: number[],
@@ -549,33 +611,56 @@ export class ArduinoUSBSerial extends SerialLink {
     await this.exclusive(async () => {
       // Old Nano bootloader is 57600; the lesson sketches print at 115200.
       // Keep the existing permission and restore terminal speed after uploading.
-      await this.reconfigure(this.board === "nano-old" ? 57600 : 115200);
-      this.protocol = true;
-      this.inbox = [];
       try {
-        await this.port!.setSignals({
-          dataTerminalReady: false,
-          requestToSend: false,
-        });
-        await delay(250);
-        await this.port!.setSignals({
-          dataTerminalReady: true,
-          requestToSend: true,
-        });
-        await delay(80);
         let synchronized = false;
-        for (let attempt = 0; attempt < 10 && !synchronized; attempt++) {
+        const speeds =
+          this.board === "nano-old"
+            ? [57600]
+            : this.board === "nano"
+              ? [115200, 57600]
+              : [115200];
+        for (const speed of speeds) {
+          await this.reconfigure(speed);
+          this.protocol = true;
           this.inbox = [];
-          try {
-            await this.command([0x30], 0, 180);
-            synchronized = true;
-          } catch {
-            await delay(40);
+          await this.port!.setSignals({
+            dataTerminalReady: false,
+            requestToSend: false,
+          });
+          await delay(250);
+          await this.port!.setSignals({
+            dataTerminalReady: true,
+            requestToSend: true,
+          });
+          await delay(80);
+          for (let attempt = 0; attempt < 10 && !synchronized; attempt++) {
+            this.inbox = [];
+            try {
+              await this.command([0x30], 0, 180);
+              synchronized = true;
+            } catch {
+              if (!this.connected)
+                throw new Error(
+                  "La placa se desconectó. Conéctala de nuevo para instalar.",
+                );
+              await delay(40);
+            }
           }
+          if (synchronized) {
+            if (speed === 57600 && this.board === "nano") {
+              this.board = "nano-old";
+              this.onOutput(
+                "\nNano reconocido: velocidad del bootloader ajustada automáticamente.\n",
+              );
+            }
+            break;
+          }
+          if (speed === 115200 && this.board === "nano")
+            this.onOutput("\nReconociendo el bootloader de tu Nano…\n");
         }
         if (!synchronized)
           throw new Error(
-            "Sin respuesta del bootloader. Selecciona Nano antiguo o presiona RESET al cargar.",
+            "Arduino no respondió al instalador. Pulsa RESET y vuelve a intentar instalar.",
           );
         const signature = await this.command([0x75], 3);
         if (

@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ArduinoUSBSerial,
   MicroPythonSerial,
   parseIntelHex,
+  automaticUSBPort,
+  identifyUSBBoard,
   stationCaFile,
   type ArduinoBoard,
   type USBPort,
@@ -10,6 +12,44 @@ import {
 import { arduinoStationSketch } from "../web/lib/arduino";
 
 const enc = new TextEncoder();
+const usbIdentity = (vendor?: number, product?: number) =>
+  ({
+    getInfo: () => ({ usbVendorId: vendor, usbProductId: product }),
+  }) as USBPort;
+
+describe("USB board discovery", () => {
+  it("recognizes Pico MicroPython identifiers and the two official Uno vendors", () => {
+    expect(identifyUSBBoard(usbIdentity(0x2e8a, 0x0005)).board).toBe("pico");
+    expect(identifyUSBBoard(usbIdentity(0x2341, 0x0043)).board).toBe("uno");
+    expect(identifyUSBBoard(usbIdentity(0x2a03, 0x0043)).board).toBe("uno");
+  });
+  it("does not confuse an adapter, Mega, Uno R4, or Pico boot drive with a supported board", () => {
+    for (const [vendor, product] of [
+      [0x1a86, 0x7523],
+      [0x0403, 0x6001],
+      [0x2341, 0x0042],
+      [0x2341, 0x0069],
+      [0x2e8a, 0x0003],
+      [0x2e8a, 0x0009],
+      [0x2e8a, 0x000a],
+    ])
+      expect(
+        identifyUSBBoard(usbIdentity(vendor, product)).board,
+      ).toBeUndefined();
+    expect(identifyUSBBoard({}).board).toBeUndefined();
+  });
+  it("reuses only one known authorized port or the exact port previously chosen", () => {
+    const picoPort = usbIdentity(0x2e8a, 0x0005),
+      unoPort = usbIdentity(0x2341, 0x0043),
+      clone = usbIdentity(0x1a86, 0x7523);
+    expect(automaticUSBPort([])).toBeUndefined();
+    expect(automaticUSBPort([picoPort])).toBe(picoPort);
+    expect(automaticUSBPort([clone])).toBeUndefined();
+    expect(automaticUSBPort([picoPort, unoPort])).toBeUndefined();
+    expect(automaticUSBPort([clone, picoPort], clone)).toBe(clone);
+    expect(automaticUSBPort([unoPort], picoPort)).toBe(unoPort);
+  });
+});
 describe("Certificado de la estación Wi-Fi", () => {
   it("elige Google Trust Services para Vercel y conserva ISRG para Caddy", () => {
     expect(
@@ -145,6 +185,28 @@ function pico(
 }
 
 describe("MicroPython USB protocol", () => {
+  it("closes only the unplugged port when modern Serial events expose event.port", async () => {
+    const api = new EventTarget(),
+      peer = pico(),
+      transport = new TestSerial();
+    vi.stubGlobal("navigator", { serial: api });
+    try {
+      await transport.attach(peer.port);
+      const unrelated = new Event("disconnect");
+      Object.defineProperty(unrelated, "port", { value: pico().port });
+      api.dispatchEvent(unrelated);
+      expect(transport.connected).toBe(true);
+      const unplugged = new Event("disconnect");
+      Object.defineProperty(unplugged, "port", { value: peer.port });
+      api.dispatchEvent(unplugged);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(transport.connected).toBe(false);
+      expect(peer.closed).toBe(true);
+    } finally {
+      await transport.disconnect();
+      vi.unstubAllGlobals();
+    }
+  });
   it("flow-controls long UTF8 programs and collects stdout separately from stderr", async () => {
     const peer = pico(),
       transport = new TestSerial();
@@ -251,7 +313,7 @@ class TestArduino extends ArduinoUSBSerial {
     return this.open(115200, port);
   }
 }
-function avr(corrupt = false) {
+function avr(corrupt = false, bootloaderRate?: number) {
   let controller: ReadableStreamDefaultController<Uint8Array>,
     address = 0;
   const memory = new Uint8Array(32768).fill(255),
@@ -271,6 +333,7 @@ function avr(corrupt = false) {
         write(packet) {
           const command = packet[0];
           commands.push(command);
+          if (bootloaderRate && baudRate !== bootloaderRate) return;
           if (packet[packet.length - 1] !== 32)
             throw new Error("Missing CRC_EOP");
           let data: number[] = [];
@@ -334,6 +397,25 @@ describe("real AVR protocol peer", () => {
     expect(disconnects).toBe(0);
     await transport.disconnect();
     expect(disconnects).toBe(1);
+  });
+  it("discovers an old Nano bootloader without another permission picker and verifies its flash", async () => {
+    const peer = avr(false, 57600),
+      transport = new TestArduino();
+    let disconnects = 0,
+      output = "";
+    transport.onDisconnect = () => {
+      disconnects++;
+    };
+    transport.onOutput = (text) => {
+      output += text;
+    };
+    await transport.attach(peer.port, "nano");
+    await transport.upload(":0400100001020304E2\n:00000001FF");
+    expect(peer.rates).toEqual([115200, 57600, 115200]);
+    expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+    expect(output).toContain("ajustada automáticamente");
+    expect(disconnects).toBe(0);
+    await transport.disconnect();
   });
   it("generates disabled defaults, enables independent DHT values and rejects Pico-scale calibration", () => {
     const code = arduinoStationSketch(

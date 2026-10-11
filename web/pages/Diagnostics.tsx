@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2,
-  XCircle,
   Circle,
   LoaderCircle,
   RefreshCw,
@@ -70,15 +69,15 @@ export default function Diagnostics() {
   };
   const checks = [
     {
-      title: "Contexto seguro",
+      title: "Página del taller",
       detail: window.isSecureContext
-        ? "HTTPS o localhost válido"
-        : "Usa HTTPS para acceder al puerto USB.",
+        ? "El navegador puede conectar tu placa desde esta página."
+        : "Abre la dirección HTTPS del taller para conectar tu placa.",
       ok: window.isSecureContext,
       Icon: ShieldCheck,
     },
     {
-      title: "Web Serial",
+      title: "USB del navegador",
       detail:
         "serial" in navigator
           ? "Navegador compatible con conexión USB."
@@ -90,7 +89,7 @@ export default function Diagnostics() {
       title: "Puerto USB",
       detail: app.connected
         ? "Tu placa está conectada."
-        : "Conecta un cable de datos y cierra otros monitores seriales.",
+        : "Conecta tu placa al PC y pulsa «Conectar mi placa».",
       ok: app.connected,
       label: app.connected ? "CONECTADO" : "CONECTA TU PLACA",
       Icon: Terminal,
@@ -158,7 +157,7 @@ export default function Diagnostics() {
         ) : optional ? (
           <Circle size={18} />
         ) : (
-          <XCircle size={18} />
+          <ArrowRight size={18} />
         )}
       </div>
       <h3>{title}</h3>
@@ -180,9 +179,9 @@ export default function Diagnostics() {
   return (
     <div className="diagnostics-page">
       <PageHeader
-        kicker="Diagnóstico · sigue la señal"
-        title="Encuentra qué falta"
-        subtitle="Comprueba tu conexión y vuelve al experimento."
+        kicker="Descubre · sigue la señal"
+        title="Conexión del experimento"
+        subtitle="Placa → navegador → tu planta. Veamos cómo viaja tu dato."
         art={
           <Icon
             name="stethoscope"
@@ -220,9 +219,54 @@ export default function Diagnostics() {
           </Button>
         }
       />
-      <div className="diagnostic-checks">
-        {checks.slice(0, 4).map(renderCheck)}
+      <div
+        className="mb-5 grid gap-3 sm:grid-cols-3"
+        aria-label="Recorrido de una lectura"
+      >
+        {[
+          [
+            "01",
+            "Tu placa",
+            app.connected
+              ? "USB conectado · la señal empieza aquí"
+              : "Conecta USB para empezar",
+            app.connected,
+          ],
+          [
+            "02",
+            "Este navegador",
+            app.serialSupported
+              ? "Recibe y muestra tus lecturas"
+              : "Puedes explorar el modelo y simular",
+            app.serialSupported,
+          ],
+          [
+            "03",
+            "Tu planta",
+            health.ok
+              ? "Guarda la historia de tu experimento"
+              : "Comprobando el espacio de tu grupo",
+            !!health.ok,
+          ],
+        ].map(([number, title, detail, active]) => (
+          <div
+            key={String(number)}
+            className={`rounded-xl border p-4 ${active ? "border-accent/50 bg-highlight" : "border-border bg-surface"}`}
+          >
+            <span className="t-overline text-ink-accent">{number}</span>
+            <h2 className="mt-2 font-display text-lg font-bold text-ink">
+              {title}
+            </h2>
+            <p className="mt-1 text-sm text-ink-soft">{detail}</p>
+          </div>
+        ))}
       </div>
+      <details className="settings-card simple-details">
+        <summary>Ver la conexión paso a paso</summary>
+        <div className="diagnostic-checks">
+          {checks.slice(0, 4).map(renderCheck)}
+        </div>
+      </details>
       {!checkingHealth &&
         !healthFailed &&
         app.board !== "pico" &&
@@ -267,8 +311,8 @@ export default function Diagnostics() {
       </div>
       {app.board === "pico" && app.connected && (
         <Notice>
-          Consultar Pico detiene su programa. Después vuelve a ejecutar la
-          estación. Un valor ADC por sí solo no confirma que haya un sensor.
+          La consulta toma una fotografía de tu Pico. Después vuelve a ejecutar
+          el programa de estación para seguir recibiendo lecturas.
         </Notice>
       )}
       <details className="settings-card simple-details">
@@ -328,8 +372,8 @@ export default function Diagnostics() {
           </div>
         ) : (
           <p className="muted">
-            Los sensores aparecerán al recibir las líneas JSON del firmware. No
-            se generan lecturas automáticamente.
+            Ejecuta el programa de estación. La primera lectura USB hará
+            aparecer tu sensor y su señal aquí.
           </p>
         )}
       </section>
@@ -345,7 +389,7 @@ export default function Diagnostics() {
           },
           {
             q: "El DHT11 o DS18B20 no responde.",
-            a: `Revisa VCC, GND y DATA con la alimentación desconectada. El DHT11 sin módulo necesita una resistencia de 10 kΩ entre DATA y alimentación. El DS18B20 necesita dos de 10 kΩ en paralelo entre DATA y ${app.board === "pico" ? "3V3" : "5 V"}. Espera al menos 2 segundos entre lecturas del DHT11.`,
+            a: `Sigue VCC → GND → DATA en el esquema de la actividad. El DHT11 sin módulo necesita una resistencia de 10 kΩ entre DATA y alimentación. El DS18B20 necesita dos de 10 kΩ en paralelo entre DATA y ${app.board === "pico" ? "3V3" : "5 V"}. Espera al menos 2 segundos entre lecturas del DHT11.`,
           },
           {
             q: "La Pico no se conecta al Wi-Fi.",

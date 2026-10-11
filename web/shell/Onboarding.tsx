@@ -47,9 +47,9 @@ export function Onboarding({
       open={open}
       onClose={onClose}
       tone="navy"
-      kicker="Antes de empezar"
+      kicker="Tu estación viva"
       title="Armen su equipo"
-      description="Elijan su estación y placa. Guardaremos aquí el avance de su equipo."
+      description="Pónganle un nombre a su aventura. Guardaremos aquí cada descubrimiento."
       dismissable={!saving}
       footer={
         <Button
@@ -93,7 +93,7 @@ export function Onboarding({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Placa del equipo"
-            hint="La guía y el código se adaptan a este modelo."
+            hint="Puedes explorar este modelo ahora. Al conectar USB reconoceremos la placa compatible."
           >
             {(props) => (
               <Select
@@ -156,7 +156,7 @@ export function Onboarding({
           </Callout>
         )}
         <p className="text-sm leading-6 text-ink-soft">
-          Un navegador por equipo, sin correo ni cuenta.{" "}
+          Su estación está lista para explorar.{" "}
           {app.guided
             ? "El recorrido guiado tiene 6 actividades y dura 60 minutos."
             : "El recorrido completo reúne todas las actividades para avanzar a tu ritmo."}

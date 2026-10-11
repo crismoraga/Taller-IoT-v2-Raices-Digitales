@@ -65,8 +65,8 @@ export function quiz(
 export const serialTrouble = {
   symptom: "La placa no ejecuta el programa",
   checks: [
-    "Conecta un cable USB de datos y elige el puerto de tu placa en «Conectar placa».",
+    "Conecta tu placa al computador y elige su puerto en «Conectar y descubrir».",
     "Cierra Thonny, Arduino IDE y otros monitores que tengan abierto el mismo puerto.",
-    "Comprueba el modelo seleccionado. Para Nano, el bootloader antiguo requiere su opción específica.",
+    "Comprueba el modelo reconocido. La carga de Nano prueba automáticamente sus dos bootloaders.",
   ],
 };

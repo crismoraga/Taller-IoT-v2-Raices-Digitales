@@ -6,7 +6,8 @@ const KEY = "raices.theme";
 export function readThemePref(): ThemePref {
   try {
     const stored = localStorage.getItem(KEY);
-    if (stored === "light" || stored === "dark" || stored === "system") return stored;
+    if (stored === "light" || stored === "dark" || stored === "system")
+      return stored;
   } catch {
     /* Sin almacenamiento: se usa el tema del sistema. */
   }
@@ -15,7 +16,9 @@ export function readThemePref(): ThemePref {
 
 export function resolveTheme(pref: ThemePref): "light" | "dark" {
   if (pref !== "system") return pref;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 /** Aplica el tema al documento y recuerda la preferencia. */
@@ -26,7 +29,7 @@ export function applyTheme(pref: ThemePref): "light" | "dark" {
   root.style.colorScheme = resolved;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", resolved === "dark" ? "#061724" : "#0b2d45");
+    ?.setAttribute("content", resolved === "dark" ? "#071d1b" : "#0c302b");
   try {
     localStorage.setItem(KEY, pref);
   } catch {

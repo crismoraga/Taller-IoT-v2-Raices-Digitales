@@ -30,6 +30,7 @@ import {
   pointXY,
   shortPoint,
   stripOf,
+  holesOfStrip,
   type RailName,
 } from "../circuit/breadboard";
 import { BreadboardView } from "../circuit/BreadboardView";
@@ -50,10 +51,15 @@ import {
 import { partDef } from "../circuit/parts";
 import { PICO_PINS, picoPinForStrip } from "../circuit/pico";
 import {
+  controllerBox,
+  controllerPin,
+  controllerPins,
+} from "../circuit/boards";
+import type { Board } from "../lib/context";
+import {
   BoardText,
   CylinderBetween,
   MovingSignal,
-  Tube,
   type V3,
 } from "./Primitives";
 import {
@@ -74,6 +80,11 @@ const position = (point: XY, height = 0.13): V3 => [
   (point.y - 8.5) * U,
 ];
 const atHole = (hole: string, height = 0.13) => position(pointXY(hole), height);
+const atEndpoint = (circuit: Circuit, endpoint: string, height = 0.15) =>
+  position(
+    endpointXY(circuit, endpoint),
+    endpoint.startsWith("controller.") ? 0.49 : height,
+  );
 interface Selection {
   title: string;
   text: string;
@@ -81,7 +92,15 @@ interface Selection {
   terminals?: string[];
 }
 
-function Breadboard() {
+function Breadboard({
+  circuit,
+  select,
+  activateEndpoint,
+}: {
+  circuit: Circuit;
+  select: (selection: Selection) => void;
+  activateEndpoint: (end: string) => boolean;
+}) {
   const holes = useRef<THREE.InstancedMesh>(null);
   const points = useMemo(
     () => [
@@ -114,7 +133,32 @@ function Breadboard() {
         <boxGeometry args={[64 * U, 0.009, 2 * U]} />
         <meshStandardMaterial color="#d4cbbb" roughness={0.85} />
       </mesh>
-      <instancedMesh ref={holes} args={[undefined, undefined, points.length]}>
+      <instancedMesh
+        ref={holes}
+        args={[undefined, undefined, points.length]}
+        onClick={(event) => {
+          event.stopPropagation();
+          const hole = points[event.instanceId ?? -1];
+          if (!hole || activateEndpoint(hole)) return;
+          const strip = stripOf(hole, true);
+          const linked = holesOfStrip(strip);
+          const pin =
+            !circuit.board || circuit.board === "pico"
+              ? picoPinForStrip(strip)
+              : undefined;
+          select({
+            title: `Agujero ${shortPoint(hole)}`,
+            text:
+              linked.length === 5
+                ? `Estos cinco agujeros están unidos por dentro: ${linked.join(", ")}. El canal del centro separa las dos mitades.`
+                : "Esta mitad del riel comparte la alimentación de los agujeros resaltados.",
+            detail: pin
+              ? `Esta tira llega al pin ${pin.name} de Pico W.`
+              : "Toca otra fila para descubrir cómo se conectan los componentes.",
+            terminals: linked,
+          });
+        }}
+      >
         <boxGeometry args={[0.049, 0.012, 0.049]} />
         <meshStandardMaterial color="#546057" roughness={0.6} />
       </instancedMesh>
@@ -232,7 +276,7 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
               select({
                 title: `${pin.name} · pin físico ${pin.physical}`,
                 text: pin.role,
-                detail: `${pin.voltage}. ${pin.warning ?? ""}`,
+                detail: pin.voltage,
                 terminals: [pin.hole, ...pin.free],
               });
             }}
@@ -247,6 +291,174 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
         </group>
       ))}
     </group>
+  );
+}
+
+function ArduinoController({
+  board,
+  select,
+  activateEndpoint,
+}: {
+  board: Board;
+  select: (selection: Selection) => void;
+  activateEndpoint: (endpoint: string) => boolean;
+}) {
+  const box = controllerBox(board);
+  const center = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+  return (
+    <group aria-label={board === "uno" ? "Arduino Uno" : "Arduino Nano"}>
+      <mesh
+        position={position(center, 0.22)}
+        onClick={(event) => {
+          event.stopPropagation();
+          select({
+            title: board === "uno" ? "Arduino Uno" : "Arduino Nano",
+            text: "La placa queda junto a la protoboard, con el USB hacia la izquierda. Busca el nombre impreso junto al conector.",
+            detail:
+              "Los pines D envían o reciben señales digitales; los A miden un voltaje.",
+          });
+        }}
+      >
+        <boxGeometry args={[box.w * U, 0.13, box.h * U]} />
+        <meshStandardMaterial
+          color="#087a64"
+          roughness={0.42}
+          metalness={0.12}
+        />
+      </mesh>
+      <mesh position={position({ x: box.x + 0.9, y: center.y }, 0.38)}>
+        <boxGeometry args={[0.43, 0.27, 0.48]} />
+        <meshStandardMaterial
+          color="#b8c8c2"
+          metalness={0.8}
+          roughness={0.22}
+        />
+      </mesh>
+      <mesh position={position({ x: center.x + 1.5, y: center.y }, 0.34)}>
+        <boxGeometry args={[board === "uno" ? 0.9 : 0.45, 0.13, 0.4]} />
+        <meshStandardMaterial color="#1a2926" />
+      </mesh>
+      <BoardText
+        position={position(
+          { x: center.x, y: center.y + (board === "uno" ? 3.2 : 1.5) },
+          0.301,
+        )}
+        size={board === "uno" ? 0.18 : 0.13}
+        color="#edffdf"
+      >
+        {board === "uno" ? "Arduino Uno" : "Arduino Nano"}
+      </BoardText>
+      {controllerPins(board).map((pin) => (
+        <group key={pin.name}>
+          <mesh
+            position={position(pin, 0.35)}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (activateEndpoint(`controller.${pin.name}`)) return;
+              select({
+                title: `Pin ${pin.label} de Arduino`,
+                text:
+                  pin.kind === "adc"
+                    ? "Entrada analógica: mide un voltaje y lo transforma en un número."
+                    : pin.kind === "gpio"
+                      ? "Pin digital: envía o recibe una señal."
+                      : pin.kind === "gnd"
+                        ? "GND: referencia común de 0 V."
+                        : pin.name === "3V3"
+                          ? "Salida de 3,3 V para alimentar los sensores del taller."
+                          : pin.name === "5V"
+                            ? "Salida de 5 V que llega del cable USB."
+                            : "Conector de la placa.",
+                terminals: [`controller.${pin.name}`],
+              });
+            }}
+          >
+            <boxGeometry args={[0.095, board === "uno" ? 0.25 : 0.15, 0.1]} />
+            <meshStandardMaterial
+              color={board === "uno" ? "#1c302b" : "#d7bb66"}
+              metalness={board === "uno" ? 0.1 : 0.7}
+              roughness={0.3}
+            />
+          </mesh>
+          {board === "uno" && (
+            <>
+              <mesh position={position(pin, 0.479)}>
+                <boxGeometry args={[0.055, 0.006, 0.055]} />
+                <meshStandardMaterial color="#647d68" metalness={0.5} />
+              </mesh>
+              <mesh position={position(pin, 0.484)}>
+                <boxGeometry args={[0.032, 0.004, 0.032]} />
+                <meshBasicMaterial color="#030d09" />
+              </mesh>
+            </>
+          )}
+          <BoardText
+            position={position(
+              { x: pin.x, y: pin.y + (pin.y < center.y ? 0.8 : -0.8) },
+              0.299,
+            )}
+            size={0.088}
+            color="#f0ffe2"
+          >
+            {pin.label}
+          </BoardText>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** A connection grows once, when the learner finishes its two ends. */
+function ConnectedTube({
+  points,
+  color,
+  active,
+  animate,
+  preview,
+}: {
+  points: V3[];
+  color: string;
+  active: boolean;
+  animate: boolean;
+  preview: boolean;
+}) {
+  const { invalidate } = useThree();
+  const geometry = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3(
+      points.map((point) => new THREE.Vector3(...point)),
+    );
+    return new THREE.TubeGeometry(curve, 64, active ? 0.029 : 0.022, 8, false);
+  }, [points, active]);
+  const progress = useRef(animate && active && !preview ? 0 : 1);
+  useEffect(() => {
+    progress.current = animate && active && !preview ? 0 : 1;
+    invalidate();
+  }, [geometry, preview]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useFrame((_, delta) => {
+    if (!animate) progress.current = 1;
+    progress.current = Math.min(
+      1,
+      progress.current + Math.min(delta, 0.05) * 2.8,
+    );
+    geometry.setDrawRange(
+      0,
+      Math.floor(((geometry.index?.count ?? 0) * progress.current) / 3) * 3,
+    );
+    if (progress.current < 1) invalidate();
+  });
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial
+        color={color}
+        roughness={0.32}
+        metalness={0.18}
+        transparent={preview || !active}
+        opacity={preview ? 0.2 : active ? 1 : 0.38}
+        emissive={active ? color : "#000000"}
+        emissiveIntensity={preview ? 0 : 0.12}
+      />
+    </mesh>
   );
 }
 
@@ -283,6 +495,7 @@ function Resistor({ part, dim }: { part: PartInstance; dim: boolean }) {
           <cylinderGeometry args={[0.012, 0.012, length, 8]} />
           <meshStandardMaterial color="#aab7ad" metalness={0.6} />
         </mesh>
+
         <mesh rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.069, 0.069, bodyLength, 16]} />
           <meshStandardMaterial
@@ -595,17 +808,19 @@ function Connection({
   flow,
   animate,
   select,
+  connectionState,
 }: {
   circuit: Circuit;
   wire: Wire;
+  connectionState?: "take" | "a" | "b" | "placed";
   active: boolean;
   flow: boolean;
   animate: boolean;
   select: (selection: Selection) => void;
 }) {
   const points = useMemo<V3[]>(() => {
-    const a = position(endpointXY(circuit, wire.from), 0.15),
-      b = position(endpointXY(circuit, wire.to), 0.15);
+    const a = atEndpoint(circuit, wire.from),
+      b = atEndpoint(circuit, wire.to);
     const distance = Math.hypot(a[0] - b[0], a[2] - b[2]);
     const height = Math.min(1.05, 0.32 + distance * 0.13);
     return [
@@ -616,6 +831,9 @@ function Connection({
       b,
     ];
   }, [circuit, wire]);
+  if (active && (connectionState === "take" || connectionState === "a"))
+    return null;
+  const preview = active && connectionState === "b";
   return (
     <group
       onClick={(event) => {
@@ -631,13 +849,14 @@ function Connection({
         });
       }}
     >
-      <Tube
+      <ConnectedTube
         points={points}
-        radius={active ? 0.029 : 0.022}
         color={WIRE_HEX[wire.color]}
-        opacity={active ? 1 : 0.38}
+        active={active}
+        animate={animate}
+        preview={preview}
       />
-      {flow && active && (
+      {flow && active && !preview && (
         <MovingSignal
           points={points}
           animate={animate}
@@ -646,12 +865,14 @@ function Connection({
           count={2}
         />
       )}
-      {[points[0], points[points.length - 1]].map((end, index) => (
-        <mesh key={index} position={[end[0], 0.16, end[2]]}>
-          <cylinderGeometry args={[0.037, 0.024, 0.07, 10]} />
-          <meshStandardMaterial color={WIRE_HEX[wire.color]} />
-        </mesh>
-      ))}
+      {(preview ? [points[0]] : [points[0], points[points.length - 1]]).map(
+        (end, index) => (
+          <mesh key={index} position={[end[0], end[1] + 0.01, end[2]]}>
+            <cylinderGeometry args={[0.037, 0.024, 0.07, 10]} />
+            <meshStandardMaterial color={WIRE_HEX[wire.color]} />
+          </mesh>
+        ),
+      )}
     </group>
   );
 }
@@ -659,17 +880,30 @@ function Connection({
 function TerminalMarker({
   endpoint,
   circuit,
+  selected = false,
+  activate,
 }: {
   endpoint: string;
   circuit: Circuit;
+  selected?: boolean;
+  activate?: () => void;
 }) {
-  const pos = position(endpointXY(circuit, endpoint), 0.18);
+  const pos = atEndpoint(circuit, endpoint, 0.18);
   return (
     <group>
-      <mesh position={pos} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.056, 0.085, 22]} />
+      <mesh
+        position={pos}
+        rotation={[-Math.PI / 2, 0, 0]}
+        onClick={(event) => {
+          event.stopPropagation();
+          activate?.();
+        }}
+      >
+        <ringGeometry
+          args={[selected ? 0.065 : 0.056, selected ? 0.13 : 0.1, 32]}
+        />
         <meshBasicMaterial
-          color="#1673a5"
+          color={selected ? "#e3fb79" : "#42d49b"}
           side={THREE.DoubleSide}
           depthTest={false}
         />
@@ -683,25 +917,31 @@ function TerminalLabels({
   endpoints,
   circuit,
   cable,
+  activeEndpoint,
+  activate,
 }: {
   endpoints: string[];
   circuit: Circuit;
   cable: boolean;
+  activeEndpoint?: "a" | "b";
+  activate?: (endpoint: string) => void;
 }) {
   const { camera, size } = useThree();
   const points = useMemo(
     () =>
       endpoints.map((endpoint, index) => {
         const at = endpointXY(circuit, endpoint);
-        const pin = isPoint(endpoint)
-          ? picoPinForStrip(stripOf(endpoint))
-          : undefined;
+        const pin =
+          isPoint(endpoint) && (!circuit.board || circuit.board === "pico")
+            ? picoPinForStrip(stripOf(endpoint))
+            : undefined;
         const label = isPoint(endpoint)
           ? shortPoint(endpoint)
           : (endpoint.split(".").at(-1) ?? endpoint);
         return {
           endpoint,
-          point: new THREE.Vector3(...position(at, 0.18)),
+          badge: index === 0 ? "a" : "b",
+          point: new THREE.Vector3(...atEndpoint(circuit, endpoint, 0.18)),
           label: cable ? `${index === 0 ? "A" : "B"} · ${label}` : label,
           sub: pin ? `${pin.name} · pin ${pin.physical}` : undefined,
         };
@@ -711,8 +951,10 @@ function TerminalLabels({
   const [screen, setScreen] = useState<
     { x: number; y: number; visible: boolean }[]
   >([]);
-  const [origin, setOrigin] = useState({ x: 0, y: 0 });
   useFrame(() => {
+    // Demand rendering may be the first frame after a camera focus. Project
+    // from the updated camera matrix so a label stays on its physical hole.
+    camera.updateMatrixWorld();
     const projected = points.map(({ point }) => {
       const clip = point.clone().project(camera);
       return {
@@ -735,17 +977,6 @@ function TerminalLabels({
         ? previous
         : projected,
     );
-    const clip = new THREE.Vector3().project(camera);
-    const nextOrigin = {
-      x: ((clip.x + 1) * size.width) / 2,
-      y: ((1 - clip.y) * size.height) / 2,
-    };
-    setOrigin((previous) =>
-      Math.abs(previous.x - nextOrigin.x) < 0.25 &&
-      Math.abs(previous.y - nextOrigin.y) < 0.25
-        ? previous
-        : nextOrigin,
-    );
   });
   const labels = points.flatMap((point, index) =>
     screen[index]?.visible ? [{ ...point, ...screen[index] }] : [],
@@ -766,19 +997,35 @@ function TerminalLabels({
     size.height,
   );
   return (
-    <Html position={[0, 0, 0]} zIndexRange={[3, 0]}>
+    <Html screenSpace position={[0, 0, 0]} zIndexRange={[3, 0]}>
       <svg
         className="rdx-terminal-overlay"
         width={size.width}
         height={size.height}
-        style={{ left: -origin.x, top: -origin.y }}
-        aria-hidden="true"
+        style={{ left: 0, top: 0 }}
+        aria-hidden={!activate}
       >
         {labels.map((label, index) => {
           const box = boxes[index];
           const edgeY = label.y < box.y ? box.y : box.y + box.height;
           return (
-            <g key={label.endpoint}>
+            <g
+              key={label.endpoint}
+              role={activate ? "button" : undefined}
+              tabIndex={activate ? 0 : undefined}
+              aria-label={`Tocar extremo ${label.badge.toUpperCase()}: ${label.endpoint}`}
+              style={{
+                pointerEvents: activate ? "auto" : "none",
+                cursor: activate ? "pointer" : undefined,
+              }}
+              onClick={() => activate?.(label.endpoint)}
+              onKeyDown={(event) => {
+                if (["Enter", " "].includes(event.key)) {
+                  event.preventDefault();
+                  activate?.(label.endpoint);
+                }
+              }}
+            >
               <line
                 x1={label.x}
                 y1={label.y}
@@ -792,7 +1039,7 @@ function TerminalLabels({
                 y1={label.y}
                 x2={box.x + box.width / 2}
                 y2={edgeY}
-                stroke="#12364d"
+                stroke="#143829"
                 strokeWidth={1.5}
               />
               <circle
@@ -800,7 +1047,7 @@ function TerminalLabels({
                 cy={label.y}
                 r={6}
                 fill="none"
-                stroke="#12364d"
+                stroke="#143829"
                 strokeWidth={2}
               />
               <rect
@@ -809,15 +1056,15 @@ function TerminalLabels({
                 width={box.width}
                 height={box.height}
                 rx={6}
-                fill="#fff9e9"
-                stroke="#12364d"
+                fill={activeEndpoint === label.badge ? "#ecffb2" : "#edfff1"}
+                stroke="#1d634c"
                 strokeWidth={1.5}
               />
               <text
                 x={box.x + box.width / 2}
                 y={box.y + 18}
                 textAnchor="middle"
-                fill="#12364d"
+                fill="#143829"
                 fontSize={12}
                 fontWeight={800}
               >
@@ -828,7 +1075,7 @@ function TerminalLabels({
                   x={box.x + box.width / 2}
                   y={box.y + 33}
                   textAnchor="middle"
-                  fill="#1e5b7f"
+                  fill="#466956"
                   fontSize={11}
                   fontWeight={700}
                 >
@@ -854,6 +1101,14 @@ function Activate2DFallback({ activate }: { activate: () => void }) {
   return <span ref={marker} hidden />;
 }
 
+function ResumeScene({ active }: { active: boolean }) {
+  const { invalidate, size } = useThree();
+  useEffect(() => {
+    if (active) invalidate();
+  }, [active, size.width, size.height, invalidate]);
+  return null;
+}
+
 function CircuitWorld({
   circuit,
   activeStep,
@@ -865,6 +1120,10 @@ function CircuitWorld({
   home,
   target,
   bounds,
+  activeEndpoint,
+  onEndpointActivate,
+  connectionState,
+  selection,
 }: {
   circuit: Circuit;
   activeStep: number;
@@ -876,6 +1135,10 @@ function CircuitWorld({
   home: V3;
   target: V3;
   bounds: SceneBounds;
+  activeEndpoint?: "a" | "b";
+  onEndpointActivate?: (endpoint: "a" | "b") => void;
+  connectionState?: "take" | "a" | "b" | "placed";
+  selection: Selection | null;
 }) {
   const step = circuit.steps[activeStep];
   const completedSteps =
@@ -905,6 +1168,21 @@ function CircuitWorld({
   const terminals = actionTerminals.length
     ? actionTerminals
     : [...new Set(step?.focus ?? [])];
+  const currentWire = circuit.wires.find(
+    (wire) => step?.wires?.length === 1 && step.wires[0] === wire.id,
+  );
+  const activateEndpoint = (endpoint: string) => {
+    if (mode !== "step" || !currentWire || !onEndpointActivate) return false;
+    if (endpoint === currentWire.from) {
+      onEndpointActivate("a");
+      return true;
+    }
+    if (endpoint === currentWire.to) {
+      onEndpointActivate("b");
+      return true;
+    }
+    return false;
+  };
   return (
     <>
       <ambientLight intensity={1.75} />
@@ -915,8 +1193,20 @@ function CircuitWorld({
         intensity={1.2}
         color="#b0eadc"
       />
-      <Breadboard />
-      <Pico select={select} />
+      <Breadboard
+        circuit={circuit}
+        select={select}
+        activateEndpoint={activateEndpoint}
+      />
+      {!circuit.board || circuit.board === "pico" ? (
+        <Pico select={select} />
+      ) : (
+        <ArduinoController
+          board={circuit.board}
+          select={select}
+          activateEndpoint={activateEndpoint}
+        />
+      )}
       {visibleParts.map((part) => (
         <group
           key={part.id}
@@ -949,6 +1239,9 @@ function CircuitWorld({
           flow={flow}
           animate={animate}
           select={select}
+          connectionState={
+            activeWires.has(wire.id) ? connectionState : undefined
+          }
         />
       ))}
       {mode === "step" &&
@@ -957,6 +1250,12 @@ function CircuitWorld({
             key={endpoint}
             endpoint={endpoint}
             circuit={circuit}
+            selected={
+              !!currentWire &&
+              endpoint ===
+                (activeEndpoint === "b" ? currentWire.to : currentWire.from)
+            }
+            activate={() => activateEndpoint(endpoint)}
           />
         ))}
       {mode === "step" && (
@@ -964,13 +1263,27 @@ function CircuitWorld({
           endpoints={terminals}
           circuit={circuit}
           cable={activeWires.size === 1}
+          activeEndpoint={activeEndpoint}
+          activate={currentWire ? activateEndpoint : undefined}
         />
       )}
+      {selection?.terminals
+        ?.filter(
+          (terminal) => isPoint(terminal) || terminal.startsWith("controller."),
+        )
+        .map((terminal) => (
+          <TerminalMarker
+            key={`inspect-${terminal}`}
+            endpoint={terminal}
+            circuit={circuit}
+            selected
+          />
+        ))}
       <SceneCamera
         action={action}
         target={target}
         home={home}
-        maxDistance={21}
+        maxDistance={40}
         bounds={bounds}
       />
     </>
@@ -982,6 +1295,10 @@ export interface CircuitExperienceProps {
   activeStep?: number;
   mode?: "step" | "all";
   className?: string;
+  activeEndpoint?: "a" | "b";
+  onEndpointActivate?: (endpoint: "a" | "b") => void;
+  requestFocusEndpoint?: { endpoint: "a" | "b"; token: number };
+  connectionState?: "take" | "a" | "b" | "placed";
 }
 
 export function CircuitExperience({
@@ -989,6 +1306,10 @@ export function CircuitExperience({
   activeStep = 0,
   mode = "step",
   className = "",
+  activeEndpoint,
+  onEndpointActivate,
+  requestFocusEndpoint,
+  connectionState,
 }: CircuitExperienceProps) {
   const reference = useRef<HTMLElement>(null);
   const active = useSceneActive(reference);
@@ -1017,6 +1338,13 @@ export function CircuitExperience({
       [(-BOARD.width * U) / 2 - 0.12, -0.13, (-19.5 * U) / 2 - 0.1],
       [(BOARD.width * U) / 2 + 0.12, 1.1, (19.5 * U) / 2 + 0.1],
     ];
+    if (circuit.board && circuit.board !== "pico") {
+      const box = controllerBox(circuit.board);
+      points.push(
+        position({ x: box.x - 1.2, y: box.y - 0.8 }, 0.7),
+        position({ x: box.x + box.w + 0.7, y: box.y + box.h + 0.8 }, 0.7),
+      );
+    }
     for (const part of circuit.parts) {
       if (!part.holes) {
         const box = moduleBox(part);
@@ -1124,6 +1452,32 @@ export function CircuitExperience({
   }, [circuit.id]);
   const camera = (type: CameraAction["type"]) =>
     setAction((current) => ({ type, sequence: current.sequence + 1 }));
+  const activeWire =
+    step?.wires?.length === 1
+      ? circuit.wires.find((wire) => wire.id === step.wires![0])
+      : undefined;
+  const focusEndpoint = useCallback(
+    (endpoint: "a" | "b") => {
+      if (!activeWire) return;
+      setSelection(null);
+      setInspectorOpen(false);
+      const at = atEndpoint(
+        circuit,
+        endpoint === "a" ? activeWire.from : activeWire.to,
+        0.18,
+      );
+      setAction((current) => ({
+        type: "focus",
+        sequence: current.sequence + 1,
+        focusTarget: at,
+        focusPosition: [at[0] + 0.4, at[1] + 3.2, at[2] + 1.9],
+      }));
+    },
+    [activeWire, circuit],
+  );
+  useEffect(() => {
+    if (requestFocusEndpoint) focusEndpoint(requestFocusEndpoint.endpoint);
+  }, [requestFocusEndpoint?.token, focusEndpoint]);
   const visibleSteps =
     mode === "all" ? circuit.steps : circuit.steps.slice(0, stepIndex + 1);
   const visibleParts =
@@ -1153,6 +1507,10 @@ export function CircuitExperience({
             stepIndex={stepIndex}
             complete={mode === "all"}
             description={step ? `${step.title}. ${step.detail}` : undefined}
+            activeEndpoint={activeEndpoint}
+            onEndpointActivate={onEndpointActivate}
+            requestFocusEndpoint={requestFocusEndpoint}
+            connectionState={connectionState}
           />
         </div>
       </section>
@@ -1183,6 +1541,7 @@ export function CircuitExperience({
           gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
           fallback={<Activate2DFallback activate={activateFallback} />}
         >
+          <ResumeScene active={active} />
           <Suspense fallback={null}>
             <CircuitWorld
               circuit={circuit}
@@ -1195,6 +1554,10 @@ export function CircuitExperience({
               home={home}
               target={target}
               bounds={bounds}
+              activeEndpoint={activeEndpoint}
+              onEndpointActivate={onEndpointActivate}
+              connectionState={connectionState}
+              selection={selection}
             />
           </Suspense>
         </SafeCanvas>
@@ -1203,6 +1566,27 @@ export function CircuitExperience({
         className="rdx-circuit-controls"
         aria-label="Controles del montaje 3D"
       >
+        {mode === "step" &&
+          activeWire &&
+          ["a", "b"].map((end, index) => (
+            <button
+              key={end}
+              type="button"
+              className="rdx-endpoint-actions"
+              aria-pressed={activeEndpoint === end}
+              aria-label={`Acercar extremo ${end.toUpperCase()}: ${index === 0 ? activeWire.from : activeWire.to}`}
+              onClick={() => {
+                focusEndpoint(end as "a" | "b");
+                onEndpointActivate?.(end as "a" | "b");
+              }}
+            >
+              <Crosshair size={16} />
+              {end.toUpperCase()} ·{" "}
+              {isPoint(index === 0 ? activeWire.from : activeWire.to)
+                ? shortPoint(index === 0 ? activeWire.from : activeWire.to)
+                : (index === 0 ? activeWire.from : activeWire.to).split(".")[1]}
+            </button>
+          ))}
         {mode === "step" && step && (
           <button
             type="button"

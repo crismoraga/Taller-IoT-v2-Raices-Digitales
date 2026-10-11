@@ -1,5 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
+// Keep protocol tests independent of GPU animation load; the immersive scene is
+// exercised with motion enabled in workshop.spec.ts.
+test.use({ reducedMotion: "reduce" });
+
 test.afterEach(async ({ page }) => {
   await page.request.delete("/api/session", {
     headers: { Origin: "http://127.0.0.1:5173" },
@@ -22,6 +26,10 @@ async function protocolPeer(page: Page) {
     let requests = 0,
       opens = 0,
       stops = 0;
+    let usbInfo = { usbVendorId: 0x2e8a, usbProductId: 0x0005 };
+    let authorizedPorts = Number(
+      localStorage.getItem("__qaAuthorizedPorts") || 0,
+    );
     let requestGate: Promise<void> | null = null;
     let releaseRequest: (() => void) | null = null;
     let requestCancelled = false;
@@ -78,6 +86,7 @@ async function protocolPeer(page: Page) {
     const port = {
       readable: null as ReadableStream<Uint8Array> | null,
       writable: null as WritableStream<Uint8Array> | null,
+      getInfo: () => ({ ...usbInfo }),
       async open() {
         opens++;
         port.readable = new ReadableStream<Uint8Array>({
@@ -131,7 +140,12 @@ async function protocolPeer(page: Page) {
     };
     const serial = new EventTarget() as EventTarget & {
       requestPort: () => Promise<typeof port>;
+      getPorts: () => Promise<(typeof port)[]>;
     };
+    serial.getPorts = async () =>
+      Array.from({ length: authorizedPorts }, (_, index) =>
+        index ? { ...port } : port,
+      );
     serial.requestPort = async () => {
       requests++;
       if (requestGate) await requestGate;
@@ -150,6 +164,13 @@ async function protocolPeer(page: Page) {
       unplug: () =>
         controller.error(new DOMException("Test USB unplug", "NetworkError")),
       stats: () => ({ requests, opens, stops }),
+      setUsbInfo: (vendor: number, product: number) => {
+        usbInfo = { usbVendorId: vendor, usbProductId: product };
+      },
+      setAuthorizedPorts: (count: number) => {
+        authorizedPorts = count;
+        localStorage.setItem("__qaAuthorizedPorts", String(count));
+      },
       delayNextRequest: () => {
         requestCancelled = false;
         requestGate = new Promise<void>((resolve) => {
@@ -173,7 +194,7 @@ async function protocolPeer(page: Page) {
   });
 }
 
-async function groupAndConnect(page: Page, deferPortSelection = false) {
+async function openUsbLesson(page: Page, board?: "uno") {
   await protocolPeer(page);
   await page.goto("/");
   await page
@@ -181,6 +202,7 @@ async function groupAndConnect(page: Page, deferPortSelection = false) {
     .click();
   await page.getByLabel("Nombre del equipo").fill("USB protocolo QA");
   await page.getByLabel("Número de estación").selectOption("9");
+  if (board) await page.getByLabel("Placa del equipo").selectOption(board);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Comenzar el taller", exact: true })
@@ -192,6 +214,10 @@ async function groupAndConnect(page: Page, deferPortSelection = false) {
     .getByRole("button", { name: /Programa/ })
     .click();
   await expect(page.locator(".monaco-editor").first()).toBeVisible();
+}
+
+async function groupAndConnect(page: Page, deferPortSelection = false) {
+  await openUsbLesson(page);
   if (deferPortSelection)
     await page.evaluate(() =>
       (
@@ -217,6 +243,145 @@ async function groupAndConnect(page: Page, deferPortSelection = false) {
     )
     .toBe(1);
 }
+
+test("USB identity corrects a selected Arduino to Pico without a second selector", async ({
+  page,
+}) => {
+  await openUsbLesson(page, "uno");
+  await expect(page.getByLabel("Tu placa")).toHaveValue("uno");
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Tu placa")).toHaveValue("pico");
+  await expect(
+    page.getByRole("dialog", { name: "Reconozcamos tu placa" }),
+  ).toHaveCount(0);
+  const stats = await page.evaluate(() =>
+    (
+      window as unknown as {
+        __usbPeer: { stats: () => { requests: number; opens: number } };
+      }
+    ).__usbPeer.stats(),
+  );
+  expect(stats.requests).toBe(1);
+  expect(stats.opens).toBe(1);
+});
+
+test("an ambiguous USB adapter asks the board before opening the port", async ({
+  page,
+}) => {
+  await openUsbLesson(page);
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        __usbPeer: { setUsbInfo: (vendor: number, product: number) => void };
+      }
+    ).__usbPeer.setUsbInfo(0x1a86, 0x7523),
+  );
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  const chooser = page.getByRole("dialog", { name: "Reconozcamos tu placa" });
+  await expect(chooser).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as { __usbPeer: { stats: () => { opens: number } } }
+        ).__usbPeer.stats().opens,
+    ),
+  ).toBe(0);
+  await chooser
+    .getByRole("button", { name: "Raspberry Pi Pico", exact: true })
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          __usbPeer: { stats: () => { requests: number; opens: number } };
+        }
+      ).__usbPeer.stats(),
+    ),
+  ).toMatchObject({ requests: 1, opens: 1 });
+});
+
+test("multiple authorized USB boards never connect to an arbitrary port", async ({
+  page,
+}) => {
+  await openUsbLesson(page);
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        __usbPeer: { setAuthorizedPorts: (count: number) => void };
+      }
+    ).__usbPeer.setAuthorizedPorts(2),
+  );
+  await page.reload();
+  // The browser's chooser remains the only way to identify one of several boards.
+  await expect(
+    page.getByRole("button", { name: "Conectar placa", exact: true }).first(),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as { __usbPeer: { stats: () => { opens: number } } }
+        ).__usbPeer.stats().opens,
+    ),
+  ).toBe(0);
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __usbPeer: { stats: () => { requests: number } };
+          }
+        ).__usbPeer.stats().requests,
+    ),
+  ).toBe(1);
+});
+
+test("a single previously authorized Pico reconnects after reload without a new port picker", async ({
+  page,
+}) => {
+  await openUsbLesson(page, "uno");
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        __usbPeer: { setAuthorizedPorts: (count: number) => void };
+      }
+    ).__usbPeer.setAuthorizedPorts(1),
+  );
+  await page.reload();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Tu placa")).toHaveValue("pico");
+  expect(
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          __usbPeer: { stats: () => { requests: number; opens: number } };
+        }
+      ).__usbPeer.stats(),
+    ),
+  ).toMatchObject({ requests: 0, opens: 1 });
+});
 
 test("pending USB selection prevents a board change and cancellation restores it", async ({
   page,
@@ -295,16 +460,14 @@ test("a pending Pico diagnostic blocks concurrent calibration until the protocol
     name: "Capturar 20 muestras",
     exact: true,
   });
-  await expect(capture).toHaveCount(2);
-  await expect(capture.nth(0)).toBeDisabled();
-  await expect(capture.nth(1)).toBeDisabled();
+  await expect(capture).toHaveCount(1);
+  await expect(capture).toBeDisabled();
   await page.evaluate(() =>
     (
       window as unknown as { __usbPeer: { releaseExecution: () => void } }
     ).__usbPeer.releaseExecution(),
   );
-  await expect(capture.nth(0)).toBeEnabled();
-  await expect(capture.nth(1)).toBeEnabled();
+  await expect(capture).toBeEnabled();
   expect(
     await page.evaluate(
       () =>
@@ -369,9 +532,12 @@ test("real UI executes raw-paste, edits UTF8 code, saves bytes, stops and reconn
     ).__usbPeer.unplug(),
   );
   await expect(
-    page.getByText("Sin USB · puedes preparar el montaje y el código.", {
-      exact: true,
-    }),
+    page.getByText(
+      "Conecta tu placa para ver el experimento en el mundo real.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Ejecutar", exact: true }),
@@ -501,6 +667,7 @@ test("station installation writes the complete bundle and fresh group credential
   await expect(
     page.getByRole("button", { name: "Revocado", exact: true }),
   ).toBeDisabled();
+  await page.getByRole("button", { name: /^3\. Instala tu estación/ }).click();
   await page.getByLabel("Red Wi-Fi de 2,4 GHz").fill("QA-red-2.4GHz");
   await page.getByLabel("Contraseña Wi-Fi").fill("QA-password-solo-fixture");
   await page.locator("summary", { hasText: "Dirección del servidor" }).click();

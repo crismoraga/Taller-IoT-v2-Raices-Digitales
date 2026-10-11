@@ -126,7 +126,11 @@
     .settings-page > header,
     .teacher-page > header,
     .diagnostics-page > header {
+      position: relative;
       margin-bottom: 24px;
+      padding-left: 17px;
+      border-left: 3px solid var(--ink-accent);
+      border-image: linear-gradient(var(--botanical), var(--ink-accent)) 1;
     }
     .eyebrow {
       display: inline-flex;

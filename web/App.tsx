@@ -23,7 +23,17 @@ import {
   mergeSessionPatch,
   offline as offlineStore,
 } from "./lib/offline";
-import { ArduinoSerial, serial, stationCaFile } from "./lib/serial";
+import {
+  ArduinoSerial,
+  automaticUSBPort,
+  authorizedUSBPorts,
+  identifyUSBBoard,
+  requestUSBPort,
+  serial,
+  stationCaFile,
+  watchUSBConnections,
+  type USBPort,
+} from "./lib/serial";
 import {
   applyTheme,
   readLocal,
@@ -36,6 +46,7 @@ import Home from "./pages/Home";
 import { Onboarding } from "./shell/Onboarding";
 import { NAV, Sidebar, isActive } from "./shell/Sidebar";
 import { Topbar } from "./shell/Topbar";
+import { USBDiscovery } from "./shell/USBDiscovery";
 import { PageLoader } from "./ui/Feedback";
 import { ToastHost, type ToastItem } from "./ui/Overlay";
 import { cx } from "./ui/cx";
@@ -69,6 +80,7 @@ export default function App() {
   });
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [usbChoice, setUSBChoice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
   const [terminal, setTerminal] = useState("");
@@ -97,6 +109,10 @@ export default function App() {
   const usbBusy = useRef(false);
   const usbConnecting = useRef(false);
   const usbGeneration = useRef(0);
+  const pendingUSBPort = useRef<USBPort | null>(null);
+  const rememberedUSBPort = useRef<USBPort | null>(null);
+  const rememberedUSBBoard = useRef<Board | undefined>(undefined);
+  const automaticUSBPaused = useRef(false);
   const stream = useRef("");
   const pendingUSB = useRef(new Map<string, Reading>());
   const pendingDiagnostics = useRef<Record<string, unknown>>({});
@@ -249,11 +265,19 @@ export default function App() {
   useEffect(() => {
     if (!offline) return;
     const retry = () => {
-      if (!navigator.onLine || document.visibilityState === "hidden" || recoveryPending.current)
+      if (
+        !navigator.onLine ||
+        document.visibilityState === "hidden" ||
+        recoveryPending.current
+      )
         return;
       recoveryPending.current = true;
-      void refreshSession().finally(() => { recoveryPending.current = false; });
-      void api<Health>("/health").then(setHealth).catch(() => {});
+      void refreshSession().finally(() => {
+        recoveryPending.current = false;
+      });
+      void api<Health>("/health")
+        .then(setHealth)
+        .catch(() => {});
     };
     const timer = setInterval(retry, 5000);
     window.addEventListener("focus", retry);
@@ -425,6 +449,7 @@ export default function App() {
     };
     const lost = (name: string) => () => {
       usbGeneration.current += 1;
+      stream.current = "";
       pendingUSB.current.clear();
       setConnected(false);
       setRunning(false);
@@ -462,7 +487,10 @@ export default function App() {
   const guard = useCallback(
     async (work: () => Promise<void>) => {
       if (usbBusy.current || usbConnecting.current) {
-        notify("Espera a que termine la operación de la placa antes de continuar.", "info");
+        notify(
+          "Espera a que termine la operación de la placa antes de continuar.",
+          "info",
+        );
         return;
       }
       usbBusy.current = true;
@@ -481,54 +509,147 @@ export default function App() {
     },
     [notify],
   );
-  const connect = useCallback(async () => {
-    if (usbConnecting.current || usbBusy.current) return;
-    if (!sessionRef.current) {
-      onboardingDestination.current = canonical(location.pathname);
-      setOnboarding(true);
-      return;
-    }
-    usbConnecting.current = true;
-    setConnecting(true);
-    const generation = ++usbGeneration.current;
-    try {
-      const current = boardRef.current;
-      if (current === "pico") await serial.connect();
-      else await ArduinoSerial.connect(current);
-      if (generation !== usbGeneration.current) {
-        if (current === "pico") await serial.disconnect();
-        else await ArduinoSerial.disconnect();
+  const connect = useCallback(
+    async (existing?: USBPort, chosenBoard?: Board) => {
+      if (usbConnecting.current || usbBusy.current) return;
+      if (!sessionRef.current) {
+        onboardingDestination.current = canonical(location.pathname);
+        setOnboarding(true);
         return;
       }
-      setConnected(true);
+      usbConnecting.current = true;
+      setConnecting(true);
+      pendingUSBPort.current = null;
+      setUSBChoice(null);
+      const generation = ++usbGeneration.current;
       try {
-        await post("/bridge/connect", {});
-      } catch {
+        const port = existing ?? (await requestUSBPort());
+        if (generation !== usbGeneration.current) return;
+        const detected = identifyUSBBoard(port);
+        const current = chosenBoard ?? detected.board;
+        if (!current) {
+          pendingUSBPort.current = port;
+          setUSBChoice(detected.label);
+          return;
+        }
+        if (current !== boardRef.current) {
+          boardRef.current = current;
+          setBoardState(current);
+          writeLocal("raices.board", current);
+          setLocalReadings([]);
+          pendingUSB.current.clear();
+        }
+        stream.current = "";
+        if (current === "pico") await serial.connect(port);
+        else await ArduinoSerial.connect(current, port);
+        if (generation !== usbGeneration.current) {
+          if (current === "pico") await serial.disconnect();
+          else await ArduinoSerial.disconnect();
+          return;
+        }
+        rememberedUSBPort.current = port;
+        rememberedUSBBoard.current = current;
+        automaticUSBPaused.current = false;
+        setConnected(true);
+        try {
+          await post("/bridge/connect", {});
+        } catch {
+          if (generation === usbGeneration.current)
+            notify(
+              "USB disponible en modo local; el servidor no pudo vincular el puente.",
+              "info",
+            );
+        }
+        if (
+          generation !== usbGeneration.current ||
+          !(current === "pico" ? serial.connected : ArduinoSerial.connected)
+        )
+          return;
         notify(
-          "USB disponible en modo local; el servidor no pudo vincular el puente.",
-          "info",
+          `${current === "pico" ? "Pico" : current === "uno" ? "Arduino Uno" : "Arduino Nano"} reconocida por USB. ¡Vamos a darle vida!`,
         );
+      } catch (problem) {
+        // Cerrar el selector de puertos sin elegir no es un error que haya que anunciar.
+        const cancelled =
+          problem instanceof DOMException && problem.name === "NotFoundError";
+        if (!cancelled)
+          notify(
+            problem instanceof DOMException && problem.name === "NetworkError"
+              ? "El puerto está ocupado por otro programa (¿Thonny o el IDE de Arduino?). Ciérralo e inténtalo otra vez."
+              : problem instanceof Error
+                ? problem.message
+                : "No se pudo abrir el puerto USB.",
+            "error",
+          );
+      } finally {
+        usbConnecting.current = false;
+        setConnecting(false);
       }
-      notify("Placa conectada por USB. Ya puedes ejecutar código.");
-    } catch (problem) {
-      // Cerrar el selector de puertos sin elegir no es un error que haya que anunciar.
-      const cancelled =
-        problem instanceof DOMException && problem.name === "NotFoundError";
-      if (!cancelled)
-        notify(
-          problem instanceof DOMException && problem.name === "NetworkError"
-            ? "El puerto está ocupado por otro programa (¿Thonny o el IDE de Arduino?). Ciérralo e inténtalo otra vez."
-            : problem instanceof Error
-              ? problem.message
-              : "No se pudo abrir el puerto USB.",
-          "error",
-        );
-    } finally {
-      usbConnecting.current = false;
-      setConnecting(false);
-    }
-  }, [notify]);
+    },
+    [notify],
+  );
+  const chooseUSBBoard = useCallback(
+    async (chosen: Board) => {
+      const port = pendingUSBPort.current;
+      if (port) await connect(port, chosen);
+    },
+    [connect],
+  );
+  const cancelUSBChoice = useCallback(() => {
+    pendingUSBPort.current = null;
+    setUSBChoice(null);
+  }, []);
+
+  // Existing permissions let a returning team resume without another port picker.
+  // Several ports or unidentified adapters always wait for an explicit choice.
+  useEffect(() => {
+    if (!ready || !session?.id || !serial.supported) return;
+    let alive = true;
+    const discover = async () => {
+      if (
+        automaticUSBPaused.current ||
+        usbConnecting.current ||
+        usbBusy.current ||
+        serial.connected ||
+        ArduinoSerial.connected ||
+        pendingUSBPort.current
+      )
+        return;
+      try {
+        const ports = await authorizedUSBPorts();
+        if (
+          !alive ||
+          automaticUSBPaused.current ||
+          pendingUSBPort.current ||
+          usbConnecting.current ||
+          usbBusy.current ||
+          serial.connected ||
+          ArduinoSerial.connected
+        )
+          return;
+        const port = automaticUSBPort(ports, rememberedUSBPort.current);
+        if (port)
+          await connect(
+            port,
+            !identifyUSBBoard(port).board && rememberedUSBPort.current === port
+              ? rememberedUSBBoard.current
+              : undefined,
+          );
+      } catch {
+        // Permission revocation or a busy OS port keeps the manual USB action available.
+      }
+    };
+    void discover();
+    const unwatch = watchUSBConnections(() => void discover());
+    return () => {
+      alive = false;
+      unwatch();
+    };
+  }, [ready, session?.id, connect]);
   const disconnect = useCallback(async () => {
+    automaticUSBPaused.current = true;
+    pendingUSBPort.current = null;
+    setUSBChoice(null);
     usbGeneration.current += 1;
     try {
       pendingUSB.current.clear();
@@ -547,7 +668,10 @@ export default function App() {
   const setBoard = useCallback(
     (value: Board) => {
       if (connected || usbConnecting.current || usbBusy.current) {
-        notify("Termina la operación y desconecta la placa antes de cambiar de modelo.", "info");
+        notify(
+          "Termina la operación y desconecta la placa antes de cambiar de modelo.",
+          "info",
+        );
         return;
       }
       usbGeneration.current += 1;
@@ -566,8 +690,14 @@ export default function App() {
         board: target,
       },
     );
-    if (generation !== usbGeneration.current || target !== boardRef.current || !ArduinoSerial.connected)
-      throw new Error("La conexión cambió durante la compilación. Conecta la placa y vuelve a ejecutar.");
+    if (
+      generation !== usbGeneration.current ||
+      target !== boardRef.current ||
+      !ArduinoSerial.connected
+    )
+      throw new Error(
+        "La conexión cambió durante la compilación. Conecta la placa y vuelve a ejecutar.",
+      );
     setTerminal((previous) => `${previous}\n${result.output}\n`);
     await ArduinoSerial.upload(result.hex);
   }, []);
@@ -721,7 +851,9 @@ export default function App() {
   }, []);
   const queryPico = useCallback(async (code: string) => {
     if (usbBusy.current || usbConnecting.current)
-      throw new Error("Espera a que termine la operación USB antes de consultar la placa.");
+      throw new Error(
+        "Espera a que termine la operación USB antes de consultar la placa.",
+      );
     if (boardRef.current !== "pico" || !serial.connected)
       throw new Error("Esta consulta requiere una Pico conectada por USB.");
     const generation = usbGeneration.current;
@@ -731,7 +863,9 @@ export default function App() {
     try {
       const output = await serial.exec(code);
       if (generation !== usbGeneration.current)
-        throw new Error("La placa se desconectó durante la consulta. Repite la captura.");
+        throw new Error(
+          "La placa se desconectó durante la consulta. Repite la captura.",
+        );
       return output;
     } finally {
       usbBusy.current = false;
@@ -769,6 +903,9 @@ export default function App() {
       busy,
       running,
       connect,
+      usbChoice,
+      chooseUSBBoard,
+      cancelUSBChoice,
       disconnect,
       runCode,
       stopCode,
@@ -805,6 +942,9 @@ export default function App() {
       busy,
       running,
       connect,
+      usbChoice,
+      chooseUSBBoard,
+      cancelUSBChoice,
       disconnect,
       runCode,
       stopCode,
@@ -890,9 +1030,13 @@ export default function App() {
             className="flex-1 pb-20 outline-none lg:pb-0"
           >
             <Suspense fallback={<PageLoader />}>
-              {["/planta", "/estacion", "/diagnostico", "/profesor", "/docente"].includes(
-                route,
-              ) ? (
+              {[
+                "/planta",
+                "/estacion",
+                "/diagnostico",
+                "/profesor",
+                "/docente",
+              ].includes(route) ? (
                 <div className="legacy-page">{page}</div>
               ) : (
                 page
@@ -936,6 +1080,7 @@ export default function App() {
       </nav>
 
       <Onboarding open={onboarding} onClose={() => setOnboarding(false)} />
+      <USBDiscovery />
       <ToastHost toasts={toasts} onDismiss={dismiss} />
     </AppContext.Provider>
   );

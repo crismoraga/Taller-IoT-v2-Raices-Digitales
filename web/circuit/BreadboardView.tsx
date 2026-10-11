@@ -46,6 +46,8 @@ import {
 } from "./model";
 import { partDef } from "./parts";
 import { layoutCallouts, type CalloutBox } from "./calloutLayout";
+import { controllerBox, controllerPins, controllerPin } from "./boards";
+import type { Board } from "../lib/context";
 import {
   PICO_COLUMNS,
   PICO_PINS,
@@ -100,17 +102,25 @@ export interface BreadboardViewProps {
   className?: string;
   /** Texto alternativo del paso actual para lectores de pantalla. */
   description?: string;
+  activeEndpoint?: "a" | "b";
+  onEndpointActivate?: (endpoint: "a" | "b") => void;
+  requestFocusEndpoint?: { endpoint: "a" | "b"; token: number };
+  connectionState?: "take" | "a" | "b" | "placed";
 }
 
 /* ── Capa estática: la protoboard ─────────────────────────────── */
 
-const BoardLayer = memo(function BoardLayer() {
+const BoardLayer = memo(function BoardLayer({
+  pico = true,
+}: {
+  pico?: boolean;
+}) {
   const holes: ReactElement[] = [];
   for (let column = 1; column <= COLUMNS; column++) {
     const x = px(BOARD.x0 + column - 1);
     for (const letter of LETTERS) {
       // Los agujeros bajo la Pico no se dibujan: quedan tapados por la placa.
-      if (column <= PICO_COLUMNS && "defg".includes(letter)) continue;
+      if (pico && column <= PICO_COLUMNS && "defg".includes(letter)) continue;
       holes.push(
         <rect
           key={`${letter}${column}`}
@@ -491,6 +501,112 @@ const PicoLayer = memo(function PicoLayer({
 });
 
 /* ── Piezas ───────────────────────────────────────────────────── */
+
+function ControllerLayer({
+  board,
+  onInspect,
+}: {
+  board: Board;
+  onInspect: (pin: string) => void;
+}) {
+  const box = controllerBox(board);
+  return (
+    <g
+      aria-label={
+        board === "uno"
+          ? "Arduino Uno: conectores reales"
+          : "Arduino Nano: conectores reales"
+      }
+    >
+      <rect
+        x={px(box.x)}
+        y={px(box.y)}
+        width={px(box.w)}
+        height={px(box.h)}
+        rx={16}
+        fill="#087a64"
+        stroke="#71edbd"
+        strokeWidth={3}
+      />
+      <rect
+        x={px(box.x - 1.1)}
+        y={px(box.y + box.h / 2 - 1.7)}
+        width={px(3.8)}
+        height={px(3.4)}
+        rx={7}
+        fill="#b7c5c4"
+        stroke="#667f79"
+        strokeWidth={3}
+      />
+      <rect
+        x={px(box.x + box.w * 0.45)}
+        y={px(box.y + box.h * 0.4)}
+        width={px(board === "uno" ? 7 : 3.2)}
+        height={px(board === "uno" ? 3 : 2.5)}
+        rx={5}
+        fill="#1a2926"
+      />
+      <text
+        x={px(box.x + box.w / 2)}
+        y={px(box.y + box.h / 2 + 3)}
+        textAnchor="middle"
+        fill="#edffef"
+        fontSize={board === "uno" ? 27 : 17}
+        fontWeight={800}
+      >
+        {board === "uno" ? "Arduino Uno" : "Arduino Nano"}
+      </text>
+      <text
+        x={px(box.x + 3.3)}
+        y={px(box.y + box.h / 2)}
+        fill="#edffef"
+        fontSize={13}
+        fontWeight={700}
+      >
+        USB
+      </text>
+      {controllerPins(board).map((pin) => (
+        <g
+          key={pin.name}
+          onClick={(event) => {
+            event.stopPropagation();
+            onInspect(pin.name);
+          }}
+          className="cursor-pointer"
+        >
+          <title>{`Pin ${pin.label} de Arduino`}</title>
+          <rect
+            x={px(pin.x) - 11}
+            y={px(pin.y) - 12}
+            width={22}
+            height={24}
+            rx={4}
+            fill="#182e29"
+            stroke="#c8e09e"
+            strokeWidth={2}
+          />
+          <rect
+            x={px(pin.x) - 3.5}
+            y={px(pin.y) - 3.5}
+            width={7}
+            height={7}
+            fill={board === "uno" ? "#030d0a" : "#d7bb66"}
+          />
+          <text
+            x={px(pin.x)}
+            y={px(pin.y) + (pin.y < box.y + box.h / 2 ? 30 : -20)}
+            textAnchor="middle"
+            fontSize={13}
+            fontWeight={800}
+            fill="#f0ffe2"
+          >
+            {pin.label}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
 
 function Lead({ a, b }: { a: XY; b: XY }) {
   return (
@@ -1320,7 +1436,12 @@ export function BreadboardView({
   lit,
   className,
   description,
+  activeEndpoint,
+  onEndpointActivate,
+  requestFocusEndpoint,
+  connectionState,
 }: BreadboardViewProps) {
+  const isPico = !circuit.board || circuit.board === "pico";
   const container = useRef<HTMLDivElement>(null);
   const [aspect, setAspect] = useState(2.2);
   const [viewport, setViewport] = useState({ width: 660, height: 300 });
@@ -1351,7 +1472,7 @@ export function BreadboardView({
   const usedPins = useMemo(() => {
     const physical = new Set<number>();
     const touch = (endpoint: string) => {
-      if (!isPoint(endpoint)) return;
+      if (!isPico || !isPoint(endpoint)) return;
       const pin = picoPinForStrip(stripOf(endpoint));
       if (pin) physical.add(pin.physical);
     };
@@ -1432,6 +1553,13 @@ export function BreadboardView({
           const at = pointXY(hole);
           points.push({ x: at.x + 9, y: at.y + (at.y > 8.5 ? 6.5 : -1) });
         }
+    if (!isPico) {
+      const box = controllerBox(circuit.board);
+      points.push(
+        { x: box.x - 1.2, y: box.y - 0.8 },
+        { x: box.x + box.w + 0.5, y: box.y + box.h + 0.8 },
+      );
+    }
     return boundsOf(points, 0.4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [circuit, current, complete]);
@@ -1614,14 +1742,14 @@ export function BreadboardView({
           ? [`En la estación: ${STATION_ROLE[pin.name]}.`]
           : []),
       ],
-      warning: pin.warning,
+      warning: undefined,
     });
   }, []);
 
   const inspectHole = (id: string) => {
     const strip = stripOf(id, true);
     const point = parsePoint(id);
-    const pin = picoPinForStrip(strip);
+    const pin = isPico ? picoPinForStrip(strip) : undefined;
     const here: string[] = [];
     for (const part of circuit.parts) {
       if (stateOf(part.id) === "hidden") continue;
@@ -1645,7 +1773,7 @@ export function BreadboardView({
               "Este plano considera rieles partidos entre 31 y 33: sólo los agujeros de esta mitad están unidos por dentro.",
               "Comprueba la continuidad de tu protoboard real; un puente une ambas mitades.",
               RAIL_INFO[point.rail].sign === "+"
-                ? "En el taller, los rieles rojos llevan 3,3 V."
+                ? `En este montaje, los rieles rojos llevan ${circuit.wires.find((wire) => wire.id === "w_3v3_top")?.carries === "5V" ? "5" : "3,3"} V.`
                 : "En el taller, los rieles azules son GND (0 V).",
               ...(here.length
                 ? [`Aquí llegan: ${[...new Set(here)].join(", ")}.`]
@@ -1667,7 +1795,7 @@ export function BreadboardView({
                 ? [`Aquí están: ${[...new Set(here)].join(", ")}.`]
                 : ["Está libre."]),
             ],
-            warning: pin?.warning,
+            warning: undefined,
           },
     );
   };
@@ -1679,6 +1807,17 @@ export function BreadboardView({
     const x = box.x + ((event.clientX - rect.left) / rect.width) * box.w;
     const y = box.y + ((event.clientY - rect.top) / rect.height) * box.h;
     const hole = nearestHole(x, y);
+    if (activeWire) {
+      const ends = [activeWire.from, activeWire.to];
+      const index = ends.findIndex((end) => {
+        const at = endpointXY(circuit, end);
+        return Math.hypot(at.x - x, at.y - y) < 0.6;
+      });
+      if (index >= 0) {
+        onEndpointActivate?.(index === 0 ? "a" : "b");
+        return;
+      }
+    }
     if (hole) inspectHole(hole);
     else setInspect(null);
   };
@@ -1699,17 +1838,20 @@ export function BreadboardView({
       .filter((point) => point.id && !seen.has(point.id) && seen.add(point.id))
       .map((point, index, all) => {
         const isHole = isPoint(point.id);
-        const pin = isHole ? picoPinForStrip(stripOf(point.id)) : undefined;
+        const pin =
+          isHole && isPico ? picoPinForStrip(stripOf(point.id)) : undefined;
         const part = !isHole
           ? circuit.parts.find(
               (candidate) => candidate.id === point.id.split(".")[0],
             )
           : undefined;
-        const label = isHole
-          ? shortPoint(point.id)
-          : (partDef(part!).pins.find(
-              (candidate) => candidate.id === point.id.split(".")[1],
-            )?.label ?? "");
+        const label = point.id.startsWith("controller.")
+          ? controllerPin(circuit.board, point.id.split(".")[1]).label
+          : isHole
+            ? shortPoint(point.id)
+            : (partDef(part!).pins.find(
+                (candidate) => candidate.id === point.id.split(".")[1],
+              )?.label ?? "");
         // Arriba para la mitad superior, abajo para la inferior; se alterna si chocan.
         let side: -1 | 1 = point.at.y > 8.5 ? 1 : -1;
         if (!isHole) side = point.at.y < 0 ? -1 : 1;
@@ -1762,6 +1904,13 @@ export function BreadboardView({
     setInspect(null);
   };
 
+  useEffect(() => {
+    if (!requestFocusEndpoint || !activeWire) return;
+    focusEndpoint(
+      requestFocusEndpoint.endpoint === "a" ? activeWire.from : activeWire.to,
+    );
+  }, [requestFocusEndpoint?.token, activeWire?.id]);
+
   const wires = circuit.wires
     .map((wire, index) => ({ wire, index, state: stateOf(wire.id) }))
     .filter((entry) => entry.state !== "hidden");
@@ -1809,7 +1958,7 @@ export function BreadboardView({
         onPointerLeave={() => setHoverStrip(null)}
         onClick={onClick}
       >
-        <BoardLayer />
+        <BoardLayer pico={isPico} />
         {hoverStrip &&
           holesOfStrip(hoverStrip).map((hole) => {
             const at = pointXY(hole);
@@ -1825,7 +1974,35 @@ export function BreadboardView({
               />
             );
           })}
-        <PicoLayer used={usedPins} onInspect={inspectPin} />
+        {isPico ? (
+          <PicoLayer used={usedPins} onInspect={inspectPin} />
+        ) : (
+          <ControllerLayer
+            board={circuit.board!}
+            onInspect={(name) => {
+              const end = `controller.${name}`;
+              if (activeWire?.from === end || activeWire?.to === end)
+                onEndpointActivate?.(activeWire.from === end ? "a" : "b");
+              else
+                setInspect({
+                  title: `Pin ${controllerPin(circuit.board, name).label} de Arduino`,
+                  lines: [
+                    name.startsWith("A")
+                      ? "Entrada analógica: convierte un voltaje en un número."
+                      : name.startsWith("D")
+                        ? "Pin digital: envía o recibe una señal."
+                        : name.startsWith("GND")
+                          ? "GND: el punto común del circuito."
+                          : name === "3V3"
+                            ? "Salida de 3,3 V para los sensores del taller."
+                            : name === "5V"
+                              ? "Salida de 5 V del USB."
+                              : "Conector de la placa.",
+                  ],
+                });
+            }}
+          />
+        )}
         {parts
           .filter((entry) => entry.part.holes)
           .map(({ part, state }) => (
@@ -1858,16 +2035,35 @@ export function BreadboardView({
               </g>
             ))}
           {wires
-            .filter((entry) => entry.state === "active")
+            .filter(
+              (entry) =>
+                entry.state === "active" &&
+                (!connectionState ||
+                  connectionState === "placed" ||
+                  connectionState === "b"),
+            )
             .map(({ wire, index }) => (
-              <WireShape
-                key={wire.id}
-                wire={wire}
-                index={index}
-                state="active"
-                a={endpointXY(circuit, wire.from)}
-                b={endpointXY(circuit, wire.to)}
-              />
+              <g key={wire.id}>
+                <g opacity={connectionState === "b" ? 0.24 : 1}>
+                  <WireShape
+                    wire={wire}
+                    index={index}
+                    state="active"
+                    a={endpointXY(circuit, wire.from)}
+                    b={endpointXY(circuit, wire.to)}
+                  />
+                </g>
+                {connectionState === "b" && (
+                  <circle
+                    cx={px(endpointXY(circuit, wire.from).x)}
+                    cy={px(endpointXY(circuit, wire.from).y)}
+                    r={5}
+                    fill={WIRE_HEX[wire.color]}
+                    stroke="#f5ffe2"
+                    strokeWidth={2}
+                  />
+                )}
+              </g>
             ))}
           {visibleCallouts.map((callout, index) => (
             <Callout
@@ -1885,6 +2081,32 @@ export function BreadboardView({
             />
           ))}
         </g>
+        {activeWire &&
+          [activeWire.from, activeWire.to].map((end, index) => {
+            const at = endpointXY(circuit, end);
+            const selected = activeEndpoint === (index === 0 ? "a" : "b");
+            return (
+              <g
+                key={end}
+                className="cursor-pointer"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEndpointActivate?.(index === 0 ? "a" : "b");
+                }}
+              >
+                <title>{`Tocar extremo ${index === 0 ? "A" : "B"}: ${end}`}</title>
+                <circle
+                  cx={px(at.x)}
+                  cy={px(at.y)}
+                  r={selected ? 14 : 10}
+                  fill={selected ? "#d9f474" : "#62e8b2"}
+                  fillOpacity={0.35}
+                  stroke={selected ? "#f0ffb6" : "#1d9667"}
+                  strokeWidth={selected ? 4 : 2}
+                />
+              </g>
+            );
+          })}
       </svg>
 
       <div className="absolute right-2.5 top-2.5 flex flex-col gap-1.5">
@@ -1938,7 +2160,10 @@ export function BreadboardView({
             <button
               key={`${index}-${endpoint}`}
               type="button"
-              onClick={() => focusEndpoint(endpoint)}
+              onClick={() => {
+                focusEndpoint(endpoint);
+                onEndpointActivate?.(index === 0 ? "a" : "b");
+              }}
               className="focus-ring flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-cream/25 bg-primary-deep px-2 py-2 text-sm font-extrabold text-cream shadow-lifted"
               aria-label={`Acercar extremo ${index === 0 ? "A" : "B"}: ${endpoint}`}
             >

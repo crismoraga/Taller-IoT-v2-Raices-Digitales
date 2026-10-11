@@ -56,6 +56,10 @@ export type AppContextType = {
   /** Hay un programa del estudiante ejecutándose en la placa. */
   running: boolean;
   connect: () => Promise<void>;
+  /** Unknown USB bridges need one participant choice before opening a protocol. */
+  usbChoice: string | null;
+  chooseUSBBoard: (board: Board) => Promise<void>;
+  cancelUSBChoice: () => void;
   disconnect: () => Promise<void>;
   runCode: (code: string, lessonId?: string) => Promise<void>;
   stopCode: () => Promise<void>;
