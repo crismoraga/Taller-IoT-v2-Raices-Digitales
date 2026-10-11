@@ -47,7 +47,7 @@ function frontendConfiguration() {
     outputDirectory: "dist",
     installCommand: "npm ci",
     headers: [
-      { source: "/:path*", headers: security },
+      { source: "/(.*)", headers: security },
       { source: "/api/:path*", headers: [
         { key: "Cache-Control", value: "no-store" },
         { key: "CDN-Cache-Control", value: "no-store" },

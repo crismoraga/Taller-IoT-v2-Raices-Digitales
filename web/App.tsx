@@ -838,7 +838,7 @@ export default function App() {
     <Station />
   ) : route === "/diagnostico" ? (
     <Diagnostics />
-  ) : route === "/profesor" ? (
+  ) : route === "/profesor" || route === "/docente" ? (
     <Teacher />
   ) : (
     <Home />
@@ -890,7 +890,7 @@ export default function App() {
             className="flex-1 pb-20 outline-none lg:pb-0"
           >
             <Suspense fallback={<PageLoader />}>
-              {["/planta", "/estacion", "/diagnostico", "/profesor"].includes(
+              {["/planta", "/estacion", "/diagnostico", "/profesor", "/docente"].includes(
                 route,
               ) ? (
                 <div className="legacy-page">{page}</div>

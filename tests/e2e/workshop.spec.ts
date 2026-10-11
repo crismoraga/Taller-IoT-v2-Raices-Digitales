@@ -511,6 +511,8 @@ test("teacher authenticates and views ten stations and read-only group", async (
   page,
 }) => {
   await createGroup(page, "Teacher QA", 2);
+  await page.goto("/docente");
+  await expect(page.getByLabel("Contraseña docente")).toBeVisible();
   await page.goto("/profesor");
   await page
     .getByLabel("Contraseña docente")
