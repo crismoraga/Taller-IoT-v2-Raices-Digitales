@@ -1,0 +1,146 @@
+import { describe, expect, it } from "vitest";
+import { circuits } from "../web/circuit/layouts";
+import type { Circuit } from "../web/circuit/model";
+import { analyze } from "../web/circuit/netlist";
+import {
+  circuitProgressSignature,
+  endpointInfo,
+  normalizeCircuitSteps,
+  normalizePinRows,
+  restoreAssemblyProgress,
+} from "../web/lesson/assembly";
+
+describe("montaje: una acción física por paso", () => {
+  for (const [id, original] of Object.entries(circuits)) {
+    it(`${id}: conserva cada cable, pieza y revisión eléctrica al separar acciones`, () => {
+      const before = structuredClone(original);
+      const circuit = normalizeCircuitSteps(original);
+      expect(original).toEqual(before);
+      expect(circuit.parts).toBe(original.parts);
+      expect(circuit.wires).toBe(original.wires);
+      expect(circuit.nets).toBe(original.nets);
+      expect(circuit.steps.flatMap((step) => step.parts ?? [])).toEqual(original.steps.flatMap((step) => step.parts ?? []));
+      expect(circuit.steps.flatMap((step) => step.wires ?? [])).toEqual(original.steps.flatMap((step) => step.wires ?? []));
+      expect(new Set(circuit.steps.map((step) => step.id)).size).toBe(circuit.steps.length);
+      for (const step of circuit.steps) expect((step.parts?.length ?? 0) + (step.wires?.length ?? 0)).toBeLessThanOrEqual(1);
+      expect(normalizeCircuitSteps(circuit)).toEqual(circuit);
+      const options = { splitRails: true, vbus: 5.25 };
+      expect(analyze(circuit, options).issues).toEqual(analyze(original, options).issues);
+    });
+  }
+
+  it("prepara un sensor antes de conectar su cable y mantiene la advertencia y revisión", () => {
+    const original = circuits.ds18b20;
+    const combined = original.steps.find((step) => (step.parts?.length ?? 0) + (step.wires?.length ?? 0) > 1)!;
+    const separated = normalizeCircuitSteps(original).steps.filter((step) => step.id.startsWith(`${combined.id}:`));
+    expect(separated.map((step) => step.kind)).toEqual(["place", "wire"]);
+    expect(separated[0].wires).toBeUndefined();
+    expect(separated[1].parts).toBeUndefined();
+    expect(separated.at(-1)?.verify).toBe(combined.verify);
+    expect(separated[0].verify).toBeUndefined();
+    for (const step of separated) expect(step.warning).toBe(combined.warning);
+  });
+
+  it("distingue un ID de pieza de un ID de cable aunque sus nombres coincidan", () => {
+    const fixture: Circuit = {
+      id: "same-id", title: "Montaje", parts: [{ id: "same", type: "generic", label: "Sensor", pins: ["GND"] }],
+      wires: [{ id: "same", from: "same.GND", to: "a3", color: "negro", carries: "GND", kind: "cable" }],
+      steps: [{ id: "prepare", kind: "place", title: "Prepara el sensor", detail: "Identifica el terminal y conéctalo a GND.", parts: ["same"], wires: ["same"] }], nets: [],
+    };
+    const circuit = normalizeCircuitSteps(fixture);
+    expect(circuit.steps[0].title).toBe("Prepara Sensor");
+    expect(circuit.steps[1].title).toBe("Conecta un cable negro");
+  });
+
+  it("nombra letra, número y riel con coordenadas concretas", () => {
+    expect(endpointInfo(circuits.led, "a4")).toEqual({ label: "a4", sub: "Letra a, número 4 · GP2 (pin 4)" });
+    expect(endpointInfo(circuits.led, "bn:27")).toEqual({ label: "− · 27", sub: "Riel azul de abajo" });
+    expect(endpointInfo(circuits.led, "led.anodo")).toMatchObject({ sub: "LED rojo" });
+  });
+});
+
+describe("montaje por pines: expandir sin inventar coordenadas", () => {
+  it("separa cada par de señales manteniendo la advertencia del componente", () => {
+    const warning = "Verifica el módulo antes de dar energía.";
+    expect(normalizePinRows([{ from: "IN1 / IN2 / IN3 / IN4", to: "D4 / D5 / D6 / D7", warning }])).toEqual([
+      { from: "IN1", to: "D4", warning }, { from: "IN2", to: "D5", warning },
+      { from: "IN3", to: "D6", warning }, { from: "IN4", to: "D7", warning },
+    ]);
+  });
+
+  it("mantiene la resistencia y las tres conexiones de una cadena LED completa", () => {
+    const rows = normalizePinRows([{ from: "Q0 15", to: "220 Ω → LED → GND" }]);
+    expect(rows.map(({ from, to }) => [from, to])).toEqual([
+      ["Q0 15", "Resistencia de 220 Ω: pata 1"],
+      ["Resistencia de 220 Ω: pata 2", "Ánodo del LED (pata larga)"],
+      ["Cátodo del LED (pata corta)", "GND"],
+    ]);
+    expect(rows[0].note).toContain("no la reemplaces por un cable");
+  });
+
+  it("respeta condiciones de alimentación al dividir un pull-up", () => {
+    const rows = normalizePinRows([{ from: "DATA si no hay pull-up integrado", to: "10 kΩ → 5V", note: "Solo si la ficha admite 5 V." }]);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.note).toContain("Solo si la ficha admite 5 V.");
+  });
+
+  it("distingue las dos resistencias paralelas y cada una de sus patas", () => {
+    const rows = normalizePinRows([{ from: "DATA", to: "3V3 mediante dos resistencias de 10 kΩ en paralelo" }]);
+    expect(rows.map(({ from, to }) => [from, to])).toEqual([
+      ["Resistencia 1 de 10 kΩ: pata 1", "DATA"], ["Resistencia 1 de 10 kΩ: pata 2", "3V3"],
+      ["Resistencia 2 de 10 kΩ: pata 1", "DATA"], ["Resistencia 2 de 10 kΩ: pata 2", "3V3"],
+    ]);
+  });
+
+  it("divide también la resistencia nombrada en el origen del display", () => {
+    expect(normalizePinRows([{ from: "Común D1 mediante su resistencia de 1 kΩ", to: "A0" }]).map(({ from, to }) => [from, to])).toEqual([
+      ["A0", "Resistencia de 1 kΩ: pata 1"], ["Resistencia de 1 kΩ: pata 2", "Común D1"],
+    ]);
+  });
+
+  it("conserva conectores ambiguos para seguir la ficha, sin asumir terminales", () => {
+    const row = { from: "Bobinas o conector del motor", to: "OUT1 / OUT2 / OUT3 / OUT4 del módulo" };
+    expect(normalizePinRows([row])).toEqual([row]);
+  });
+});
+
+describe("avance guardado: reanudar sin saltarse comprobaciones", () => {
+  const steps = [{ id: "first", verify: "Revisé el primer cable" }, { id: "second" }, { id: "third", verify: "Revisé el tercer cable" }];
+  const saved = (extra: Record<string, unknown> = {}) => ({ version: 2, signature: "current", position: 3, completed: { first: true, second: true, third: true }, verified: { first: true, third: true }, ...extra });
+
+  it.each([null, true, [], "value", saved({ version: 1 }), saved({ signature: "another-board" })])("rechaza datos incompatibles o malformados %j", (value) => {
+    expect(restoreAssemblyProgress(value, "current", steps)).toEqual({ position: -1, completed: {}, verified: {} });
+  });
+
+  it("reanuda el montaje terminado conservando su revisión manual", () => {
+    expect(restoreAssemblyProgress(saved(), "current", steps)).toEqual({ position: 3, completed: { first: true, second: true, third: true }, verified: { first: true, third: true } });
+  });
+
+  it("descarta marcas futuras detrás de una comprobación pendiente", () => {
+    expect(restoreAssemblyProgress(saved({ verified: { third: true } }), "current", steps)).toEqual({ position: 0, completed: {}, verified: {} });
+  });
+
+  it("permite una casilla actual marcada antes de pulsar Siguiente, sin aprobar las futuras", () => {
+    expect(restoreAssemblyProgress(saved({ completed: { first: false, third: true } }), "current", steps)).toEqual({ position: 0, completed: {}, verified: { first: true } });
+  });
+
+  it("solo acepta booleanos explícitos e IDs de pasos vigentes", () => {
+    expect(restoreAssemblyProgress(saved({ completed: { first: "true", second: 1, third: true, unknown: true }, verified: { first: 1, third: true, unknown: true } }), "current", steps)).toEqual({ position: 0, completed: {}, verified: {} });
+  });
+
+  it.each([1.8, -300, 400, Number.NaN, Infinity, "2", undefined, null])("descarta una posición malformada %j y sus aprobaciones", (position) => {
+    expect(restoreAssemblyProgress(saved({ position }), "current", steps)).toEqual({ position: -1, completed: {}, verified: {} });
+  });
+
+  it("cambia la firma cuando cambia placa, cableado o comprobación", () => {
+    const circuit = normalizeCircuitSteps(circuits.led);
+    const signature = circuitProgressSignature("pico", circuit);
+    expect(circuitProgressSignature("arduino", circuit)).not.toBe(signature);
+    const changed = structuredClone(circuit);
+    changed.wires[0].to = "a5";
+    expect(circuitProgressSignature("pico", changed)).not.toBe(signature);
+    const changedCheck = structuredClone(circuit);
+    changedCheck.steps[0].verify = "Una comprobación distinta";
+    expect(circuitProgressSignature("pico", changedCheck)).not.toBe(signature);
+  });
+});

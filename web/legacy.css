@@ -134,10 +134,10 @@
       gap: 7px;
       color: var(--ink-accent);
       font-family: var(--font-display);
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 750;
       line-height: 1.6;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
     .muted {
@@ -241,7 +241,7 @@
       min-height: 26px;
       border-radius: 999px;
       padding: 5px 9px;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 850;
       line-height: 1.2;
       letter-spacing: 0.035em;
@@ -447,7 +447,7 @@
       font-weight: 800;
     }
     .range-summary span {
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.4;
       color: var(--ink-soft);
     }
@@ -515,7 +515,7 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 700;
       color: var(--ink-soft);
       text-align: right;
@@ -563,7 +563,7 @@
       padding-top: 11px;
       margin-top: auto;
       border-top: 1px solid var(--border);
-      font-size: 9px;
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.03em;
       color: var(--ink-soft);
@@ -572,7 +572,7 @@
       display: block;
       margin-top: 9px;
       color: var(--warning-ink);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
     }
     .chart-panel {
@@ -618,7 +618,7 @@
       color: var(--cream);
       padding: 9px 13px;
       border-radius: 10px;
-      font-size: 11px;
+      font-size: 12px;
       pointer-events: none;
       max-width: 92%;
       white-space: nowrap;
@@ -628,7 +628,7 @@
       padding: 12px 20px;
       background: var(--surface-alt);
       color: var(--ink-soft);
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.55;
     }
     .dashboard-bottom-grid {
@@ -841,7 +841,7 @@
     .simple-details p {
       margin-top: 8px;
       color: var(--ink-soft);
-      font-size: 13px;
+      font-size: 14px;
     }
     .enabled-sensors {
       display: grid;
@@ -882,7 +882,7 @@
       display: block;
       margin-top: 5px;
       color: var(--ink-soft);
-      font-size: 11px;
+      font-size: 12px;
     }
     .toggle-visual {
       width: 39px;
@@ -1061,7 +1061,7 @@
     }
     .diagnostic-card p {
       color: var(--ink-soft);
-      font-size: 13px;
+      font-size: 14px;
       flex: 1;
     }
     .diagnostics-actions {
@@ -1085,12 +1085,12 @@
     .diagnostic-values dt {
       font-family: var(--font-mono);
       color: var(--ink-soft);
-      font-size: 11px;
+      font-size: 12px;
     }
     .diagnostic-values dd {
       margin-top: 5px;
       color: var(--ink);
-      font-size: 13px;
+      font-size: 14px;
       overflow-wrap: anywhere;
     }
     .sensor-status-table > div {
@@ -1113,7 +1113,7 @@
       min-width: 180px;
     }
     .sensor-status-table code {
-      font-size: 11px;
+      font-size: 12px;
     }
     .troubleshooting-list {
       margin-top: 30px;
@@ -1253,7 +1253,7 @@
     .teacher-group small {
       display: block;
       color: var(--ink-soft);
-      font-size: 11px;
+      font-size: 12px;
     }
     .teacher-group .text-button {
       margin-top: 9px;
@@ -1329,7 +1329,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      font-size: 11px;
+      font-size: 12px;
       color: var(--accent-soft);
     }
     .teacher-guide strong {
@@ -1339,7 +1339,7 @@
       line-height: 1.1;
     }
     .teacher-guide strong > small {
-      font-size: 11px;
+      font-size: 12px;
       margin-left: 4px;
     }
     .teacher-guide > p {
@@ -1425,7 +1425,7 @@
       }
       .sensor-state {
         max-width: 80px;
-        font-size: 9px;
+        font-size: 12px;
       }
       .sensor-card h3 {
         font-size: 12px;
@@ -1434,7 +1434,8 @@
         font-size: 24px;
       }
       .sensor-card-bottom {
-        font-size: 8px;
+        font-size: 12px;
+        line-height: 1.5;
       }
       .sensor-icon {
         width: 31px;
@@ -1483,7 +1484,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .chart-tooltip {
-        font-size: 10px;
+        font-size: 12px;
         white-space: normal;
         text-align: center;
       }

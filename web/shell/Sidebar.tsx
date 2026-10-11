@@ -1,4 +1,4 @@
-import { Backdrop, Icon, type IconName } from "../brand/Graphics";
+import { Icon, type IconName } from "../brand/Graphics";
 import { useApp } from "../lib/context";
 import { useProgress } from "../lib/progress";
 import type { ThemePref } from "../lib/theme";
@@ -29,14 +29,19 @@ export const NAV: NavEntry[] = [
   { path: "/diagnostico", label: "Diagnóstico", icon: "stethoscope" },
 ];
 export const NAV_END: NavEntry[] = [
-  { path: "/profesor", label: "Espacio docente", icon: "school" },
+  {
+    path: "/profesor",
+    label: "Espacio docente",
+    icon: "school",
+    match: (route) => route === "/profesor" || route === "/docente",
+  },
 ];
 
 export const isActive = (entry: NavEntry, route: string) =>
   entry.match ? entry.match(route) : route === entry.path;
 
 /**
- * Barra lateral de bosque nocturno. En pantallas de trabajo puede plegarse
+ * Navegación serena y siempre visible. En pantallas de trabajo puede plegarse
  * a una franja de íconos para dejarle el ancho a la protoboard y al editor.
  */
 export function Sidebar({
@@ -90,12 +95,6 @@ export function Sidebar({
         className,
       )}
     >
-      <Backdrop
-        pattern="estrellas"
-        opacity={0.45}
-        className="-z-10"
-        seed={21}
-      />
       <div
         className={cx(
           "flex shrink-0 items-center gap-2 pb-5 pt-6",
@@ -122,10 +121,12 @@ export function Sidebar({
         {NAV.map(item)}
       </nav>
 
-      {!collapsed && (
-        <div className="mx-3.5 mt-5 shrink-0 rounded-lg border border-accent-soft/15 bg-primary-soft/35 p-4">
-          <p className="t-overline text-[10.5px] text-accent">
-            {app.guided ? "Ruta guiada · 60 min" : "Ruta libre · a tu ritmo"}
+      {!collapsed && app.session && (
+        <div className="mx-3.5 mt-5 shrink-0 border-t border-accent-soft/20 px-2 pt-5">
+          <p className="text-xs font-semibold text-accent-soft">
+            {app.guided
+              ? "Tu avance · ruta guiada"
+              : "Tu avance · ruta completa"}
           </p>
           <p className="mt-1 font-display text-[15px] font-bold leading-5 text-cream">
             {app.session
@@ -158,7 +159,7 @@ export function Sidebar({
                 ? go(next ? `/taller/${next.id}` : "/planta")
                 : app.openOnboarding()
             }
-            className="pressable focus-ring mt-3.5 flex min-h-11 w-full items-center gap-2 rounded-sm bg-primary px-3 py-2 text-left text-[13px] font-bold text-accent-soft hover:text-cream"
+            className="pressable focus-ring mt-2 flex min-h-11 w-full items-center gap-2 rounded-sm px-1 py-2 text-left text-[13px] font-bold text-accent hover:text-cream"
           >
             <span className="line-clamp-2 min-w-0 flex-1">
               {next
@@ -217,13 +218,10 @@ export function Sidebar({
             href="https://telematica.usm.cl/"
             target="_blank"
             rel="noreferrer"
-            className="focus-ring mt-2 flex items-center gap-2 rounded-sm px-3.5 py-1 text-xs font-semibold leading-4 text-accent-soft/85 hover:text-cream"
+            className="focus-ring mt-2 flex min-h-11 items-center gap-2 rounded-sm px-3.5 py-1 text-xs font-semibold leading-4 text-accent-soft hover:text-cream"
           >
             <span className="min-w-0 flex-1">
               Ingeniería Civil Telemática · USM
-              <span className="block text-[11px] font-semibold opacity-80">
-                Mismas redes, un mejor mañana.
-              </span>
             </span>
             <Icon name="external" size={14} />
           </a>

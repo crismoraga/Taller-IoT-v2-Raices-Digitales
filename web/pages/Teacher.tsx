@@ -4,8 +4,6 @@ import {
   LockKeyhole,
   ArrowRight,
   Radio,
-  Wifi,
-  WifiOff,
   CheckCircle2,
   Eye,
   Send,
@@ -58,6 +56,7 @@ export default function Teacher() {
     [password, setPassword] = useState(""),
     [groups, setGroups] = useState<Group[]>([]),
     [loading, setLoading] = useState(false),
+    [checkingAccess, setCheckingAccess] = useState(true),
     [detail, setDetail] = useState<Detail | null>(null),
     [botToken, setBotToken] = useState(""),
     [chatId, setChatId] = useState(""),
@@ -65,6 +64,7 @@ export default function Teacher() {
     [connectionIssue, setConnectionIssue] = useState("");
   const refreshing = useRef(false);
   const generation = useRef(0);
+  const chatEdited = useRef(false);
   const refresh = async () => {
     if (refreshing.current) return;
     refreshing.current = true;
@@ -90,29 +90,48 @@ export default function Teacher() {
       if (requestedGeneration !== generation.current) return;
       if (t) {
         setTelegram(t.configured);
-        if (t.chatId) setChatId(t.chatId);
+        if (t.chatId && !chatEdited.current) setChatId(t.chatId);
       }
     } catch (error) {
       if (requestedGeneration !== generation.current) return;
       if (error instanceof ApiError && [401, 403].includes(error.status)) {
+        setConnectionIssue("");
         setAuthed(false);
         setGroups([]);
         setDetail(null);
       } else {
-        setConnectionIssue("El servidor no está respondiendo. Conservamos la última consulta y volveremos a intentar; los datos pueden estar desactualizados.");
+        setConnectionIssue(
+          "El servidor no está respondiendo. Conservamos la última consulta y volveremos a intentar; los datos pueden estar desactualizados.",
+        );
       }
     } finally {
       refreshing.current = false;
+      setCheckingAccess(false);
     }
   };
   useEffect(() => {
     void refresh();
   }, []);
   useEffect(() => {
-    if (!authed) return;
+    if (!authed && !connectionIssue) return;
     const timer = setInterval(() => void refresh(), 5000);
     return () => clearInterval(timer);
-  }, [authed]);
+  }, [authed, connectionIssue]);
+  const showGroup = async (id: string) => {
+    const requestedGeneration = generation.current;
+    try {
+      const groupDetail = await api<Detail>(`/teacher/groups/${id}`);
+      if (requestedGeneration === generation.current) setDetail(groupDetail);
+    } catch (problem) {
+      if (requestedGeneration !== generation.current) return;
+      app.notify(
+        problem instanceof Error
+          ? problem.message
+          : "No se pudo consultar el grupo.",
+        true,
+      );
+    }
+  };
   const login = async () => {
     if (loading) return;
     setLoading(true);
@@ -135,6 +154,7 @@ export default function Teacher() {
       await post("/telegram", { token: botToken, chatId });
       setBotToken("");
       setTelegram(true);
+      chatEdited.current = false;
       app.notify(
         "Bot guardado de forma cifrada. Envía una prueba al chat de la clase.",
       );
@@ -144,12 +164,110 @@ export default function Teacher() {
       setLoading(false);
     }
   };
+  const stationNumbers = Array.from({ length: 10 }, (_, index) => index);
+  const occupiedStations = stationNumbers
+    .filter((index) => groups.some((group) => group.groupNumber === index + 1))
+    .sort(
+      (left, right) =>
+        Number(
+          groups.some(
+            (group) => group.groupNumber === right + 1 && group.online,
+          ),
+        ) -
+          Number(
+            groups.some(
+              (group) => group.groupNumber === left + 1 && group.online,
+            ),
+          ) ||
+        Number(
+          groups.some(
+            (group) => group.groupNumber === right + 1 && group.sensorIssues,
+          ),
+        ) -
+          Number(
+            groups.some(
+              (group) => group.groupNumber === left + 1 && group.sensorIssues,
+            ),
+          ) ||
+        left - right,
+    );
+  const availableStations = stationNumbers.filter(
+    (index) => !occupiedStations.includes(index),
+  );
+  const renderStation = (i: number) => {
+    const teams = groups
+      .filter((g) => g.groupNumber === i + 1)
+      .sort(
+        (left, right) =>
+          Number(!!right.online) - Number(!!left.online) ||
+          Number(!!right.sensorIssues) - Number(!!left.sensorIssues) ||
+          new Date(right.createdAt || 0).getTime() -
+            new Date(left.createdAt || 0).getTime(),
+      );
+    return (
+      <section className="teacher-group" key={i}>
+        <div className="teacher-group-head">
+          <span className="card-number">{String(i + 1).padStart(2, "0")}</span>
+          <Badge
+            tone={
+              teams.some((g) => g.sensorIssues)
+                ? "orange"
+                : teams.some((g) => g.online)
+                  ? "sage"
+                  : "neutral"
+            }
+          >
+            {teams.some((g) => g.sensorIssues)
+              ? "REVISAR SENSORES"
+              : teams.some((g) => g.online)
+                ? "EN LÍNEA"
+                : teams.length
+                  ? "SIN TELEMETRÍA"
+                  : "DISPONIBLE"}
+          </Badge>
+        </div>
+        {teams.length ? (
+          teams.map((g) => (
+            <div key={g.id}>
+              <h3>{g.name || `Equipo ${i + 1}`}</h3>
+              <div className="progress-track">
+                <div
+                  style={{
+                    width: `${(expressCount(g.progress) / Math.max(essentials.length, 1)) * 100}%`,
+                  }}
+                />
+              </div>
+              <small>
+                {expressCount(g.progress)} de {essentials.length} pasos guiados{" "}
+                {g.sensorIssues
+                  ? `· ${g.sensorIssues} sensores por revisar`
+                  : ""}
+              </small>
+              <button
+                className="text-button"
+                onClick={() => void showGroup(g.id)}
+              >
+                <Eye size={14} />
+                Ver grupo <ArrowRight size={13} />
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="group-unused">
+            <Radio size={23} />
+            <p>Esperando un equipo</p>
+            <small>El grupo elige esta estación al comenzar.</small>
+          </div>
+        )}
+      </section>
+    );
+  };
   return (
     <div className="teacher-page">
       <PageHeader
-        kicker="Espacio docente · acompaña el descubrimiento"
-        title="Diez equipos. Mil preguntas."
-        subtitle="Una mirada a todo el taller para dar la siguiente pista, resolver un cable suelto y celebrar cada descubrimiento."
+        kicker="Telemática USM · Espacio docente"
+        title="El taller, de un vistazo"
+        subtitle="Revisa el avance de cada grupo y acompaña a quien necesita ayuda."
         art={
           <Icon
             name="school"
@@ -161,7 +279,7 @@ export default function Teacher() {
         actions={
           authed ? (
             <Button
-              variant="hero"
+              variant="secondary"
               onClick={() => {
                 generation.current += 1;
                 void post("/teacher/logout", {})
@@ -181,7 +299,16 @@ export default function Teacher() {
           ) : undefined
         }
       />
-      {!authed ? (
+      {connectionIssue && (
+        <div role="status">
+          <Notice tone="warning">{connectionIssue}</Notice>
+        </div>
+      )}
+      {checkingAccess ? (
+        <p className="muted" role="status">
+          Comprobando tu acceso al panel docente…
+        </p>
+      ) : !authed ? (
         <section className="teacher-login">
           <span className="teacher-login-icon">
             <GraduationCap size={37} />
@@ -222,7 +349,6 @@ export default function Teacher() {
         </section>
       ) : (
         <>
-          {connectionIssue && <Notice tone="warning">{connectionIssue}</Notice>}
           <div className="teacher-stats">
             <div>
               <strong>{groups.length}</strong>
@@ -238,78 +364,41 @@ export default function Teacher() {
             </div>
             <div>
               <strong>
-                60<span>min</span>
+                {
+                  groups.filter(
+                    (group) =>
+                      expressCount(group.progress) === essentials.length,
+                  ).length
+                }
               </strong>
-              <span>un recorrido guiado</span>
+              <span>grupos con el recorrido completo</span>
             </div>
           </div>
           <div className="teacher-group-grid">
-            {Array.from({ length: 10 }, (_, i) => {
-              const teams = groups.filter((g) => g.groupNumber === i + 1);
-              return (
-                <section className="teacher-group" key={i}>
-                  <div className="teacher-group-head">
-                    <span className="card-number">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <Badge
-                      tone={teams.some((g) => g.online) ? "sage" : "neutral"}
-                    >
-                      {teams.some((g) => g.online)
-                        ? "EN LÍNEA"
-                        : teams.length
-                          ? "SIN TELEMETRÍA"
-                          : "DISPONIBLE"}
-                    </Badge>
-                  </div>
-                  {teams.length ? (
-                    teams.map((g) => (
-                      <div key={g.id}>
-                        <h3>{g.name || `Equipo ${i + 1}`}</h3>
-                        <div className="progress-track">
-                          <div
-                            style={{
-                              width: `${(expressCount(g.progress) / Math.max(essentials.length, 1)) * 100}%`,
-                            }}
-                          />
-                        </div>
-                        <small>
-                          {Array.isArray(g.progress)
-                            ? g.progress.length
-                            : g.progress}{" "}
-                          actividades registradas{" "}
-                          {g.sensorIssues
-                            ? `· ${g.sensorIssues} sensores por revisar`
-                            : ""}
-                        </small>
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            void api<Detail>(`/teacher/groups/${g.id}`)
-                              .then(setDetail)
-                              .catch((e) => app.notify(e.message, true))
-                          }
-                        >
-                          <Eye size={14} />
-                          Ver en modo lectura <ArrowRight size={13} />
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="group-unused">
-                      <Radio size={23} />
-                      <p>Esperando un equipo</p>
-                      <small>El grupo elige esta estación al comenzar.</small>
-                    </div>
-                  )}
-                </section>
-              );
-            })}
+            {occupiedStations.map(renderStation)}
           </div>
-          <section className="teacher-telegram settings-card">
+          {!groups.length && (
+            <Notice>
+              Los grupos aparecerán aquí cuando creen su estación.
+            </Notice>
+          )}
+          {!!availableStations.length && (
+            <details className="simple-details settings-card">
+              <summary>
+                Estaciones disponibles ({availableStations.length})
+              </summary>
+              <div className="teacher-group-grid">
+                {availableStations.map(renderStation)}
+              </div>
+            </details>
+          )}
+          <details className="teacher-telegram settings-card simple-details">
+            <summary>
+              Avisos de Telegram · {telegram ? "configurados" : "opcional"}
+            </summary>
             <div className="settings-card-title">
               <Send size={21} />
-              <h3>De un umbral a un aviso en la clase.</h3>
+              <h3>Avisos para la clase</h3>
               <Badge tone={telegram ? "sage" : "neutral"}>
                 {telegram ? "BOT CONFIGURADO" : "TELEGRAM"}
               </Badge>
@@ -366,7 +455,10 @@ export default function Teacher() {
                   ID del chat de clase
                   <input
                     value={chatId}
-                    onChange={(e) => setChatId(e.target.value)}
+                    onChange={(e) => {
+                      chatEdited.current = true;
+                      setChatId(e.target.value);
+                    }}
                     required
                     placeholder="Por ejemplo, -1001234567890"
                   />
@@ -390,9 +482,10 @@ export default function Teacher() {
                 </Button>
               </form>
             </div>
-          </section>
-          <section className="teacher-guide">
-            <h2>Una hora para construir una idea.</h2>
+          </details>
+          <details className="teacher-guide simple-details">
+            <summary>Ritmo sugerido · 60 minutos</summary>
+            <h2>Conecta, programa y prueba</h2>
             <div>
               {[
                 ["05", "Conoce tu estación"],
@@ -423,10 +516,10 @@ export default function Teacher() {
               <Download size={15} />
               Guía del docente
             </Button>
-          </section>
+          </details>
         </>
       )}
-      {detail && (
+      {authed && detail && (
         <Modal
           title={`${detail.session.name || "Equipo"} · modo lectura`}
           onClose={() => setDetail(null)}
@@ -460,6 +553,9 @@ export default function Teacher() {
             </p>
           )}
           <h3>Últimos avisos</h3>
+          {!detail.alerts.length && (
+            <p className="muted">Sin avisos registrados.</p>
+          )}
           {detail.alerts.slice(0, 5).map((a) => (
             <p key={a.id}>{a.message}</p>
           ))}

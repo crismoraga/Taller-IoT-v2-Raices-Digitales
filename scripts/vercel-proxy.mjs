@@ -226,8 +226,15 @@ export function createWorkshopProxy({
     };
     req.once("aborted", disconnect);
     res.once("close", disconnect);
+    let routing;
+    const invalidateRouting = () => {
+      if (routing && routingCache === routing.entry) {
+        routingCache = undefined;
+        forceMainRestart = true;
+      }
+    };
     try {
-      const routing = await lookupRouting();
+      routing = await lookupRouting();
       if (controller.signal.aborted) return;
       const body = requestBody(req);
       const upstream = await fetchImpl(`${routing.origin}${target}`, {
@@ -242,12 +249,6 @@ export function createWorkshopProxy({
         await upstream.body?.cancel();
         return;
       }
-      const invalidateRouting = () => {
-        if (routingCache === routing.entry) {
-          routingCache = undefined;
-          forceMainRestart = true;
-        }
-      };
       if (
         upstream.status === 502 &&
         (upstream.headers.get("x-vercel-error") || "").includes(
@@ -310,12 +311,16 @@ export function createWorkshopProxy({
         }
       }
     } catch {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        // A VM can stop between lookup and fetch without returning an HTTP error.
+        // Refresh it for the next request, while never replaying a student's write.
+        invalidateRouting();
         jsonError(
           res,
           503,
           "El servicio del taller no está disponible. Inténtalo nuevamente.",
         );
+      }
     } finally {
       clearTimeout(timer);
       req.off("aborted", disconnect);

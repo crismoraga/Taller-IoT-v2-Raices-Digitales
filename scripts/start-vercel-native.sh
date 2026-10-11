@@ -23,6 +23,7 @@ fi
 origin_changed=0
 if node --input-type=module - "$compiler_origin" "$env_file" "$origin_file" "$pid_file" <<'NODE'
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { parseEnv } from 'node:util';
 try {
   const [input, path, originPath, pidPath] = process.argv.slice(2);
@@ -45,7 +46,9 @@ try {
   let started;
   let pid;
   try { started = JSON.parse(readFileSync(originPath, 'utf8')); pid = readFileSync(pidPath, 'utf8').trim(); } catch {}
-  if (started?.origin !== url.origin || started?.pid !== pid) process.exitCode = 10;
+  const configurationHash = createHash('sha256').update(readFileSync(path)).digest('hex');
+  if (started?.origin !== url.origin || started?.pid !== pid ||
+      started?.configurationHash !== configurationHash) process.exitCode = 10;
 } catch {
   console.error('The compiler URL must be a valid HTTPS vercel.run origin, and the private configuration must be readable.');
   process.exitCode = 1;
@@ -94,10 +97,12 @@ if ! managed_process; then
   printf '%s\n' "$!" >"$pid_file"
   node --input-type=module - "$env_file" "$origin_file" "$pid_file" <<'NODE'
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { parseEnv } from 'node:util';
 writeFileSync(process.argv[3], JSON.stringify({
   pid: readFileSync(process.argv[4], 'utf8').trim(),
   origin: parseEnv(readFileSync(process.argv[2], 'utf8')).ARDUINO_SERVICE_URL,
+  configurationHash: createHash('sha256').update(readFileSync(process.argv[2])).digest('hex'),
 }) + '\n', { mode: 0o600 });
 NODE
 fi

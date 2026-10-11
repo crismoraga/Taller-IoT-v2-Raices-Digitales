@@ -258,7 +258,7 @@
   font-weight: 700;
   font-size: 0.75rem;
   line-height: 1rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 @utility t-number {
@@ -306,7 +306,7 @@
   font-variant-ligatures: none;
 }
 
-/* Bosque nocturno: la escena conserva el mismo contraste en ambos temas. */
+/* Azul noche: la escena conserva el mismo contraste en ambos temas. */
 @utility bg-night {
   background-image: linear-gradient(
     145deg,
@@ -325,7 +325,7 @@
     box-shadow: 0 0 0 4px var(--accent);
   }
 }
-/* Presionar encoge a 0,96 con resorte (regla de movimiento de la marca). */
+/* La respuesta al presionar es leve para conservar la legibilidad. */
 @utility pressable {
   transition:
     transform var(--duration-fast) var(--curve-spring),
@@ -335,7 +335,7 @@
     color var(--duration-fast) ease,
     opacity var(--duration-fast) ease;
   &:active:not(:disabled) {
-    transform: scale(0.96);
+    transform: scale(0.98);
   }
 }
 @utility scrollbar-thin {
@@ -439,179 +439,195 @@
   .legacy-page .notice.error > svg {
     color: var(--danger-ink);
   }
-  .living-hero {
-    border: 1px solid color-mix(in srgb, var(--accent-soft) 18%, transparent);
-    box-shadow: var(--elev-card);
-  }
-  .living-hero-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .living-hero-copy {
-    padding: clamp(1.5rem, 3vw, 3rem);
-    position: relative;
-    z-index: 2;
-  }
-  .living-hero-title {
-    font-family: var(--font-display);
-    font-weight: 850;
-    font-size: clamp(2.9rem, 4.3vw, 4.7rem);
-    letter-spacing: -0.055em;
-    line-height: 1.025;
-    text-wrap: initial;
-  }
-  .living-hero-scene {
-    min-width: 0;
-    min-height: 420px;
-    position: relative;
-    isolation: isolate;
-    padding-top: 2.8rem;
-    background: radial-gradient(
-      ellipse at 50% 48%,
-      rgba(110, 170, 89, 0.15),
-      transparent 64%
-    );
-  }
-  .living-scene-heading {
-    position: absolute;
-    inset: 1.5rem 1.5rem auto;
-    z-index: 3;
+  .workshop-welcome {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-  .living-station-view {
-    height: 100%;
-    min-height: 390px;
-  }
-  .scene-loading {
-    min-height: 390px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    color: var(--accent-soft);
-    font-size: 0.875rem;
-  }
-  .signal-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 65%, transparent);
-  }
-  .living-chain {
-    border-top: 1px solid
-      color-mix(in srgb, var(--accent-soft) 16%, transparent);
-    background: color-mix(in srgb, var(--accent-soft) 12%, transparent);
-  }
-  .moment-card {
-    display: flex;
+    gap: 1.5rem;
     position: relative;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-    min-height: 124px;
     overflow: hidden;
-    padding: 1.25rem;
-    border: 1px solid var(--border);
     border-radius: 20px;
-    background: var(--surface);
-    text-align: left;
+    padding: clamp(1.35rem, 3vw, 2.25rem);
   }
-  .moment-card:hover {
-    border-color: var(--ink-accent);
-    box-shadow: var(--elev-soft);
-  }
-  .moment-number {
-    align-self: flex-start;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--ink-soft);
-    border-top: 2px solid var(--ink-accent);
-    padding-top: 0.4rem;
-  }
-  .moment-content {
+  .workshop-welcome-copy {
     flex: 1;
     min-width: 0;
   }
-  .moment-icon {
-    color: var(--ink-accent);
-    opacity: 0.8;
+  .workshop-welcome-title {
+    font-family: var(--font-display);
+    max-width: 15ch;
+    margin-top: 0.8rem;
+    font-size: clamp(1.8rem, 3.1vw, 2.8rem);
+    font-weight: 750;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+    text-wrap: pretty;
   }
-  .moment-card:nth-child(2) .moment-number {
-    border-color: var(--terracotta);
+  .workshop-welcome-art {
+    flex: 0 0 170px;
+    width: 170px;
+    height: auto;
   }
-  .moment-card:nth-child(3) .moment-number {
-    border-color: var(--info);
+  .home-disclosure {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
   }
-  .route-status {
+  .home-disclosure-summary {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    padding: 0.9rem 1rem;
-    border-block: 1px solid var(--border);
+    gap: 0.75rem;
+    min-height: 60px;
+    padding: 0.85rem 1rem;
+    color: var(--ink);
+    font-size: 0.9375rem;
+    font-weight: 700;
   }
-  .lesson-route-card {
-    position: relative;
+  .home-disclosure-summary:hover {
+    background: var(--surface-alt);
+  }
+  .home-disclosure-summary svg {
+    flex-shrink: 0;
+  }
+  .home-disclosure[open] > summary .disclosure-chevron {
+    transform: rotate(180deg);
+  }
+  .home-preparation > section {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--border);
+  }
+  .home-preparation h2 {
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+  .home-route {
     overflow: hidden;
-    min-height: 235px;
-    transition:
-      border-color 180ms ease,
-      box-shadow 180ms ease,
-      transform 240ms var(--curve-out);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
   }
-  .lesson-route-card:hover {
-    transform: translateY(-3px);
+  .home-route > li + li {
+    border-top: 1px solid var(--border);
   }
-  .route-card-number {
+  .home-lesson {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 88px;
+    gap: 1rem;
+    padding: 1rem;
+    text-align: left;
+    transition: background 160ms ease;
+  }
+  .home-lesson:hover {
+    background: var(--surface-alt);
+  }
+  .home-lesson-current {
+    box-shadow: inset 3px 0 0 var(--ink-accent);
+  }
+  .home-lesson-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--surface-alt);
     font-family: var(--font-mono);
-    font-size: 1.2rem;
-    font-weight: 500;
-    letter-spacing: -0.06em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ink-soft);
   }
-  @media (min-width: 1100px) {
-    .living-hero-grid {
-      grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+  .home-lesson-current .home-lesson-number {
+    background: var(--highlight);
+    color: var(--ink-accent);
+  }
+  .home-lesson-done {
+    background: var(--success-soft);
+    color: var(--success-ink);
+  }
+  .home-lesson-state {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+  }
+  .home-stage-route {
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+  }
+  .home-optional-scene {
+    padding-bottom: 0.75rem;
+  }
+  .home-optional-scene .living-station-view {
+    height: 390px;
+    min-height: 390px;
+  }
+  .scene-loading {
+    min-height: 250px;
+    display: grid;
+    place-items: center;
+    color: var(--on-dark);
+  }
+  .home-utilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+  }
+  .home-utilities button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 8px;
+    color: var(--ink-accent);
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+  .home-utilities button:hover {
+    background: var(--highlight);
+  }
+  @media (max-width: 767px) {
+    .workshop-welcome-art {
+      display: none;
     }
-    .living-hero-scene {
-      border-left: 1px solid
-        color-mix(in srgb, var(--accent-soft) 10%, transparent);
+    .workshop-welcome-title {
+      max-width: 17ch;
     }
-    .living-station-view {
-      min-height: 480px;
+    .home-lesson {
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .home-lesson-state {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
     }
   }
-  @media (max-width: 639px) {
-    .living-hero-title {
-      font-size: clamp(2.65rem, 11vw, 3.8rem);
+  @media (max-width: 479px) {
+    .home-lesson {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 0.5rem 0.65rem;
     }
-    .living-hero-scene {
-      min-height: 355px;
-      padding-top: 2rem;
+    .home-lesson-number {
+      width: 32px;
+      height: 32px;
     }
-    .living-scene-heading {
-      inset: 0.7rem 1rem auto;
+    .home-lesson-state {
+      grid-column: 2;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
     }
-    .living-scene-heading .t-overline {
-      font-size: 10px;
-    }
-    .living-station-view,
-    .scene-loading {
-      min-height: 330px;
-    }
-    .moment-card {
-      min-height: 106px;
-    }
-    .moment-icon {
-      margin-left: auto;
-    }
-    .route-status > :last-child {
-      flex-basis: 100%;
+    .home-optional-scene .living-station-view {
+      height: 340px;
+      min-height: 340px;
     }
   }
 

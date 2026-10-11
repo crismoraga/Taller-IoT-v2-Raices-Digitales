@@ -1,11 +1,13 @@
 import {
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
   Box,
   Pause,
@@ -13,6 +15,7 @@ import {
   RotateCcw,
   ScanLine,
   Sparkles,
+  Crosshair,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -25,8 +28,12 @@ import {
   describePoint,
   isPoint,
   pointXY,
+  shortPoint,
+  stripOf,
   type RailName,
 } from "../circuit/breadboard";
+import { BreadboardView } from "../circuit/BreadboardView";
+import { layoutCallouts } from "../circuit/calloutLayout";
 import {
   bodyOutline,
   endpointXY,
@@ -41,7 +48,7 @@ import {
   type Wire,
 } from "../circuit/model";
 import { partDef } from "../circuit/parts";
-import { PICO_PINS } from "../circuit/pico";
+import { PICO_PINS, picoPinForStrip } from "../circuit/pico";
 import {
   BoardText,
   CylinderBetween,
@@ -628,7 +635,7 @@ function Connection({
         points={points}
         radius={active ? 0.029 : 0.022}
         color={WIRE_HEX[wire.color]}
-        opacity={active ? 1 : 0.6}
+        opacity={active ? 1 : 0.38}
       />
       {flow && active && (
         <MovingSignal
@@ -660,14 +667,191 @@ function TerminalMarker({
   return (
     <group>
       <mesh position={pos} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.052, 0.072, 22]} />
-        <meshBasicMaterial color="#b8a024" side={THREE.DoubleSide} />
+        <ringGeometry args={[0.056, 0.085, 22]} />
+        <meshBasicMaterial
+          color="#1673a5"
+          side={THREE.DoubleSide}
+          depthTest={false}
+        />
       </mesh>
-      <Html position={[pos[0], 0.48, pos[2]]} center zIndexRange={[3, 0]}>
-        <span className="rdx-hole-tag">{endpoint}</span>
-      </Html>
     </group>
   );
+}
+
+/** Keep labels readable in screen space even when neighbouring pins overlap in perspective. */
+function TerminalLabels({
+  endpoints,
+  circuit,
+  cable,
+}: {
+  endpoints: string[];
+  circuit: Circuit;
+  cable: boolean;
+}) {
+  const { camera, size } = useThree();
+  const points = useMemo(
+    () =>
+      endpoints.map((endpoint, index) => {
+        const at = endpointXY(circuit, endpoint);
+        const pin = isPoint(endpoint)
+          ? picoPinForStrip(stripOf(endpoint))
+          : undefined;
+        const label = isPoint(endpoint)
+          ? shortPoint(endpoint)
+          : (endpoint.split(".").at(-1) ?? endpoint);
+        return {
+          endpoint,
+          point: new THREE.Vector3(...position(at, 0.18)),
+          label: cable ? `${index === 0 ? "A" : "B"} · ${label}` : label,
+          sub: pin ? `${pin.name} · pin ${pin.physical}` : undefined,
+        };
+      }),
+    [endpoints.join("|"), circuit, cable],
+  );
+  const [screen, setScreen] = useState<
+    { x: number; y: number; visible: boolean }[]
+  >([]);
+  const [origin, setOrigin] = useState({ x: 0, y: 0 });
+  useFrame(() => {
+    const projected = points.map(({ point }) => {
+      const clip = point.clone().project(camera);
+      return {
+        x: ((clip.x + 1) * size.width) / 2,
+        y: ((1 - clip.y) * size.height) / 2,
+        visible:
+          Math.abs(clip.x) <= 1 &&
+          Math.abs(clip.y) <= 1 &&
+          Math.abs(clip.z) <= 1,
+      };
+    });
+    setScreen((previous) =>
+      previous.length === projected.length &&
+      previous.every(
+        (point, index) =>
+          Math.abs(point.x - projected[index].x) < 0.25 &&
+          Math.abs(point.y - projected[index].y) < 0.25 &&
+          point.visible === projected[index].visible,
+      )
+        ? previous
+        : projected,
+    );
+    const clip = new THREE.Vector3().project(camera);
+    const nextOrigin = {
+      x: ((clip.x + 1) * size.width) / 2,
+      y: ((1 - clip.y) * size.height) / 2,
+    };
+    setOrigin((previous) =>
+      Math.abs(previous.x - nextOrigin.x) < 0.25 &&
+      Math.abs(previous.y - nextOrigin.y) < 0.25
+        ? previous
+        : nextOrigin,
+    );
+  });
+  const labels = points.flatMap((point, index) =>
+    screen[index]?.visible ? [{ ...point, ...screen[index] }] : [],
+  );
+  const boxes = layoutCallouts(
+    labels.map((label) => ({
+      x: label.x,
+      y: label.y,
+      width: Math.max(
+        64,
+        label.label.length * 7.5 + 20,
+        (label.sub?.length ?? 0) * 6.7 + 20,
+      ),
+      height: label.sub ? 42 : 28,
+      side: label.y < size.height / 2 ? -1 : 1,
+    })),
+    size.width,
+    size.height,
+  );
+  return (
+    <Html position={[0, 0, 0]} zIndexRange={[3, 0]}>
+      <svg
+        className="rdx-terminal-overlay"
+        width={size.width}
+        height={size.height}
+        style={{ left: -origin.x, top: -origin.y }}
+        aria-hidden="true"
+      >
+        {labels.map((label, index) => {
+          const box = boxes[index];
+          const edgeY = label.y < box.y ? box.y : box.y + box.height;
+          return (
+            <g key={label.endpoint}>
+              <line
+                x1={label.x}
+                y1={label.y}
+                x2={box.x + box.width / 2}
+                y2={edgeY}
+                stroke="#fff9e9"
+                strokeWidth={4}
+              />
+              <line
+                x1={label.x}
+                y1={label.y}
+                x2={box.x + box.width / 2}
+                y2={edgeY}
+                stroke="#12364d"
+                strokeWidth={1.5}
+              />
+              <circle
+                cx={label.x}
+                cy={label.y}
+                r={6}
+                fill="none"
+                stroke="#12364d"
+                strokeWidth={2}
+              />
+              <rect
+                x={box.x}
+                y={box.y}
+                width={box.width}
+                height={box.height}
+                rx={6}
+                fill="#fff9e9"
+                stroke="#12364d"
+                strokeWidth={1.5}
+              />
+              <text
+                x={box.x + box.width / 2}
+                y={box.y + 18}
+                textAnchor="middle"
+                fill="#12364d"
+                fontSize={12}
+                fontWeight={800}
+              >
+                {label.label}
+              </text>
+              {label.sub && (
+                <text
+                  x={box.x + box.width / 2}
+                  y={box.y + 33}
+                  textAnchor="middle"
+                  fill="#1e5b7f"
+                  fontSize={11}
+                  fontWeight={700}
+                >
+                  {label.sub}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </Html>
+  );
+}
+
+function Activate2DFallback({ activate }: { activate: () => void }) {
+  const marker = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    // Canvas mounts its alternative DOM content even when WebGL is supported.
+    // Only SafeCanvas's actual unsupported/lost/error branch places it outside
+    // the canvas; that is the point at which the 2D diagram should take over.
+    if (marker.current && !marker.current.closest("canvas")) activate();
+  }, [activate]);
+  return <span ref={marker} hidden />;
 }
 
 function CircuitWorld({
@@ -708,7 +892,7 @@ function CircuitWorld({
     mode === "all"
       ? circuit.parts
       : circuit.parts.filter((part) => partIds.has(part.id));
-  const terminals = [
+  const actionTerminals = [
     ...new Set([
       ...visibleWires
         .filter((wire) => activeWires.has(wire.id))
@@ -716,9 +900,11 @@ function CircuitWorld({
       ...visibleParts
         .filter((part) => activeParts.has(part.id))
         .flatMap((part) => Object.values(part.holes ?? {})),
-      ...(step?.focus ?? []),
     ]),
   ];
+  const terminals = actionTerminals.length
+    ? actionTerminals
+    : [...new Set(step?.focus ?? [])];
   return (
     <>
       <ambientLight intensity={1.75} />
@@ -773,6 +959,13 @@ function CircuitWorld({
             circuit={circuit}
           />
         ))}
+      {mode === "step" && (
+        <TerminalLabels
+          endpoints={terminals}
+          circuit={circuit}
+          cable={activeWires.size === 1}
+        />
+      )}
       <SceneCamera
         action={action}
         target={target}
@@ -803,6 +996,10 @@ export function CircuitExperience({
   const [flow, setFlow] = useState(false),
     [paused, setPaused] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [fallback2D, setFallback2D] = useState(false);
+  const activateFallback = useCallback(() => setFallback2D(true), []);
+  const [overview, setOverview] = useState(false);
   const [action, setAction] = useState<CameraAction>({
     type: "reset",
     sequence: 0,
@@ -813,7 +1010,7 @@ export function CircuitExperience({
     Math.min(circuit.steps.length - 1, activeStep),
   );
   const step = circuit.steps[stepIndex];
-  const bounds = useMemo<SceneBounds>(() => {
+  const fullBounds = useMemo<SceneBounds>(() => {
     // Keep the complete physical board in view, including its unused half.
     // Bounds also cover modules placed outside the board, throughout all steps.
     const points: V3[] = [
@@ -854,18 +1051,74 @@ export function CircuitExperience({
       ],
     };
   }, [circuit]);
+  const bounds = useMemo<SceneBounds>(() => {
+    if (overview || mode === "all" || !step) return fullBounds;
+    const points: V3[] = [];
+    for (const wire of circuit.wires.filter((item) =>
+      step.wires?.includes(item.id),
+    ))
+      points.push(
+        position(endpointXY(circuit, wire.from)),
+        position(endpointXY(circuit, wire.to)),
+      );
+    for (const part of circuit.parts.filter((item) =>
+      step.parts?.includes(item.id),
+    )) {
+      for (const hole of Object.values(part.holes ?? {}))
+        points.push(atHole(hole));
+      const box = moduleBox(part);
+      if (!part.holes)
+        points.push(
+          position({ x: box.x, y: box.y }),
+          position({ x: box.x + box.w, y: box.y + box.h }),
+        );
+      for (const outline of bodyOutline(part)) {
+        if (outline.kind === "circle")
+          points.push(
+            position({ x: outline.cx - outline.r, y: outline.cy - outline.r }),
+            position({ x: outline.cx + outline.r, y: outline.cy + outline.r }),
+          );
+        else
+          points.push(
+            position({ x: outline.x, y: outline.y }),
+            position({ x: outline.x + outline.w, y: outline.y + outline.h }),
+          );
+      }
+    }
+    if (!points.length)
+      for (const hole of step.focus ?? []) points.push(atHole(hole));
+    if (!points.length) return fullBounds;
+    return {
+      min: [
+        Math.min(...points.map((point) => point[0])) - 0.65,
+        -0.13,
+        Math.min(...points.map((point) => point[2])) - 0.55,
+      ],
+      max: [
+        Math.max(...points.map((point) => point[0])) + 0.65,
+        1.1,
+        Math.max(...points.map((point) => point[2])) + 0.55,
+      ],
+    };
+  }, [circuit, step, fullBounds, overview, mode]);
   const target = useMemo<V3>(
     () =>
       bounds.min.map((value, index) => (value + bounds.max[index]) / 2) as V3,
     [bounds],
   );
   const home = useMemo<V3>(
-    () => [target[0] + 1, target[1] + 8, target[2] + 6.5],
+    () => [target[0] + 0.4, target[1] + 8, target[2] + 4.8],
     [target],
   );
   useEffect(() => {
     setSelection(null);
+    setInspectorOpen(false);
+    setOverview(false);
+    setAction((current) => ({ type: "reset", sequence: current.sequence + 1 }));
   }, [circuit.id, stepIndex]);
+  useEffect(() => {
+    if (selection) setInspectorOpen(true);
+  }, [selection]);
   useEffect(() => {
     setAction((current) => ({ type: "reset", sequence: current.sequence + 1 }));
   }, [circuit.id]);
@@ -885,6 +1138,25 @@ export function CircuitExperience({
       : circuit.wires.filter((wire) =>
           visibleSteps.some((entry) => entry.wires?.includes(wire.id)),
         );
+  if (fallback2D)
+    return (
+      <section
+        className={`rdx-circuit ${className}`}
+        aria-label={`Plano 2D de ${circuit.title}`}
+      >
+        <p className="rdx-circuit-fallback-note" role="status">
+          Este navegador no dispone de WebGL. Vista 2D activa.
+        </p>
+        <div className="rdx-circuit-canvas">
+          <BreadboardView
+            circuit={circuit}
+            stepIndex={stepIndex}
+            complete={mode === "all"}
+            description={step ? `${step.title}. ${step.detail}` : undefined}
+          />
+        </div>
+      </section>
+    );
   return (
     <section
       ref={reference}
@@ -895,27 +1167,21 @@ export function CircuitExperience({
         <span>
           <Box size={15} /> Montaje 3D
         </span>
-        <small>Arrastra para girar · rueda para acercar</small>
+        <small>Arrastra para girar · pellizca para acercar</small>
       </div>
       <div className="rdx-circuit-canvas">
         <SafeCanvas
           dpr={[1, 1.5]}
           frameloop={
-            flow && !paused && !reduced && active ? "always" : "demand"
+            !active
+              ? "never"
+              : flow && !paused && !reduced
+                ? "always"
+                : "demand"
           }
           camera={{ position: home, fov: 40 }}
           gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
-          fallback={
-            <div className="rdx-fallback rdx-fallback--light">
-              <Box size={42} />
-              <strong>Usa el plano 2D para conectar</strong>
-              <p>
-                Este navegador no dispone de WebGL. El modelo 3D es opcional:
-                las coordenadas, instrucciones y vista 2D muestran las mismas
-                conexiones.
-              </p>
-            </div>
-          }
+          fallback={<Activate2DFallback activate={activateFallback} />}
         >
           <Suspense fallback={null}>
             <CircuitWorld
@@ -937,126 +1203,164 @@ export function CircuitExperience({
         className="rdx-circuit-controls"
         aria-label="Controles del montaje 3D"
       >
-        <button onClick={() => camera("top")}>
+        {mode === "step" && step && (
+          <button
+            type="button"
+            onClick={() => {
+              setOverview(false);
+              camera("reset");
+            }}
+            aria-pressed={!overview}
+          >
+            <Crosshair size={16} /> Este paso
+          </button>
+        )}
+        <button type="button" onClick={() => camera("top")}>
           <ScanLine size={16} />
           Vista superior
         </button>
         <button
-          onClick={() => camera("reset")}
-          aria-label="Restablecer vista del montaje"
+          type="button"
+          onClick={() => {
+            setOverview(true);
+            camera("reset");
+          }}
+          aria-label="Ver todo el montaje 3D"
+          title="Ver todo el montaje"
         >
           <RotateCcw size={16} />
         </button>
-        <button onClick={() => camera("zoom-in")} aria-label="Acercar montaje">
+        <button
+          type="button"
+          onClick={() => camera("zoom-in")}
+          aria-label="Acercar montaje"
+        >
           <ZoomIn size={16} />
         </button>
-        <button onClick={() => camera("zoom-out")} aria-label="Alejar montaje">
+        <button
+          type="button"
+          onClick={() => camera("zoom-out")}
+          aria-label="Alejar montaje"
+        >
           <ZoomOut size={16} />
         </button>
-        <button
-          className="rdx-flow-toggle"
-          onClick={() => setFlow((value) => !value)}
-          aria-pressed={flow}
-        >
-          <Sparkles size={15} />
-          <span>Recorrido ilustrativo</span>
-        </button>
-        {flow && (
-          <button
-            onClick={() => setPaused((value) => !value)}
-            disabled={reduced}
-            aria-label={paused ? "Reanudar recorrido" : "Pausar recorrido"}
-          >
-            {paused || reduced ? <Play size={16} /> : <Pause size={16} />}
-          </button>
-        )}
       </div>
-      <div className="rdx-circuit-inspector">
-        <label htmlFor={`inspect-${circuit.id}`}>
-          Explora una pieza o un cable
-        </label>
-        <select
-          id={`inspect-${circuit.id}`}
-          value=""
-          onChange={(event) => {
-            const value = event.target.value;
-            const part = visibleParts.find(
-              (candidate) => `part:${candidate.id}` === value,
-            );
-            if (part) {
-              const definition = partDef(part);
-              setSelection({
-                title: part.label,
-                text: definition.about,
-                detail: definition.orientation,
-                terminals: Object.entries(part.holes ?? {}).map(
-                  ([pin, hole]) => `${pin} → ${hole}`,
-                ),
-              });
-            }
-            const wire = visibleWires.find(
-              (candidate) => `wire:${candidate.id}` === value,
-            );
-            if (wire)
-              setSelection({
-                title: `Cable ${wire.color} · ${wire.carries}`,
-                text: `Une ${wire.from} con ${wire.to}.`,
-                terminals: [wire.from, wire.to],
-              });
-          }}
-        >
-          <option value="">Selecciona o toca el modelo</option>
-          <optgroup label="Piezas">
-            {visibleParts.map((part) => (
-              <option key={part.id} value={`part:${part.id}`}>
-                {part.label}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Cables">
-            {visibleWires.map((wire) => (
-              <option key={wire.id} value={`wire:${wire.id}`}>
-                {wire.color}: {wire.from} → {wire.to} · {wire.carries}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-        <div className="rdx-inspect-description" aria-live="polite">
-          <strong>
-            {selection?.title ??
-              (mode === "step"
-                ? (step?.title ?? "Antes de cablear")
-                : circuit.title)}
-          </strong>
-          <p>
-            {selection?.text ??
-              (mode === "step"
-                ? (step?.detail ??
-                  "Desconecta USB y otras fuentes. Prepara las piezas y sigue el primer paso antes de conectar.")
-                : "Gira el montaje y selecciona cualquier pieza. Todas las conexiones provienen del mismo plano que la vista 2D.")}
-          </p>
-          {selection?.detail && <p>{selection.detail}</p>}
-          {selection?.terminals && (
-            <div className="rdx-terminal-list">
-              {selection.terminals.map((terminal) => (
-                <span
-                  key={terminal}
-                  title={
-                    isPoint(terminal) ? describePoint(terminal) : undefined
-                  }
-                >
-                  {terminal}
-                </span>
-              ))}
-            </div>
+      <details
+        className="rdx-circuit-details"
+        open={inspectorOpen}
+        onToggle={(event) => {
+          setInspectorOpen(event.currentTarget.open);
+          if (!event.currentTarget.open) setFlow(false);
+        }}
+      >
+        <summary>Explorar piezas y conexiones</summary>
+        <div className="rdx-circuit-controls rdx-circuit-controls--extras">
+          <button
+            type="button"
+            className="rdx-flow-toggle"
+            onClick={() => setFlow((value) => !value)}
+            aria-pressed={flow}
+          >
+            <Sparkles size={15} />
+            <span>Recorrido ilustrativo</span>
+          </button>
+          {flow && (
+            <button
+              onClick={() => setPaused((value) => !value)}
+              disabled={reduced}
+              aria-label={paused ? "Reanudar recorrido" : "Pausar recorrido"}
+            >
+              {paused || reduced ? <Play size={16} /> : <Pause size={16} />}
+            </button>
           )}
         </div>
-      </div>
-      <p className="rdx-circuit-note">
-        {flow
-          ? "El brillo y los puntos animados explican el recorrido; no confirman que tu placa esté encendida ni representan mediciones reales."
-          : "Modelo educativo · agujeros y terminales coinciden con el plano 2D. Comprueba las marcas de tu pieza antes de conectarla."}
-      </p>
+        <div className="rdx-circuit-inspector">
+          <label htmlFor={`inspect-${circuit.id}`}>
+            Explora una pieza o un cable
+          </label>
+          <select
+            id={`inspect-${circuit.id}`}
+            value=""
+            onChange={(event) => {
+              const value = event.target.value;
+              const part = visibleParts.find(
+                (candidate) => `part:${candidate.id}` === value,
+              );
+              if (part) {
+                const definition = partDef(part);
+                setSelection({
+                  title: part.label,
+                  text: definition.about,
+                  detail: definition.orientation,
+                  terminals: Object.entries(part.holes ?? {}).map(
+                    ([pin, hole]) => `${pin} → ${hole}`,
+                  ),
+                });
+              }
+              const wire = visibleWires.find(
+                (candidate) => `wire:${candidate.id}` === value,
+              );
+              if (wire)
+                setSelection({
+                  title: `Cable ${wire.color} · ${wire.carries}`,
+                  text: `Une ${wire.from} con ${wire.to}.`,
+                  terminals: [wire.from, wire.to],
+                });
+            }}
+          >
+            <option value="">Selecciona o toca el modelo</option>
+            <optgroup label="Piezas">
+              {visibleParts.map((part) => (
+                <option key={part.id} value={`part:${part.id}`}>
+                  {part.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Cables">
+              {visibleWires.map((wire) => (
+                <option key={wire.id} value={`wire:${wire.id}`}>
+                  {wire.color}: {wire.from} → {wire.to} · {wire.carries}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          <div className="rdx-inspect-description" aria-live="polite">
+            <strong>
+              {selection?.title ??
+                (mode === "step"
+                  ? (step?.title ?? "Antes de cablear")
+                  : circuit.title)}
+            </strong>
+            <p>
+              {selection?.text ??
+                (mode === "step"
+                  ? (step?.detail ??
+                    "Desconecta USB y otras fuentes. Prepara las piezas y sigue el primer paso antes de conectar.")
+                  : "Gira el montaje y selecciona cualquier pieza. Todas las conexiones provienen del mismo plano que la vista 2D.")}
+            </p>
+            {selection?.detail && <p>{selection.detail}</p>}
+            {selection?.terminals && (
+              <div className="rdx-terminal-list">
+                {selection.terminals.map((terminal) => (
+                  <span
+                    key={terminal}
+                    title={
+                      isPoint(terminal) ? describePoint(terminal) : undefined
+                    }
+                  >
+                    {terminal}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <p className="rdx-circuit-note">
+          {flow
+            ? "El brillo y los puntos animados explican el recorrido; no confirman que tu placa esté encendida ni representan mediciones reales."
+            : "Modelo educativo · agujeros y terminales coinciden con el plano 2D. Comprueba las marcas de tu pieza antes de conectarla."}
+        </p>
+      </details>
     </section>
   );
 }

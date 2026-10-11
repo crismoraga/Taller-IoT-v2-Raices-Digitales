@@ -81,11 +81,9 @@ test("six guided essentials close at the plant and keep extras optional on Home"
   expect(session.progress).toEqual(expect.arrayContaining(ESSENTIALS));
 
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Demuestra lo que construiste" }),
-  ).toBeVisible();
+  await expect(page.getByText(/ya completaron la ruta/)).toBeVisible();
   const primary = page
-    .locator(".living-hero")
+    .locator(".workshop-welcome")
     .getByRole("button", { name: "Ver mi planta", exact: true });
   await expect(primary).toBeVisible();
   await expect(page.getByRole("button", { name: /^Seguir:/ })).toHaveCount(0);
@@ -199,10 +197,16 @@ test("mobile station, diagnostics and teacher controls remain usable at 320 and 
     await expectFitsScreen(page);
 
     await page.goto("/estacion");
+    await page
+      .locator("summary", { hasText: "Nombre y número de tu grupo" })
+      .click();
     await expect(page.getByLabel("Nombre del grupo")).toHaveValue(
       "Móvil docente QA",
     );
     await expectFitsScreen(page);
+    await page
+      .locator("summary", { hasText: "Eliminar datos del grupo" })
+      .click();
     const remove = page.getByRole("button", {
       name: "Eliminar sesión",
       exact: true,
@@ -234,7 +238,7 @@ test("mobile station, diagnostics and teacher controls remain usable at 320 and 
     const inspect = page
       .locator(".teacher-group")
       .filter({ hasText: "Móvil docente QA" })
-      .getByRole("button", { name: "Ver en modo lectura" });
+      .getByRole("button", { name: "Ver grupo" });
     await inspect.click();
     const detail = page.getByRole("dialog", {
       name: "Móvil docente QA · modo lectura",
@@ -263,6 +267,9 @@ test("mobile onboarding preserves Arduino and free mode through welcome and the 
   const onboarding = page.getByRole("dialog", { name: "Armen su equipo" });
   await onboarding.getByLabel("Nombre del equipo").fill("Arduino móvil QA");
   await onboarding.getByLabel("Placa del equipo").selectOption("uno");
+  await onboarding
+    .getByRole("button", { name: "Elegir otro recorrido" })
+    .click();
   await onboarding.getByLabel("Recorrido del equipo").selectOption("full");
   await expectFitsScreen(page);
   await onboarding

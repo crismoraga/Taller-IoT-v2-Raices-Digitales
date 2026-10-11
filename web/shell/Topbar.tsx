@@ -21,6 +21,7 @@ function useCrumbs(route: string): { section: string; page?: string } {
     "/estacion": "Estación",
     "/diagnostico": "Diagnóstico",
     "/profesor": "Espacio docente",
+    "/docente": "Espacio docente",
   };
   return { section: names[route] ?? "Raíces Digitales" };
 }
@@ -73,10 +74,14 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           </span>
         </span>
       )}
-      <div className="hidden shrink-0 md:block">
-        <ConnectionChip />
-      </div>
-      <ConnectButton compactLabel />
+      {app.connected && (
+        <div className="hidden shrink-0 xl:block">
+          <ConnectionChip />
+        </div>
+      )}
+      {(app.session || app.route.startsWith("/taller/") || app.connected) && (
+        <ConnectButton compactLabel />
+      )}
       <button
         type="button"
         onClick={() =>
@@ -92,7 +97,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             ? `Grupo ${app.session.name}, ver estación`
             : "Crear mi grupo"
         }
-        className="pressable focus-ring flex size-11 shrink-0 items-center justify-center rounded-full bg-primary font-display text-sm font-extrabold text-cream ring-2 ring-accent/40"
+        className="pressable focus-ring flex size-11 shrink-0 items-center justify-center rounded-md bg-highlight font-display text-sm font-bold text-ink-accent"
       >
         {app.session ? (
           String(app.session.groupNumber).padStart(2, "0")

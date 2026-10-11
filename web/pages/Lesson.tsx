@@ -197,10 +197,23 @@ export default function Lesson() {
           <h2 className="t-title mt-1 text-ink">{lesson.concept.title}</h2>
         </div>
         <div className="prose-rd max-w-[68ch]">
-          {lesson.concept.body.map((paragraph) => (
+          {lesson.concept.body.slice(0, 1).map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
         </div>
+        {lesson.concept.body.length > 1 && (
+          <Disclosure
+            title="Entender un poco más"
+            icon="lightbulb"
+            tone="plain"
+          >
+            <div className="prose-rd max-w-[68ch]">
+              {lesson.concept.body.slice(1).map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </Disclosure>
+        )}
         {lesson.concept.facts && (
           <dl className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {lesson.concept.facts.map((fact) => (
@@ -347,6 +360,7 @@ export default function Lesson() {
               mismos.
             </Callout>
             <PinGuide
+              storageKey={`raices.pins.${app.session?.id ?? "anon"}.${lesson.id}.${app.board}`}
               rows={lesson.arduino.rows}
               notes={lesson.arduino.notes}
               board="arduino"
@@ -366,6 +380,7 @@ export default function Lesson() {
         />
       ) : lesson.pins ? (
         <PinGuide
+          storageKey={`raices.pins.${app.session?.id ?? "anon"}.${lesson.id}.${app.board}`}
           part={lesson.pins.part}
           rows={lesson.pins.rows}
           notes={lesson.pins.notes}
@@ -373,17 +388,15 @@ export default function Lesson() {
         />
       ) : null}
       {lesson.id !== "welcome" && (
-        <Card as="section" tone="alt" className="flex gap-3.5">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-pilar-hardware text-primary">
-            <Icon name="lightbulb" size={20} />
-          </span>
-          <div>
-            <h3 className="t-subtitle text-ink">¿Por qué se conecta así?</h3>
-            <p className="mt-1 max-w-[80ch] text-[15px] leading-[23px] text-ink">
-              {lesson.why}
-            </p>
-          </div>
-        </Card>
+        <Disclosure
+          title="¿Por qué se conecta así?"
+          icon="lightbulb"
+          tone="alt"
+        >
+          <p className="mt-1 max-w-[80ch] text-[15px] leading-[23px] text-ink">
+            {lesson.why}
+          </p>
+        </Disclosure>
       )}
     </div>
   );
@@ -452,6 +465,70 @@ export default function Lesson() {
       </Card>
     ) : null;
 
+  const modifications = lesson.modify.map((task, taskIndex) => {
+    const edit = arduino ? task.arduino : task;
+    return (
+      <li key={task.title} className="flex gap-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-highlight font-display text-xs font-extrabold text-ink-accent">
+          {taskIndex + 1}
+        </span>
+        <div className="min-w-0">
+          <p className="t-label text-[15px] text-ink">{task.title}</p>
+          <p className="mt-0.5 text-sm leading-5 text-ink">
+            {edit?.instruction ?? task.instruction}
+          </p>
+          {edit?.find && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={!editorReady}
+                onClick={() => {
+                  if (!workbench.current?.reveal(edit.find!))
+                    app.notify(
+                      "Esa línea ya cambió en tu código. Restaura el original para verla.",
+                      "info",
+                    );
+                }}
+                className="focus-ring inline-flex min-h-11 items-center gap-1.5 rounded-sm text-[13px] font-bold text-ink-accent hover:underline"
+              >
+                <Icon name="eye" size={14} />
+                Mostrar la línea
+              </button>
+              {edit.replace !== undefined && (
+                <Button
+                  size="sm"
+                  disabled={!editorReady}
+                  variant="outline"
+                  icon="code"
+                  onClick={() => {
+                    if (
+                      workbench.current?.applyChange(edit.find!, edit.replace!)
+                    )
+                      app.notify(
+                        "Cambio aplicado. Ejecuta el código para observar el efecto en tu placa.",
+                        "success",
+                      );
+                    else
+                      app.notify(
+                        "La línea ya cambió. Revisa el editor o restaura el original antes de probar este cambio.",
+                        "info",
+                      );
+                  }}
+                >
+                  Probar este cambio
+                </Button>
+              )}
+            </div>
+          )}
+          <p className="mt-1.5 flex gap-1.5 text-[13px] font-semibold leading-[18px] text-ink-soft">
+            <Icon name="eye" size={14} className="mt-0.5 shrink-0" />
+            {edit?.observe ?? task.observe}
+          </p>
+        </div>
+      </li>
+    );
+  });
+
   const program = (
     <div className="flex flex-col gap-4">
       {toolCard}
@@ -502,8 +579,7 @@ export default function Lesson() {
             )}
           </Card>
           {lesson.codeNotes && !arduino && (
-            <Card as="section">
-              <p className="t-overline text-ink-accent">Línea por línea</p>
+            <Disclosure title="Qué hace cada línea de código" icon="code">
               <ul className="mt-2 flex flex-col gap-2.5">
                 {lesson.codeNotes.map((note) => (
                   <li key={note.line}>
@@ -522,84 +598,25 @@ export default function Lesson() {
                   </li>
                 ))}
               </ul>
-            </Card>
+            </Disclosure>
           )}
           <Card as="section">
             <p className="t-overline text-ink-accent">Ahora cámbialo tú</p>
             <ol className="mt-2 flex flex-col gap-3">
-              {lesson.modify.map((task, taskIndex) => {
-                const edit = arduino ? task.arduino : task;
-                return (
-                  <li key={task.title} className="flex gap-3">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-highlight font-display text-xs font-extrabold text-ink-accent">
-                      {taskIndex + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="t-label text-[15px] text-ink">
-                        {task.title}
-                      </p>
-                      <p className="mt-0.5 text-sm leading-5 text-ink">
-                        {edit?.instruction ?? task.instruction}
-                      </p>
-                      {edit?.find && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={!editorReady}
-                            onClick={() => {
-                              if (!workbench.current?.reveal(edit.find!))
-                                app.notify(
-                                  "Esa línea ya cambió en tu código. Restaura el original para verla.",
-                                  "info",
-                                );
-                            }}
-                            className="focus-ring inline-flex min-h-11 items-center gap-1.5 rounded-sm text-[13px] font-bold text-ink-accent hover:underline"
-                          >
-                            <Icon name="eye" size={14} />
-                            Mostrar la línea
-                          </button>
-                          {edit.replace !== undefined && (
-                            <Button
-                              size="sm"
-                              disabled={!editorReady}
-                              variant="outline"
-                              icon="code"
-                              onClick={() => {
-                                if (
-                                  workbench.current?.applyChange(
-                                    edit.find!,
-                                    edit.replace!,
-                                  )
-                                )
-                                  app.notify(
-                                    "Cambio aplicado. Ejecuta el código para observar el efecto en tu placa.",
-                                    "success",
-                                  );
-                                else
-                                  app.notify(
-                                    "La línea ya cambió. Revisa el editor o restaura el original antes de probar este cambio.",
-                                    "info",
-                                  );
-                              }}
-                            >
-                              Probar este cambio
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                      <p className="mt-1.5 flex gap-1.5 text-[13px] font-semibold leading-[18px] text-ink-soft">
-                        <Icon
-                          name="eye"
-                          size={14}
-                          className="mt-0.5 shrink-0"
-                        />
-                        {edit?.observe ?? task.observe}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
+              {modifications.slice(0, 1)}
             </ol>
+            {modifications.length > 1 && (
+              <Disclosure
+                title="Probar otros cambios"
+                icon="flask"
+                tone="plain"
+                className="mt-3"
+              >
+                <ol className="flex flex-col gap-3">
+                  {modifications.slice(1)}
+                </ol>
+              </Disclosure>
+            )}
           </Card>
         </div>
       </div>
@@ -672,8 +689,7 @@ export default function Lesson() {
       </Card>
       <div className="flex flex-col gap-4">
         {closesGuidedRoute && <FinalReview />}
-        <Card as="section">
-          <p className="t-overline text-ink-accent">Problemas comunes</p>
+        <Disclosure title="Resolver un problema" icon="stethoscope">
           <Troubles lesson={lesson} />
           <button
             type="button"
@@ -683,7 +699,7 @@ export default function Lesson() {
             <Icon name="stethoscope" size={16} />
             Abrir el diagnóstico completo
           </button>
-        </Card>
+        </Disclosure>
         <Card as="section" tone="navy" className="flex flex-col gap-3">
           <p className="t-overline text-accent">Cierre</p>
           <h3 className="t-heading text-cream">
@@ -738,7 +754,7 @@ export default function Lesson() {
     <Page wide>
       <div ref={top} className="scroll-mt-20" />
       {/* Cabecera de la actividad */}
-      <header className="relative isolate overflow-hidden rounded-2xl bg-night px-5 py-5 sm:px-7 sm:py-6">
+      <header className="relative isolate rounded-xl border border-border bg-surface px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
           <div className="min-w-0 flex-1">
             <button
@@ -746,21 +762,22 @@ export default function Lesson() {
               onClick={() =>
                 app.navigate(stage.id === "explora" ? "/explora" : "/")
               }
-              className="focus-ring t-overline inline-flex items-center gap-1.5 rounded-sm text-accent hover:text-accent-soft"
+              className="focus-ring inline-flex min-h-8 items-center gap-1.5 rounded-sm text-xs font-bold text-ink-accent hover:underline"
             >
               <Icon name="chevronLeft" size={14} strokeWidth={2.6} />
               {stage.label} · {stage.title}
             </button>
-            <h1 className="t-hero mt-1.5 text-cream">{lesson.title}</h1>
-            <p className="mt-1.5 max-w-3xl text-base leading-6 text-accent-soft">
+            <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
+              {lesson.title}
+            </h1>
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-ink-soft">
               {lesson.summary}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Tag tone="glass" icon="clock">
+              <Tag tone="neutral" icon="clock">
                 {lesson.duration} min
               </Tag>
-              {lesson.essential && <Tag tone="gold">Ruta exprés</Tag>}
-              <Tag tone="glass" icon="route">
+              <Tag tone="neutral" icon="route">
                 Actividad {flow.index + 1} de {flow.total}
               </Tag>
               {done && (
@@ -770,16 +787,14 @@ export default function Lesson() {
               )}
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:min-w-[250px]">
+          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:min-w-[230px]">
             <label className="flex flex-col gap-1">
-              <span className="t-overline text-[10.5px] text-accent-soft">
-                Tu placa
-              </span>
+              <span className="text-xs font-bold text-ink-soft">Tu placa</span>
               <Select
                 value={app.board}
                 disabled={app.connected || app.connecting || app.busy}
                 onChange={(event) => app.setBoard(event.target.value as Board)}
-                className="h-11! border-secondary! bg-primary-input! text-cream!"
+                className="h-11!"
               >
                 {(Object.keys(BOARD_NAMES) as Board[]).map((board) => (
                   <option key={board} value={board}>
@@ -790,7 +805,6 @@ export default function Lesson() {
             </label>
             <div className="flex items-center gap-2">
               <Segmented
-                tone="dark"
                 size="sm"
                 label="Modo de la actividad"
                 className="flex-1 [&>button]:flex-1"
@@ -803,7 +817,7 @@ export default function Lesson() {
               />
               <Button
                 size="sm"
-                variant="outlineLight"
+                variant="ghost"
                 icon="help"
                 onClick={() => setHelp(true)}
               >
@@ -822,10 +836,10 @@ export default function Lesson() {
             className="mt-0.5 shrink-0 text-ink-accent"
           />
           {app.connected
-            ? `USB conectado a ${BOARD_NAMES[app.board]}. Compara el resultado de tu placa con la guía.`
+            ? `USB conectado · ${BOARD_NAMES[app.board]}`
             : app.serialSupported
-              ? "Puedes leer y preparar el código ahora. Conecta tu placa por USB para ejecutar y comprobar el resultado físico."
-              : "Puedes leer y editar aquí. Para ejecutar en una placa usa Chrome o Edge de escritorio con USB."}
+              ? "Sin USB · puedes preparar el montaje y el código."
+              : "Para programar la placa, usa Chrome o Edge de escritorio."}
         </p>
         {flow.previous && (
           <Button
@@ -851,14 +865,17 @@ export default function Lesson() {
                 const current = item === active;
                 const past = itemIndex < index;
                 return (
-                  <li key={item} className="flex min-w-0 flex-1 items-center">
+                  <li
+                    key={item}
+                    className="flex shrink-0 items-center sm:min-w-0 sm:flex-1"
+                  >
                     <button
                       type="button"
                       aria-current={current ? "step" : undefined}
                       onClick={() => setPhase(item)}
                       title={PHASES[item].hint}
                       className={cx(
-                        "pressable focus-ring flex min-h-11 w-full min-w-[104px] items-center gap-2 rounded-md px-2.5 text-left text-sm font-bold",
+                        "pressable focus-ring flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-left text-sm font-bold",
                         current
                           ? "bg-action text-action-ink"
                           : past

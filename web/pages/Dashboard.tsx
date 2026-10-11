@@ -41,6 +41,13 @@ const initial: DashboardData = {
   rules: [],
   alerts: [],
 };
+const deliveryLabels: Record<string, string> = {
+  simulation: "Práctica simulada",
+  pending: "Enviando a Telegram",
+  not_configured: "Aviso en el panel",
+  delivered: "Enviado a Telegram",
+  failed: "No se pudo enviar a Telegram",
+};
 const definitions = [
   { id: "soil", unit: "%", Icon: Droplets, min: 0, max: 100, value: 55 },
   {
@@ -97,6 +104,10 @@ export default function Dashboard() {
     [source, setSource] = useState("all"),
     [chartSensor, setChartSensor] = useState("soil"),
     [simulation, setSimulation] = useState(false),
+    [showAllSensors, setShowAllSensors] = useState(false),
+    [moreSimulationSensors, setMoreSimulationSensors] = useState(false),
+    [historyOpen, setHistoryOpen] = useState(false),
+    [connectionIssue, setConnectionIssue] = useState(""),
     [streaming, setStreaming] = useState(false),
     [values, setValues] = useState<Record<string, number>>(
       Object.fromEntries(definitions.map((d) => [d.id, d.value])),
@@ -113,17 +124,37 @@ export default function Dashboard() {
     [eventState, setEventState] = useState("Conectando"),
     [, setTick] = useState(0);
   const valuesRef = useRef(values),
-    failedRef = useRef(failed);
+    failedRef = useRef(failed),
+    refreshGeneration = useRef(0);
+  const simulationDefinitions = definitions.filter(
+    ({ id }) =>
+      moreSimulationSensors ||
+      ["soil", "air_temperature", "air_humidity"].includes(id) ||
+      app.session?.sensorEnabled[id],
+  );
+  const simulationDefinitionsRef = useRef(simulationDefinitions);
+  simulationDefinitionsRef.current = simulationDefinitions;
   valuesRef.current = values;
   failedRef.current = failed;
   const refresh = async () => {
     if (!app.session) return;
+    const generation = refreshGeneration.current;
     try {
-      setData(await api<DashboardData>(`/dashboard?range=${range}`));
-    } catch (e) {
-      app.notify((e as Error).message, true);
+      const updated = await api<DashboardData>(`/dashboard?range=${range}`);
+      if (generation !== refreshGeneration.current) return;
+      setData(updated);
+      setConnectionIssue("");
+    } catch {
+      if (generation !== refreshGeneration.current) return;
+      setConnectionIssue(
+        "Sin conexión con el servidor. Mostramos las últimas lecturas; volveremos a intentar automáticamente.",
+      );
     }
   };
+  useEffect(() => {
+    setData(initial);
+    setStreaming(false);
+  }, [app.session?.id]);
   useEffect(() => {
     if (!app.session) return;
     void refresh();
@@ -136,6 +167,7 @@ export default function Dashboard() {
       void refresh();
     }, 10000);
     return () => {
+      refreshGeneration.current += 1;
       events.close();
       clearInterval(poll);
     };
@@ -145,7 +177,7 @@ export default function Dashboard() {
       app.openOnboarding();
       return;
     }
-    const readings = definitions.map((d) => ({
+    const readings = simulationDefinitionsRef.current.map((d) => ({
       sensor: d.id,
       value: failedRef.current === d.id ? null : valuesRef.current[d.id],
       unit: d.unit,
@@ -154,6 +186,7 @@ export default function Dashboard() {
     }));
     try {
       await post("/simulation", { readings });
+      setHistoryOpen(true);
       void refresh();
     } catch (e) {
       app.notify((e as Error).message, true);
@@ -187,8 +220,10 @@ export default function Dashboard() {
       (r) =>
         r.timestamp && Date.now() - new Date(r.timestamp).getTime() < 20000,
     ) ||
-    data.devices.some((d) => d.online && !d.revoked) ||
-    (app.connected && app.localReadings.length > 0);
+    data.devices.some(
+      (d) =>
+        d.online && !d.revoked && (source === "all" || d.source === source),
+    );
   const variableRules = data.rules.filter(
     (r) =>
       latestMap.get(r.sensor)?.value !== null &&
@@ -199,6 +234,15 @@ export default function Dashboard() {
     return v >= r.min && v <= r.max;
   }).length;
   const createRule = async () => {
+    if (loading) return;
+    if (
+      !Number.isFinite(Number(min)) ||
+      !Number.isFinite(Number(max)) ||
+      Number(min) >= Number(max)
+    ) {
+      app.notify("El mínimo debe ser menor que el máximo.", true);
+      return;
+    }
     setLoading(true);
     try {
       await post("/rules", {
@@ -237,12 +281,25 @@ export default function Dashboard() {
       setExporting(false);
     }
   };
+  const relevantSensors = definitions.filter(
+    ({ id }) =>
+      (latestMap.has(id) && latestMap.get(id)?.status !== "DISABLED") ||
+      app.session?.sensorEnabled[id],
+  );
+  const visibleSensors = showAllSensors
+    ? relevantSensors
+    : relevantSensors.slice(0, 4);
+  const relevantSensorIds = relevantSensors.map(({ id }) => id).join(",");
+  useEffect(() => {
+    const ids = relevantSensorIds ? relevantSensorIds.split(",") : [];
+    if (ids.length && !ids.includes(chartSensor)) setChartSensor(ids[0]);
+  }, [chartSensor, relevantSensorIds]);
   return (
     <div className="dashboard-page">
       <PageHeader
-        kicker="Mi planta · del suelo al dato"
-        title="Lo que tus raíces cuentan."
-        subtitle="Observa una señal, descubre un cambio y decide cuándo prestar atención. Aquí aparecen las lecturas que recibe tu estación."
+        kicker="Prueba · Mi planta"
+        title="Tus lecturas, en vivo"
+        subtitle="Observa qué cambia y comprueba de dónde viene cada lectura."
         art={
           <Icon
             name="sprout"
@@ -253,7 +310,7 @@ export default function Dashboard() {
         }
         actions={
           <Button
-            variant="hero"
+            variant="secondary"
             loading={exporting}
             onClick={() => void exportCSV()}
             disabled={!app.session}
@@ -275,6 +332,11 @@ export default function Dashboard() {
         />
       ) : (
         <>
+          {connectionIssue && (
+            <div role="status">
+              <Notice tone="warning">{connectionIssue}</Notice>
+            </div>
+          )}
           <section className="station-summary">
             <span className="station-plant-icon">
               <Leaf size={31} />
@@ -328,7 +390,10 @@ export default function Dashboard() {
             />
             <Button
               variant={simulation ? "secondary" : "ghost"}
-              onClick={() => setSimulation(!simulation)}
+              onClick={() => {
+                if (simulation) setStreaming(false);
+                setSimulation(!simulation);
+              }}
             >
               <FlaskConical size={15} />
               {simulation ? "Cerrar simulador" : "Practicar sin hardware"}
@@ -341,27 +406,49 @@ export default function Dashboard() {
                 tarjetas indican su fuente; puedes filtrar por hardware real.
               </Notice>
             )}
+          {!relevantSensors.length && (
+            <EmptyState
+              title="Todo listo para tu primera lectura"
+              description="Conecta y configura los sensores que usarás, o abre el simulador para practicar."
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() => app.navigate("/estacion")}
+                >
+                  Preparar mis sensores <ArrowRight size={16} />
+                </Button>
+              }
+            />
+          )}
           <div className="sensor-grid">
-            {definitions.map(({ id, unit, Icon }) => {
+            {visibleSensors.map(({ id, unit, Icon }) => {
               const reading = latestMap.get(id);
               const rule = data.rules.find((r) => r.sensor === id);
               const outside =
                 reading?.value != null &&
                 rule &&
                 (reading.value < rule.min || reading.value > rule.max);
+              const sensorProblem =
+                reading &&
+                ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
+                  reading.status,
+                );
               return (
                 <button
                   key={id}
-                  className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside ? "alerting" : ""}`}
+                  className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside || sensorProblem ? "alerting" : ""}`}
                   aria-pressed={chartSensor === id}
-                  onClick={() => setChartSensor(id)}
+                  onClick={() => {
+                    setChartSensor(id);
+                    setHistoryOpen(true);
+                  }}
                 >
                   <div className="sensor-card-top">
                     <span className="sensor-icon">
                       <Icon size={19} />
                     </span>
                     <span
-                      className={`sensor-state ${reading && reading.value !== null ? "good" : ""}`}
+                      className={`sensor-state ${reading?.status === "READING" ? "good" : ""}`}
                     >
                       {reading
                         ? statusLabels[reading.status] || reading.status
@@ -401,10 +488,40 @@ export default function Dashboard() {
               );
             })}
           </div>
-          <section
-            className="chart-panel"
-            aria-label="Historia de tus lecturas"
+          {relevantSensors.some(({ id }) =>
+            ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
+              latestMap.get(id)?.status || "",
+            ),
+          ) && (
+            <Notice tone="warning">
+              Hay sensores que necesitan revisión. Desconecta la alimentación
+              antes de cambiar cables.{" "}
+              <button
+                className="text-button"
+                onClick={() => app.navigate("/diagnostico")}
+              >
+                Revisar diagnóstico <ArrowRight size={13} />
+              </button>
+            </Notice>
+          )}
+          {relevantSensors.length > 4 && (
+            <Button
+              variant="ghost"
+              onClick={() => setShowAllSensors(!showAllSensors)}
+            >
+              {showAllSensors
+                ? "Mostrar menos sensores"
+                : `Ver los ${relevantSensors.length} sensores activos`}
+            </Button>
+          )}
+          <details
+            className="chart-panel simple-details"
+            open={historyOpen}
+            onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
           >
+            <summary>
+              Historial de lecturas · {sensorLabels[chartSensor]}
+            </summary>
             <div className="panel-header">
               <div>
                 <Activity size={17} />
@@ -430,9 +547,10 @@ export default function Dashboard() {
                 ? "La luz se expresa como nivel relativo, sin equivalencia en lux."
                 : ""}
             </div>
-          </section>
+          </details>
           <div className="dashboard-bottom-grid">
-            <section className="rules-panel">
+            <details className="rules-panel simple-details">
+              <summary>Umbrales de aviso ({data.rules.length})</summary>
               <div className="panel-header">
                 <div>
                   <Bell size={17} />
@@ -457,7 +575,7 @@ export default function Dashboard() {
                     className="text-button"
                     onClick={() => setRuleModal(true)}
                   >
-                    Crear mi primer umbral <Plus size={13} />
+                    Crear un umbral <Plus size={13} />
                   </button>
                 </div>
               ) : (
@@ -484,7 +602,7 @@ export default function Dashboard() {
                   </div>
                 ))
               )}
-            </section>
+            </details>
             <section className="alerts-panel">
               <div className="panel-header">
                 <div>
@@ -496,11 +614,13 @@ export default function Dashboard() {
               {!data.alerts.length ? (
                 <div className="small-empty">
                   <CheckCircle2 size={23} />
-                  <p>Tu registro de eventos está listo.</p>
-                  <span>
-                    Los avisos aparecen cuando una lectura cruza un umbral o un
-                    dispositivo deja de responder.
-                  </span>
+                  <p>Sin avisos registrados.</p>
+                  <button
+                    className="text-button"
+                    onClick={() => setRuleModal(true)}
+                  >
+                    Crear mi primer umbral <Plus size={13} />
+                  </button>
                 </div>
               ) : (
                 <div className="alert-list">
@@ -522,7 +642,9 @@ export default function Dashboard() {
                         <p>{a.message}</p>
                         <small>
                           {age(a.createdAt)}{" "}
-                          {a.delivery ? `· ${a.delivery}` : ""}
+                          {a.delivery
+                            ? `· ${deliveryLabels[a.delivery] || a.delivery}`
+                            : ""}
                         </small>
                       </div>
                     </div>
@@ -547,7 +669,7 @@ export default function Dashboard() {
             ejecuta MicroPython ni reemplaza las pruebas eléctricas.
           </p>
           <div className="simulation-grid">
-            {definitions.map((d) => (
+            {simulationDefinitions.map((d) => (
               <label key={d.id}>
                 {sensorLabels[d.id]}
                 <strong>
@@ -570,6 +692,17 @@ export default function Dashboard() {
               </label>
             ))}
           </div>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={moreSimulationSensors}
+              onChange={(event) => {
+                setMoreSimulationSensors(event.target.checked);
+                setFailed("");
+              }}
+            />
+            Practicar con todos los sensores del kit
+          </label>
           <div className="simulation-actions">
             <label>
               Simular sensor sin respuesta
@@ -578,7 +711,7 @@ export default function Dashboard() {
                 onChange={(e) => setFailed(e.target.value)}
               >
                 <option value="">Todos responden</option>
-                {definitions.map((d) => (
+                {simulationDefinitions.map((d) => (
                   <option key={d.id} value={d.id}>
                     {sensorLabels[d.id]}
                   </option>
@@ -600,8 +733,8 @@ export default function Dashboard() {
             </Button>
           </div>
           <small>
-            La transmisión se detiene al salir de esta página. La ausencia de
-            datos se reflejará como desconexión.
+            La transmisión se detiene al cerrar el simulador o salir de esta
+            página.
           </small>
         </section>
       )}
@@ -651,34 +784,37 @@ export default function Dashboard() {
                 />
               </label>
             </div>
-            <div className="form-row">
-              <label>
-                Histéresis
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  step="any"
-                  value={hysteresis}
-                  onChange={(e) => setHysteresis(e.target.value)}
-                />
-              </label>
-              <label>
-                Pausa entre avisos (s)
-                <input
-                  type="number"
-                  min="10"
-                  required
-                  value={cooldown}
-                  onChange={(e) => setCooldown(e.target.value)}
-                />
-              </label>
-            </div>
-            <Notice>
-              La histéresis evita avisos repetidos cerca del límite. Un aviso de
-              recuperación se genera cuando la lectura vuelve al interior del
-              rango.
-            </Notice>
+            <details className="simple-details">
+              <summary>Frecuencia de avisos · avanzado</summary>
+              <div className="form-row">
+                <label>
+                  Histéresis
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    step="any"
+                    value={hysteresis}
+                    onChange={(e) => setHysteresis(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Pausa entre avisos (s)
+                  <input
+                    type="number"
+                    min="10"
+                    required
+                    value={cooldown}
+                    onChange={(e) => setCooldown(e.target.value)}
+                  />
+                </label>
+              </div>
+              <Notice>
+                La histéresis evita avisos repetidos cerca del límite. Un aviso
+                de recuperación se genera cuando la lectura vuelve al interior
+                del rango.
+              </Notice>
+            </details>
             <Button type="submit" loading={loading}>
               Guardar umbral <CheckCircle2 size={16} />
             </Button>

@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2,
   XCircle,
+  Circle,
+  LoaderCircle,
+  RefreshCw,
   Usb,
   ShieldCheck,
   Cloud,
@@ -20,12 +23,30 @@ export default function Diagnostics() {
   const app = useApp();
   const [health, setHealth] = useState<Record<string, unknown>>({}),
     [deviceInfo, setDeviceInfo] = useState<Record<string, unknown>>({}),
-    [testing, setTesting] = useState(false);
+    [testing, setTesting] = useState(false),
+    [checkingHealth, setCheckingHealth] = useState(true),
+    [healthFailed, setHealthFailed] = useState(false);
+  const healthRequest = useRef(0);
+  const checkHealth = async () => {
+    const request = ++healthRequest.current;
+    setCheckingHealth(true);
+    setHealthFailed(false);
+    try {
+      const result = await api("/health");
+      if (request === healthRequest.current) setHealth(result);
+    } catch {
+      if (request === healthRequest.current) setHealthFailed(true);
+    } finally {
+      if (request === healthRequest.current) setCheckingHealth(false);
+    }
+  };
   useEffect(() => {
-    void api("/health")
-      .then(setHealth)
-      .catch(() => setHealth({ ok: false }));
+    void checkHealth();
+    return () => {
+      healthRequest.current += 1;
+    };
   }, []);
+  useEffect(() => setDeviceInfo({}), [app.board]);
   const probe = async () => {
     setTesting(true);
     try {
@@ -61,50 +82,107 @@ export default function Diagnostics() {
       detail:
         "serial" in navigator
           ? "Navegador compatible con conexión USB."
-          : "Usa Chrome o Edge de escritorio; descarga código para Thonny/Arduino IDE.",
+          : `Usa Chrome o Edge de escritorio; también puedes descargar el código para ${app.board === "pico" ? "Thonny" : "Arduino IDE"}.`,
       ok: "serial" in navigator,
       Icon: Usb,
     },
     {
       title: "Puerto USB",
       detail: app.connected
-        ? "Placa conectada por selección de usuario."
+        ? "Tu placa está conectada."
         : "Conecta un cable de datos y cierra otros monitores seriales.",
       ok: app.connected,
+      label: app.connected ? "CONECTADO" : "CONECTA TU PLACA",
       Icon: Terminal,
     },
     {
       title: "Servidor",
-      detail: health.ok
-        ? "API y almacenamiento disponibles."
-        : "No se recibió respuesta. El editor y USB pueden seguir funcionando.",
-      ok: !!health.ok,
+      detail: checkingHealth
+        ? "Comprobando conexión y almacenamiento…"
+        : !healthFailed && health.ok
+          ? "Tus datos se pueden guardar."
+          : "No se recibió respuesta. Reintenta; el editor y USB siguen disponibles.",
+      ok: checkingHealth ? null : !healthFailed && !!health.ok,
       Icon: Cloud,
     },
     {
       title: "Compilador Arduino",
-      detail: health.arduinoAvailable
-        ? "Compilador disponible en el servidor."
-        : "El servidor del taller necesita el compilador AVR. Avísale al docente; también puedes descargar el código y usar Arduino IDE.",
-      ok: !!health.arduinoAvailable,
+      detail: checkingHealth
+        ? "Comprobando disponibilidad…"
+        : healthFailed
+          ? "Pendiente de recuperar la conexión al servidor."
+          : health.arduinoAvailable
+            ? "Compilador disponible en el servidor."
+            : "Puedes descargar el código y usar Arduino IDE. Avísale al docente si necesitas compilar desde esta web.",
+      ok: checkingHealth || healthFailed ? null : !!health.arduinoAvailable,
+      optional: app.board === "pico",
       Icon: Activity,
     },
     {
       title: "Telegram",
-      detail: health.telegramConfigured
-        ? "Bot configurado por el docente."
-        : "El docente puede configurar el bot de la clase desde su panel.",
-      ok: !!health.telegramConfigured,
+      detail: checkingHealth
+        ? "Comprobando configuración…"
+        : healthFailed
+          ? "Puedes continuar el taller sin Telegram."
+          : health.telegramConfigured
+            ? "Bot configurado por el docente."
+            : "Opcional. El docente puede activar avisos para la clase.",
+      ok: checkingHealth || healthFailed ? null : !!health.telegramConfigured,
+      optional: true,
       Icon: Cloud,
     },
   ];
   const info = { ...app.lastDiagnostics, ...deviceInfo };
+  const readings = app.localReadings.filter(
+    (reading) => reading.status !== "DISABLED",
+  );
+  const renderCheck = ({
+    title,
+    detail,
+    ok,
+    Icon,
+    optional,
+    label,
+  }: (typeof checks)[number]) => (
+    <section className={`diagnostic-card ${ok ? "passed" : ""}`} key={title}>
+      <div>
+        <Icon size={21} />
+        {ok ? (
+          <CheckCircle2 size={18} />
+        ) : ok === null ? (
+          checkingHealth ? (
+            <LoaderCircle size={18} className="spin" />
+          ) : (
+            <Circle size={18} />
+          )
+        ) : optional ? (
+          <Circle size={18} />
+        ) : (
+          <XCircle size={18} />
+        )}
+      </div>
+      <h3>{title}</h3>
+      <p>{detail}</p>
+      <Badge tone={ok ? "sage" : "neutral"}>
+        {label ||
+          (ok === null
+            ? checkingHealth
+              ? "COMPROBANDO"
+              : "PENDIENTE"
+            : ok
+              ? "DISPONIBLE"
+              : optional
+                ? "OPCIONAL"
+                : "POR REVISAR")}
+      </Badge>
+    </section>
+  );
   return (
     <div className="diagnostics-page">
       <PageHeader
         kicker="Diagnóstico · sigue la señal"
-        title="Cada conexión tiene una pista."
-        subtitle="Investigar también es aprender. Revisa cada eslabón, encuentra qué falta y vuelve a tu experimento con una pista concreta."
+        title="Encuentra qué falta"
+        subtitle="Comprueba tu conexión y vuelve al experimento."
         art={
           <Icon
             name="stethoscope"
@@ -143,51 +221,64 @@ export default function Diagnostics() {
         }
       />
       <div className="diagnostic-checks">
-        {checks.map(({ title, detail, ok, Icon }) => (
-          <section
-            className={`diagnostic-card ${ok ? "passed" : ""}`}
-            key={title}
-          >
-            <div>
-              <Icon size={21} />
-              {ok ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-            </div>
-            <h3>{title}</h3>
-            <p>{detail}</p>
-            <Badge tone={ok ? "sage" : "neutral"}>
-              {ok ? "DISPONIBLE" : "POR REVISAR"}
-            </Badge>
-          </section>
-        ))}
+        {checks.slice(0, 4).map(renderCheck)}
       </div>
+      {!checkingHealth &&
+        !healthFailed &&
+        app.board !== "pico" &&
+        !health.arduinoAvailable && (
+          <Notice tone="warning">
+            El compilador Arduino no está disponible. Puedes descargar tu
+            programa y cargarlo con Arduino IDE; avísale al docente para
+            recuperar la compilación web.
+          </Notice>
+        )}
       <div className="diagnostics-actions">
-        <Button onClick={() => void app.connect()} disabled={app.connected}>
+        <Button
+          onClick={() => void app.connect()}
+          disabled={
+            app.connected || app.busy || app.connecting || !app.serialSupported
+          }
+        >
           <Usb size={16} />
           Conectar mi placa
         </Button>
+        {app.board === "pico" && (
+          <Button
+            variant="secondary"
+            onClick={() => void probe()}
+            disabled={!app.connected || app.board !== "pico" || app.busy}
+            loading={testing}
+          >
+            <Stethoscope size={16} />
+            Consultar Pico
+          </Button>
+        )}
         <Button
           variant="secondary"
-          onClick={() => void probe()}
-          disabled={!app.connected || app.board !== "pico" || app.busy}
-          loading={testing}
+          onClick={() => void checkHealth()}
+          loading={checkingHealth}
         >
-          <Stethoscope size={16} />
-          Consultar Pico
+          <RefreshCw size={16} /> Reintentar servidor
         </Button>
         <Button variant="ghost" onClick={() => app.navigate("/estacion")}>
           Configurar estación <ArrowRight size={16} />
         </Button>
       </div>
-      <Notice>
-        La consulta detiene el programa actual para leer el intérprete. Los
-        valores ADC no demuestran por sí solos que un sensor esté conectado.
-        Luego vuelve a ejecutar la estación.
-      </Notice>
-      <section className="settings-card">
-        <div className="settings-card-title">
-          <Activity size={20} />
-          <h3>Lo que reporta la placa</h3>
+      {app.board === "pico" && app.connected && (
+        <Notice>
+          Consultar Pico detiene su programa. Después vuelve a ejecutar la
+          estación. Un valor ADC por sí solo no confirma que haya un sensor.
+        </Notice>
+      )}
+      <details className="settings-card simple-details">
+        <summary>Servicios adicionales · Arduino y Telegram</summary>
+        <div className="diagnostic-checks">
+          {checks.slice(4).map(renderCheck)}
         </div>
+      </details>
+      <details className="settings-card simple-details">
+        <summary>Información técnica de la placa</summary>
         {Object.keys(info).length ? (
           <dl className="diagnostic-values">
             {Object.entries(info).map(([key, value]) => (
@@ -203,19 +294,20 @@ export default function Diagnostics() {
           </dl>
         ) : (
           <p className="muted">
-            Consulta una Pico o ejecuta el firmware de estación. Aquí verás
-            versión, ADC, memoria libre, uptime y estado de Wi-Fi.
+            {app.board === "pico"
+              ? "Consulta tu Pico o ejecuta la estación para ver su versión, memoria y estado de Wi-Fi."
+              : "Ejecuta la estación Arduino para recibir su información por USB."}
           </p>
         )}
-      </section>
+      </details>
       <section className="settings-card">
         <div className="settings-card-title">
           <Activity size={20} />
           <h3>Estado individual de sensores</h3>
         </div>
-        {app.localReadings.length ? (
+        {readings.length ? (
           <div className="sensor-status-table">
-            {app.localReadings.map((r) => (
+            {readings.map((r) => (
               <div key={r.sensor}>
                 <strong>{sensorLabels[r.sensor] || r.sensor}</strong>
                 <Badge tone={r.status === "READING" ? "sage" : "neutral"}>
@@ -242,15 +334,18 @@ export default function Diagnostics() {
         )}
       </section>
       <section className="troubleshooting-list">
-        <h2>Soluciones para seguir creciendo.</h2>
+        <h2>Soluciones rápidas</h2>
         {[
           {
             q: "El puerto USB no aparece.",
-            a: "Usa un cable USB con datos. Cierra Thonny, Arduino IDE y otras pestañas que usen el puerto. Comprueba el dispositivo en el sistema operativo. MicroPython debe estar instalado en Pico W.",
+            a:
+              app.board === "pico"
+                ? "Usa un cable USB con datos. Cierra Thonny, Arduino IDE y otras pestañas que usen el puerto. Comprueba el dispositivo en el sistema operativo. MicroPython debe estar instalado en Pico W."
+                : "Usa un cable USB con datos. Cierra Arduino IDE y otras pestañas que usen el puerto. Comprueba el dispositivo en el sistema operativo. Si usas Nano, selecciona el bootloader correspondiente en Estación.",
           },
           {
             q: "El DHT11 o DS18B20 no responde.",
-            a: "Revisa VCC, GND y DATA. DHT11 bare necesita pull-up de 10 kΩ. DS18B20 necesita dos de 10 kΩ en paralelo entre DATA y 3V3. DHT11 se lee con al menos 2 segundos entre muestras.",
+            a: `Revisa VCC, GND y DATA con la alimentación desconectada. El DHT11 sin módulo necesita una resistencia de 10 kΩ entre DATA y alimentación. El DS18B20 necesita dos de 10 kΩ en paralelo entre DATA y ${app.board === "pico" ? "3V3" : "5 V"}. Espera al menos 2 segundos entre lecturas del DHT11.`,
           },
           {
             q: "La Pico no se conecta al Wi-Fi.",
@@ -268,12 +363,18 @@ export default function Diagnostics() {
             q: "¿Por qué no veo lux ni una puntuación de salud?",
             a: "El fotoresistor del kit mide iluminación relativa sin calibración fotométrica. El dashboard muestra tus variables y umbrales sin inventar unidades ni conclusiones fisiológicas.",
           },
-        ].map(({ q, a }) => (
-          <details key={q}>
-            <summary>{q}</summary>
-            <p>{a}</p>
-          </details>
-        ))}
+        ]
+          .filter(
+            ({ q }) =>
+              app.board === "pico" ||
+              (!q.includes("Pico") && !q.includes("HTTPS")),
+          )
+          .map(({ q, a }) => (
+            <details key={q}>
+              <summary>{q}</summary>
+              <p>{a}</p>
+            </details>
+          ))}
       </section>
     </div>
   );

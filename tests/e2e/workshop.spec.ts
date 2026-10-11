@@ -36,6 +36,12 @@ test("living 3D home, six-step 60-minute journey, theme and narrow screens", asy
   await expect(
     page.getByText("60 minutos · paso a paso", { exact: true }),
   ).toBeVisible();
+  const scene = page
+    .locator("details")
+    .filter({ hasText: "Explorar la estación 3D" });
+  await expect(scene).not.toHaveAttribute("open", "");
+  await expect(page.locator(".rdx-living canvas")).toHaveCount(0);
+  await scene.locator("summary").click();
   await expect(page.locator(".rdx-living canvas")).toBeVisible();
   await expect(
     page.getByText(/flujo animado ilustra información/),
@@ -114,7 +120,10 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
   await createGroup(page);
   await page.goto("/taller/led");
   await phase(page, "Conecta");
-  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: "Plano 2D", exact: true }),
+  ).toBeChecked();
+  await expect(page.locator(".rdx-circuit canvas")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Empezar a cablear", exact: true })
     .click();
@@ -136,8 +145,23 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
     .click();
   await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
   await expect(page.getByText("a3", { exact: true }).first()).toBeVisible();
+  const endpoints = page
+    .getByRole("region", { name: "Instrucción de montaje" })
+    .locator('[aria-label="Extremos del cable"]');
+  await expect(endpoints).toContainText("a3");
+  await expect(endpoints).toContainText("− · 3");
+  await page
+    .getByRole("radio", { name: "3D interactivo", exact: true })
+    .click();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  await expect(page.locator(".rdx-terminal-overlay")).toContainText("A · a3");
+  await expect(page.locator(".rdx-terminal-overlay")).toContainText("B · − 3");
+  await expect(page.getByRole("heading", { name: /Lleva GND/ })).toBeVisible();
   await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
   await expect(page.getByRole("img", { name: /^Lleva GND/ })).toBeVisible();
+  const index = page.getByRole("button", { name: /Ver los \d+ pasos/ });
+  await expect(index).toHaveAttribute("aria-expanded", "false");
+  await index.click();
   const future = page.getByRole("button", { name: /Coloca el LED/ });
   await expect(future).toHaveAttribute("aria-disabled", "true");
   // aria-disabled still requires the click handler to refuse a future step.
@@ -154,6 +178,17 @@ test("incremental wiring in 3D and 2D uses exact terminals and confirms polarity
     page.getByRole("heading", { name: /Coloca el LED/ }),
   ).toBeVisible();
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Primero, sin energía", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: /Retiré físicamente el USB y las fuentes externas/,
+    })
+    .press("Space");
+  await page
+    .getByRole("button", { name: "Continuar montaje", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: /Coloca el LED/ }),
   ).toBeVisible();
@@ -229,6 +264,76 @@ test("guided code edit is undoable, persisted, restored and downloaded", async (
     .click();
   expect((await download).suggestedFilename()).toBe("led.py");
 });
+test("soil wiring shows a single sensor cable with matching A and B ends in 2D and 3D", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await createGroup(page, "Sonda cable a cable QA", 7);
+  await page.goto("/taller/soil");
+  await phase(page, "Conecta");
+  const instruction = page.getByRole("region", {
+    name: "Instrucción de montaje",
+  });
+  await instruction
+    .getByRole("checkbox", { name: /Retiré físicamente el USB/ })
+    .press("Space");
+  await instruction
+    .getByRole("button", { name: "Empezar a cablear", exact: true })
+    .click();
+  for (let count = 0; count < 3; count++) {
+    await instruction.getByRole("checkbox").press("Space");
+    await instruction
+      .getByRole("button", { name: "Listo, siguiente", exact: true })
+      .click();
+  }
+  await expect(
+    page.getByRole("heading", { name: /Hilo rojo \(VCC\)/ }),
+  ).toBeVisible();
+  await expect(
+    instruction.getByText("1 hilo o cable de sensor rojo", { exact: true }),
+  ).toBeVisible();
+  const ends = instruction.locator('[aria-label="Extremos del cable"]');
+  await expect(ends).toContainText("VCC");
+  await expect(ends).toContainText("+ · 11");
+  await expect(
+    page.getByRole("button", {
+      name: "Acercar extremo A: soil.VCC",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Acercar extremo B: tp:11", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("radio", { name: "3D interactivo", exact: true })
+    .click();
+  await expect(page.locator(".rdx-circuit canvas")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Hilo rojo \(VCC\)/ }),
+  ).toBeVisible();
+  await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
+  await expect(ends).toContainText("VCC");
+  await expect(ends).toContainText("+ · 11");
+  const tabs = await page
+    .getByRole("navigation", { name: "Partes de la actividad" })
+    .getByRole("button")
+    .evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const box = button.getBoundingClientRect();
+        return { left: box.left, right: box.right };
+      }),
+    );
+  expect(
+    tabs.every(
+      (box, index) => index === 0 || box.left >= tabs[index - 1].right,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
 test("Arduino pin table and guided C++ edits follow selected board", async ({
   page,
 }) => {
@@ -236,10 +341,18 @@ test("Arduino pin table and guided C++ edits follow selected board", async ({
   await page.goto("/taller/led");
   await page.getByLabel("Tu placa").selectOption("uno");
   await phase(page, "Conecta");
-  await expect(page.getByText("Pin D2", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/En Arduino Uno y Nano la salida es de 5 V/),
   ).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: /Retiré físicamente el USB y las fuentes externas/,
+    })
+    .press("Space");
+  await page
+    .getByRole("button", { name: "Empezar a conectar", exact: true })
+    .click();
+  await expect(page.getByText("Pin D2", { exact: true })).toBeVisible();
   await phase(page, "Programa");
   await page
     .getByRole("button", { name: "Probar este cambio", exact: true })
@@ -407,10 +520,7 @@ test("teacher authenticates and views ten stations and read-only group", async (
     page.getByRole("button", { name: "Cerrar sesión docente" }),
   ).toBeVisible();
   await expect(page.locator(".teacher-group")).toHaveCount(10);
-  await page
-    .getByRole("button", { name: "Ver en modo lectura" })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Ver grupo" }).first().click();
   await expect(page.getByRole("dialog")).toContainText(
     "no modifica sus borradores",
   );
@@ -480,6 +590,7 @@ test("WebGL unavailable keeps accessible explanations and real 2D wiring", async
     } as typeof getContext;
   });
   await page.goto("/");
+  await page.locator("summary", { hasText: "Explorar la estación 3D" }).click();
   await expect(page.getByText(/El render 3D necesita WebGL/)).toBeVisible();
   await page.getByRole("button", { name: "Sensor", exact: true }).click();
   await expect(page.locator(".rdx-selection")).toContainText(
@@ -488,7 +599,16 @@ test("WebGL unavailable keeps accessible explanations and real 2D wiring", async
   await page.goto("/taller/led");
   await phase(page, "Conecta");
   await expect(
+    page.getByRole("radio", { name: "Plano 2D", exact: true }),
+  ).toBeChecked();
+  await page
+    .getByRole("radio", { name: "3D interactivo", exact: true })
+    .click();
+  await expect(
     page.getByText(/Este navegador no dispone de WebGL/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /Tu primera señal|LED|Protoboard/ }).first(),
   ).toBeVisible();
   await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
   await expect(

@@ -368,7 +368,11 @@ test("real UI executes raw-paste, edits UTF8 code, saves bytes, stops and reconn
       window as unknown as { __usbPeer: { unplug: () => void } }
     ).__usbPeer.unplug(),
   );
-  await expect(page.getByText("Sin placa", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Sin USB · puedes preparar el montaje y el código.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Ejecutar", exact: true }),
   ).toBeDisabled();
@@ -490,6 +494,7 @@ test("station installation writes the complete bundle and fresh group credential
   const before = (
     await (await page.request.get("/api/dashboard")).json()
   ).devices.find((device: { source: string }) => device.source === "hardware");
+  await page.locator("summary", { hasText: "Dispositivos vinculados" }).click();
   await page
     .getByRole("button", { name: "Revocar acceso", exact: true })
     .click();
@@ -498,6 +503,7 @@ test("station installation writes the complete bundle and fresh group credential
   ).toBeDisabled();
   await page.getByLabel("Red Wi-Fi de 2,4 GHz").fill("QA-red-2.4GHz");
   await page.getByLabel("Contraseña Wi-Fi").fill("QA-password-solo-fixture");
+  await page.locator("summary", { hasText: "Dirección del servidor" }).click();
   await page
     .getByLabel("Endpoint HTTPS de telemetría")
     .fill("https://workshop.example.org/api/device/ingest");

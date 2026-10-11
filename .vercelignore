@@ -1,0 +1,20 @@
+# Deployment uploads must never include local credentials or workshop data.
+.env
+.env.*
+data/
+**/*.sqlite
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/*.db
+
+# Vercel installs and builds from the source files in this deployment.
+node_modules/
+tools/
+dist/
+.git/
+.vercel/
+.cloud-onboarding/
+playwright-report/
+test-results/
+coverage/
+*.log

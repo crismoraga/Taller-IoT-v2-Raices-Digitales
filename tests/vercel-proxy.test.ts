@@ -658,16 +658,18 @@ test("simultaneous clients share restoration and one disconnect cannot cancel an
   }
 });
 
-test("SANDBOX_NOT_LISTENING invalidates routing and restarts on the next request without replaying a POST", async () => {
-  for (const location of ["header", "body"]) {
+test("unreachable sandboxes invalidate routing and restart on the next request without replaying a POST", async () => {
+  for (const location of ["header", "body", "network"]) {
     const restart = vi.fn(async () => ({ exitCode: 0 }));
     const create = vi.fn();
     const get = vi.fn(async () => ({
       domain: () => "https://workshop-a.vercel.run",
       runCommand: restart,
     }));
-    const backend = vi.fn(async () =>
-      backend.mock.calls.length === 1
+    const backend = vi.fn(async () => {
+      if (backend.mock.calls.length === 1 && location === "network")
+        throw new TypeError("fetch failed: sandbox socket closed");
+      return backend.mock.calls.length === 1
         ? new Response(
             location === "body" ? "SANDBOX_NOT_LISTENING" : "unavailable",
             {
@@ -678,8 +680,8 @@ test("SANDBOX_NOT_LISTENING invalidates routing and restarts on the next request
                   : {},
             },
           )
-        : new Response("ready"),
-    );
+        : new Response("ready");
+    });
     const f = await fixture({
       loadSDK: async () => ({ Sandbox: { get, create, getOrCreate: create } }),
       fetchImpl: backend,
@@ -689,7 +691,7 @@ test("SANDBOX_NOT_LISTENING invalidates routing and restarts on the next request
         method: "POST",
         body: "{}",
       });
-      assert.equal(first.status, 502);
+      assert.equal(first.status, location === "network" ? 503 : 502);
       await first.text();
       assert.equal(
         backend.mock.calls.length,
