@@ -37,6 +37,8 @@ Esta matriz describe el recorrido del taller real y sus criterios de aceptación
 
 ## Registro de la revisión
 
+- Ampliación de compatibilidad e identidad del 12 de octubre de 2026: 59 pruebas de navegador, 701 de aplicación y 30 de firmware aprobadas; 70 compilaciones reales de catálogo/estación. Diez grupos independientes compilaron simultáneamente en el dominio público y recibieron el mismo firmware real, sin rechazo de cola. Servicios actualizados conservando sesiones, integridad SQLite y configuración privada.
+
 - Revisión de compatibilidad y experiencia del 12 de octubre de 2026: 52 pruebas de navegador, 620 de aplicación y 15 de firmware aprobadas. Incluye el error STK500v1 reproducido y corregido, dos velocidades de bootloader, verificación de memoria, permisos USB del navegador, montaje sin confirmaciones duplicadas y modelos 3D refinados.
 
 - Revisión adicional del 12 de octubre de 2026: 49 pruebas de navegador, 597 de aplicación y 15 de firmware aprobadas; incluye cambio de placa sin recarga, vista 2D conservada, montaje por patas y el primer LED Arduino con compilador real y verificación de flash mediante STK500.
