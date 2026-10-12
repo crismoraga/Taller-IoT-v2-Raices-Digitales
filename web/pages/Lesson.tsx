@@ -217,7 +217,7 @@ export default function Lesson() {
   const understand = (
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.8fr)]">
       <BoardDiscovery
-        key={`${lesson.id}:${app.board}:discover`}
+        key={`${lesson.id}:discover`}
         circuit={referenceCircuit}
       />
       <div className="flex flex-col gap-4 xl:sticky xl:top-36">
@@ -279,10 +279,7 @@ export default function Lesson() {
     <div className="flex flex-col gap-4">
       {lesson.id === "welcome" ? (
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.8fr)]">
-          <BoardDiscovery
-            key={`welcome:${app.board}:connect`}
-            circuit={referenceCircuit}
-          />
+          <BoardDiscovery key="welcome:connect" circuit={referenceCircuit} />
           <Card
             as="section"
             className="solarpunk-discovery-card flex flex-col gap-4"
@@ -757,6 +754,17 @@ export default function Lesson() {
                 ))}
               </Select>
             </label>
+            {app.connected && (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="usb"
+                disabled={app.busy || app.connecting}
+                onClick={() => void app.disconnect()}
+              >
+                Cambiar placa
+              </Button>
+            )}
             <div className="flex items-center gap-2">
               <Segmented
                 size="sm"

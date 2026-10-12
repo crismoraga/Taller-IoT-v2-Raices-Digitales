@@ -4,6 +4,11 @@ import type { ThemePref } from "./theme";
 
 export type Board = "pico" | "uno" | "nano" | "nano-old";
 export type ToastTone = "success" | "error" | "info";
+export type UploadStatus = {
+  stage: "compile" | "sync" | "write" | "verify" | "complete" | "error";
+  percent?: number;
+  message?: string;
+};
 
 export const BOARD_NAMES: Record<Board, string> = {
   pico: "Raspberry Pi Pico W",
@@ -55,6 +60,8 @@ export type AppContextType = {
   busy: boolean;
   /** Hay un programa del estudiante ejecutándose en la placa. */
   running: boolean;
+  /** Actual compiler and bootloader progress; completion requires flash readback. */
+  uploadStatus: UploadStatus | null;
   connect: () => Promise<void>;
   /** Unknown USB bridges need one participant choice before opening a protocol. */
   usbChoice: string | null;

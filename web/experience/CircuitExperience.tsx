@@ -324,6 +324,62 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
         roughness={0.32}
       />
       <UsbJack kind="micro" position={position({ x: 1.9, y: 8.5 }, 0.33)} />
+      <HardwareBody
+        position={position({ x: 4.3, y: 8.5 }, 0.315)}
+        size={[0.19, 0.035, 0.19]}
+        color="#d8decf"
+        radius={0.018}
+        bevel={0.003}
+        metalness={0.46}
+        roughness={0.4}
+      />
+      <HardwareBody
+        position={position({ x: 4.3, y: 8.5 }, 0.348)}
+        size={[0.092, 0.03, 0.092]}
+        color="#ede9d9"
+        radius={0.016}
+        roughness={0.65}
+      />
+      <BoardText
+        position={position({ x: 4.3, y: 7.25 }, 0.289)}
+        size={0.047}
+        color="#e4f5d8"
+      >
+        BOOTSEL
+      </BoardText>
+      <mesh position={position({ x: 3.15, y: 6.35 }, 0.291)}>
+        <boxGeometry args={[0.07, 0.022, 0.036]} />
+        <meshStandardMaterial color="#e0edbf" roughness={0.42} />
+      </mesh>
+      {[
+        { x: 2.15, y: 6.4 },
+        { x: 2.15, y: 10.6 },
+        { x: 20.85, y: 6.4 },
+        { x: 20.85, y: 10.6 },
+      ].map((hole, index) => (
+        <group key={`mount-${index}`}>
+          <mesh
+            position={position(hole, 0.287)}
+            rotation={[-Math.PI / 2, 0, 0]}
+            raycast={() => null}
+          >
+            <ringGeometry args={[0.051, 0.078, 20]} />
+            <meshStandardMaterial
+              color="#b69c50"
+              metalness={0.7}
+              roughness={0.37}
+            />
+          </mesh>
+          <mesh
+            position={position(hole, 0.288)}
+            rotation={[-Math.PI / 2, 0, 0]}
+            raycast={() => null}
+          >
+            <circleGeometry args={[0.048, 20]} />
+            <meshStandardMaterial color="#264f3c" roughness={0.88} />
+          </mesh>
+        </group>
+      ))}
       {Array.from({ length: 6 }, (_, index) => (
         <mesh
           key={`smd-${index}`}
@@ -428,7 +484,7 @@ function ArduinoController({
       />
       <HardwareBody
         position={position({ x: center.x + 1.5, y: center.y }, 0.34)}
-        size={[board === "uno" ? 0.9 : 0.45, 0.13, 0.4]}
+        size={[board === "uno" ? 1.82 : 0.45, 0.13, 0.4]}
         color="#1a2926"
         radius={0.022}
         bevel={0.005}
@@ -451,7 +507,7 @@ function ArduinoController({
                   center.x +
                   1.5 +
                   (index - (board === "uno" ? 6.5 : 3.5)) *
-                    (board === "uno" ? 0.49 : 0.34),
+                    (board === "uno" ? 1 : 0.34),
                 y: center.y + side * 1.66,
               },
               0.3,
@@ -468,6 +524,41 @@ function ArduinoController({
           </mesh>
         )),
       )}
+      {(board === "uno"
+        ? [
+            [1.7, 1.4],
+            [25.3, 1.4],
+            [1.7, 19.1],
+            [25.3, 19.1],
+          ]
+        : [
+            [1, 3.55],
+            [16, 3.55],
+          ]
+      ).map(([x, y], index) => (
+        <group key={`controller-mount-${index}`}>
+          <mesh
+            position={position({ x: box.x + x, y: box.y + y }, 0.289)}
+            rotation={[-Math.PI / 2, 0, 0]}
+            raycast={() => null}
+          >
+            <ringGeometry args={[0.049, 0.075, 20]} />
+            <meshStandardMaterial
+              color="#b69c50"
+              metalness={0.69}
+              roughness={0.36}
+            />
+          </mesh>
+          <mesh
+            position={position({ x: box.x + x, y: box.y + y }, 0.29)}
+            rotation={[-Math.PI / 2, 0, 0]}
+            raycast={() => null}
+          >
+            <circleGeometry args={[0.047, 20]} />
+            <meshStandardMaterial color="#234b3d" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
       {board === "uno" && (
         <>
           <HardwareBody
@@ -1118,12 +1209,14 @@ function TerminalLabels({
   cable,
   activeEndpoint,
   activate,
+  terminalNotes,
 }: {
   endpoints: string[];
   circuit: Circuit;
   cable: boolean;
   activeEndpoint?: "a" | "b";
   activate?: (endpoint: string) => void;
+  terminalNotes?: Record<string, string>;
 }) {
   const { camera, size } = useThree();
   const points = useMemo(
@@ -1142,10 +1235,12 @@ function TerminalLabels({
           badge: index === 0 ? "a" : "b",
           point: new THREE.Vector3(...atEndpoint(circuit, endpoint, 0.18)),
           label: cable ? `${index === 0 ? "A" : "B"} · ${label}` : label,
-          sub: pin ? `${pin.name} · pin ${pin.physical}` : undefined,
+          sub:
+            terminalNotes?.[endpoint] ??
+            (pin ? `${pin.name} · pin ${pin.physical}` : undefined),
         };
       }),
-    [endpoints.join("|"), circuit, cable],
+    [endpoints.join("|"), circuit, cable, terminalNotes],
   );
   const [screen, setScreen] = useState<
     { x: number; y: number; visible: boolean }[]
@@ -1323,6 +1418,7 @@ function CircuitWorld({
   onEndpointActivate,
   connectionState,
   selection,
+  activePartPin,
 }: {
   circuit: Circuit;
   activeStep: number;
@@ -1338,6 +1434,7 @@ function CircuitWorld({
   onEndpointActivate?: (endpoint: "a" | "b") => void;
   connectionState?: "take" | "a" | "b" | "placed";
   selection: Selection | null;
+  activePartPin?: { partId: string; pinId: string };
 }) {
   const step = circuit.steps[activeStep];
   const completedSteps =
@@ -1364,9 +1461,22 @@ function CircuitWorld({
         .flatMap((part) => Object.values(part.holes ?? {})),
     ]),
   ];
-  const terminals = actionTerminals.length
-    ? actionTerminals
-    : [...new Set(step?.focus ?? [])];
+  const focusedPart = activePartPin
+    ? visibleParts.find((part) => part.id === activePartPin.partId)
+    : undefined;
+  const focusedPartHole = focusedPart?.holes?.[activePartPin?.pinId ?? ""];
+  const focusedPin = focusedPart
+    ? partDef(focusedPart).pins.find((pin) => pin.id === activePartPin?.pinId)
+    : undefined;
+  const terminalNotes =
+    focusedPartHole && focusedPin
+      ? { [focusedPartHole]: focusedPin.aka?.[0] ?? focusedPin.label }
+      : undefined;
+  const terminals = focusedPartHole
+    ? [focusedPartHole]
+    : actionTerminals.length
+      ? actionTerminals
+      : [...new Set(step?.focus ?? [])];
   const currentWire = circuit.wires.find(
     (wire) => step?.wires?.length === 1 && step.wires[0] === wire.id,
   );
@@ -1434,6 +1544,7 @@ function CircuitWorld({
         <Pico select={select} />
       ) : (
         <ArduinoController
+          key={circuit.board}
           board={circuit.board}
           select={select}
           activateEndpoint={activateEndpoint}
@@ -1481,9 +1592,10 @@ function CircuitWorld({
             endpoint={endpoint}
             circuit={circuit}
             selected={
-              !!currentWire &&
-              endpoint ===
-                (activeEndpoint === "b" ? currentWire.to : currentWire.from)
+              endpoint === focusedPartHole ||
+              (!!currentWire &&
+                endpoint ===
+                  (activeEndpoint === "b" ? currentWire.to : currentWire.from))
             }
             activate={() => activateEndpoint(endpoint)}
           />
@@ -1495,6 +1607,7 @@ function CircuitWorld({
           cable={activeWires.size === 1}
           activeEndpoint={activeEndpoint}
           activate={currentWire ? activateEndpoint : undefined}
+          terminalNotes={terminalNotes}
         />
       )}
       {highlightedTerminals(circuit, selection?.terminals).map((terminal) => (
@@ -1506,6 +1619,7 @@ function CircuitWorld({
         />
       ))}
       <SceneCamera
+        key={`${circuit.id}:${circuit.board ?? "pico"}`}
         action={action}
         target={target}
         home={home}
@@ -1525,6 +1639,9 @@ export interface CircuitExperienceProps {
   onEndpointActivate?: (endpoint: "a" | "b") => void;
   requestFocusEndpoint?: { endpoint: "a" | "b"; token: number };
   connectionState?: "take" | "a" | "b" | "placed";
+  /** Identify one leg at a time before inserting the whole component. */
+  activePartPin?: { partId: string; pinId: string };
+  requestFocusPartPin?: { partId: string; pinId: string; token: number };
 }
 
 export function CircuitExperience({
@@ -1536,7 +1653,12 @@ export function CircuitExperience({
   onEndpointActivate,
   requestFocusEndpoint,
   connectionState,
+  activePartPin,
+  requestFocusPartPin,
 }: CircuitExperienceProps) {
+  // A circuit's controller is part of its identity, including custom circuits
+  // whose human-facing id stays the same when a different board is chosen.
+  const sceneIdentity = `${circuit.id}:${circuit.board ?? "pico"}`;
   const reference = useRef<HTMLElement>(null);
   const active = useSceneActive(reference);
   const reduced = useReducedMotion();
@@ -1664,18 +1786,15 @@ export function CircuitExperience({
     () => [target[0] + 0.4, target[1] + 8, target[2] + 4.8],
     [target],
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSelection(null);
     setInspectorOpen(false);
     setOverview(false);
     setAction((current) => ({ type: "reset", sequence: current.sequence + 1 }));
-  }, [circuit.id, stepIndex]);
+  }, [sceneIdentity, stepIndex]);
   useEffect(() => {
     if (selection) setInspectorOpen(true);
   }, [selection]);
-  useEffect(() => {
-    setAction((current) => ({ type: "reset", sequence: current.sequence + 1 }));
-  }, [circuit.id]);
   const camera = (type: CameraAction["type"]) =>
     setAction((current) => ({ type, sequence: current.sequence + 1 }));
   const activeWire =
@@ -1704,6 +1823,27 @@ export function CircuitExperience({
   useEffect(() => {
     if (requestFocusEndpoint) focusEndpoint(requestFocusEndpoint.endpoint);
   }, [requestFocusEndpoint?.token, focusEndpoint]);
+  const focusPartPin = useCallback(
+    (partId: string, pinId: string) => {
+      const part = circuit.parts.find((candidate) => candidate.id === partId);
+      const hole = part?.holes?.[pinId];
+      if (!hole) return;
+      const at = atHole(hole, 0.18);
+      setSelection(null);
+      setInspectorOpen(false);
+      setAction((current) => ({
+        type: "focus",
+        sequence: current.sequence + 1,
+        focusTarget: at,
+        focusPosition: [at[0] + 0.18, at[1] + 3.6, at[2] + 1.5],
+      }));
+    },
+    [circuit],
+  );
+  useEffect(() => {
+    if (requestFocusPartPin)
+      focusPartPin(requestFocusPartPin.partId, requestFocusPartPin.pinId);
+  }, [requestFocusPartPin?.token, focusPartPin]);
   const visibleSteps =
     mode === "all" ? circuit.steps : circuit.steps.slice(0, stepIndex + 1);
   const visibleParts =
@@ -1737,6 +1877,8 @@ export function CircuitExperience({
             onEndpointActivate={onEndpointActivate}
             requestFocusEndpoint={requestFocusEndpoint}
             connectionState={connectionState}
+            activePartPin={activePartPin}
+            requestFocusPartPin={requestFocusPartPin}
           />
         </div>
       </section>
@@ -1746,6 +1888,8 @@ export function CircuitExperience({
       ref={reference}
       className={`rdx-circuit ${className}`}
       aria-label={`Modelo 3D de ${circuit.title}`}
+      data-board={circuit.board ?? "pico"}
+      data-circuit={circuit.id}
     >
       <div className="rdx-circuit-heading">
         <span>
@@ -1785,6 +1929,7 @@ export function CircuitExperience({
               onEndpointActivate={onEndpointActivate}
               connectionState={connectionState}
               selection={selection}
+              activePartPin={activePartPin}
             />
           </Suspense>
         </SafeCanvas>

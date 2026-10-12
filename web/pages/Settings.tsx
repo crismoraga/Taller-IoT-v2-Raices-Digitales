@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Wifi,
   Usb,
@@ -47,6 +47,10 @@ export default function Settings() {
     [savingSensors, setSavingSensors] = useState(false);
   const [stage, setStage] = useState<1 | 2 | 3>(app.connected ? 2 : 1);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const previewCircuit = useMemo(
+    () => circuitForBoard(circuits.led, app.board),
+    [app.board],
+  );
   const arduino = app.board !== "pico";
   useEffect(() => {
     if (app.connected) setStage(2);
@@ -307,6 +311,15 @@ export default function Settings() {
                   </option>
                 </select>
               </label>
+              {app.connected && (
+                <Button
+                  variant="ghost"
+                  disabled={app.busy || app.connecting}
+                  onClick={() => void app.disconnect()}
+                >
+                  <Usb size={16} /> Cambiar placa
+                </Button>
+              )}
             </details>
             {!app.serialSupported && (
               <Notice tone="warning">
@@ -634,9 +647,7 @@ export default function Settings() {
         <summary>
           Toca los pines de {BOARD_NAMES[app.board]} · explorador 3D y 2D
         </summary>
-        {previewOpen && (
-          <BoardDiscovery circuit={circuitForBoard(circuits.led, app.board)} />
-        )}
+        {previewOpen && <BoardDiscovery circuit={previewCircuit} />}
       </details>
       <details className="settings-card simple-details">
         <summary>

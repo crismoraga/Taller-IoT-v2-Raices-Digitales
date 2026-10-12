@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Board } from "../lib/context";
 import { BoardText, Tube, type V3 } from "./Primitives";
+import { livingBoardProfile } from "./living-state";
 
 /** Small, locally generated models: no texture downloads or runtime asset fetches. */
 export function LivingLeaf({
@@ -246,7 +247,7 @@ function BreadboardHoles() {
     let index = 0;
     for (let x = 0; x < 11; x++) {
       for (let z = 0; z < 6; z++) {
-        dummy.position.set(-0.66 + x * 0.13, 0.094, -0.41 + z * 0.165);
+        dummy.position.set(-0.66 + x * 0.13, 0.0858, -0.41 + z * 0.165);
         dummy.updateMatrix();
         reference.current.setMatrixAt(index++, dummy.matrix);
       }
@@ -255,7 +256,7 @@ function BreadboardHoles() {
   }, []);
   return (
     <instancedMesh ref={reference} args={[undefined, undefined, 66]}>
-      <boxGeometry args={[0.036, 0.011, 0.04]} />
+      <boxGeometry args={[0.036, 0.0012, 0.04]} />
       <meshStandardMaterial color="#4e5649" roughness={0.92} />
     </instancedMesh>
   );
@@ -274,20 +275,90 @@ function Header({
 }) {
   return (
     <group position={position}>
-      {female && (
-        <mesh position={[((count - 1) * pitch) / 2, 0.032, 0]}>
-          <boxGeometry args={[count * pitch, 0.074, 0.064]} />
-          <meshStandardMaterial color="#182b29" roughness={0.7} />
-        </mesh>
-      )}
+      <mesh position={[((count - 1) * pitch) / 2, female ? 0.039 : 0.025, 0]}>
+        <boxGeometry args={[count * pitch, female ? 0.078 : 0.029, 0.063]} />
+        <meshStandardMaterial color="#172826" roughness={0.64} />
+      </mesh>
       {Array.from({ length: count }, (_, i) => (
-        <mesh key={i} position={[i * pitch, female ? 0.071 : 0.035, 0]}>
-          <boxGeometry
-            args={[female ? 0.021 : 0.019, female ? 0.004 : 0.073, 0.02]}
-          />
+        <group key={i} position={[i * pitch, 0, 0]}>
+          <mesh position={[0, female ? 0.079 : -0.016, 0]}>
+            <boxGeometry
+              args={[female ? 0.023 : 0.018, female ? 0.004 : 0.12, 0.023]}
+            />
+            <meshStandardMaterial
+              color={female ? "#111d1b" : "#dbc079"}
+              metalness={female ? 0.1 : 0.8}
+              roughness={0.32}
+            />
+          </mesh>
+          {female && (
+            <mesh position={[0, 0.0796, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.011, 0.016, 8]} />
+              <meshStandardMaterial
+                color="#8f9277"
+                metalness={0.72}
+                roughness={0.35}
+              />
+            </mesh>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function UsbSocket({
+  uno,
+  nano,
+  width,
+}: {
+  uno: boolean;
+  nano: boolean;
+  width: number;
+}) {
+  const length = uno ? 0.28 : nano ? 0.18 : 0.145;
+  const height = uno ? 0.21 : nano ? 0.095 : 0.07;
+  const depth = uno ? 0.235 : nano ? 0.18 : 0.16;
+  return (
+    <group
+      position={[
+        -width / 2 + length * 0.26,
+        height / 2 + 0.027,
+        uno ? -0.25 : 0,
+      ]}
+    >
+      <mesh castShadow>
+        <boxGeometry args={[length, height, depth]} />
+        <meshStandardMaterial
+          color="#c3cbd0"
+          metalness={0.88}
+          roughness={0.24}
+        />
+      </mesh>
+      <mesh position={[-length / 2 - 0.002, 0, 0]}>
+        <boxGeometry args={[0.005, height * 0.66, depth * 0.78]} />
+        <meshStandardMaterial color="#182321" roughness={0.65} />
+      </mesh>
+      <mesh position={[-length / 2 - 0.006, uno ? 0.018 : -0.006, 0]}>
+        <boxGeometry args={[0.006, height * 0.2, depth * 0.45]} />
+        <meshStandardMaterial
+          color={uno ? "#e1e3db" : "#333c37"}
+          roughness={0.6}
+        />
+      </mesh>
+      {[0, 1].map((side) => (
+        <mesh
+          key={side}
+          position={[
+            length * 0.25,
+            -height / 2 + 0.005,
+            ((side ? 1 : -1) * depth) / 2,
+          ]}
+        >
+          <boxGeometry args={[0.055, 0.014, 0.031]} />
           <meshStandardMaterial
-            color={female ? "#565b4a" : "#d5b969"}
-            metalness={0.75}
+            color="#b9c3c3"
+            metalness={0.85}
             roughness={0.3}
           />
         </mesh>
@@ -296,139 +367,314 @@ function Header({
   );
 }
 
+/** The Uno rests beside the wiring surface; Pico/Nano have real downward male pins. */
 export function LivingBoard({ board }: { board: Board }) {
+  const profile = livingBoardProfile(board);
+  const { width, depth } = profile;
   const uno = board === "uno";
-  const arduino = board !== "pico";
-  const width = uno ? 1.2 : 1.02;
-  const depth = uno ? 0.78 : 0.43;
+  const pico = board === "pico";
+  const nano = !uno && !pico;
+  const mounting = useMemo<V3[]>(
+    () =>
+      uno
+        ? [
+            [-width / 2 + 0.095, 0, -depth / 2 + 0.095],
+            [width / 2 - 0.07, 0, -depth / 2 + 0.095],
+            [width / 2 - 0.07, 0, depth / 2 - 0.095],
+            [-width / 2 + 0.19, 0, depth / 2 - 0.095],
+          ]
+        : [
+            [-width / 2 + 0.21, 0, -depth / 2 + 0.075],
+            [width / 2 - 0.075, 0, depth / 2 - 0.075],
+          ],
+    [uno, width, depth],
+  );
+  const pcb = useMemo(() => {
+    const shape = new THREE.Shape();
+    const w = width / 2,
+      d = depth / 2,
+      corner = uno ? 0.06 : 0.024;
+    shape.moveTo(-w + corner, -d);
+    shape.lineTo(w - corner, -d);
+    shape.quadraticCurveTo(w, -d, w, -d + corner);
+    shape.lineTo(w, d - corner);
+    shape.quadraticCurveTo(w, d, w - corner, d);
+    shape.lineTo(-w + corner, d);
+    shape.quadraticCurveTo(-w, d, -w, d - corner);
+    shape.lineTo(-w, -d + corner);
+    shape.quadraticCurveTo(-w, -d, -w + corner, -d);
+    for (const [x, , z] of mounting) {
+      const hole = new THREE.Path();
+      hole.absarc(x, -z, 0.025, 0, Math.PI * 2, true);
+      shape.holes.push(hole);
+    }
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.027,
+      bevelEnabled: true,
+      bevelSize: 0.004,
+      bevelThickness: 0.004,
+      bevelSegments: 2,
+      steps: 1,
+      curveSegments: 12,
+    });
+  }, [width, depth, mounting]);
+  useEffect(() => () => pcb.dispose(), [pcb]);
+  const chipX = uno ? 0.15 : pico ? 0.045 : 0.07;
+  const chipZ = uno ? 0.2 : 0;
   return (
-    <group>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[1.55, 0.17, 1.08]} />
-        <meshStandardMaterial color="#ecebd6" roughness={0.75} />
-      </mesh>
-      <mesh position={[0, 0.091, 0]}>
-        <boxGeometry args={[1.43, 0.008, 0.036]} />
-        <meshStandardMaterial color="#c1c7b4" roughness={0.93} />
-      </mesh>
-      <BreadboardHoles />
-      <BoardText position={[0.62, 0.101, 0.37]} size={0.06} color="#7c8571">
-        +
-      </BoardText>
-      <BoardText position={[-0.65, 0.101, 0.37]} size={0.06} color="#7c8571">
-        −
-      </BoardText>
-      <group position={[-0.2, 0.18, -0.08]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[width, 0.043, depth]} />
+    <group name={`living-controller-${board}`}>
+      {!uno && (
+        <group>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[1.55, 0.17, 1.08]} />
+            <meshStandardMaterial color="#ecebd6" roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0.091, 0]}>
+            <boxGeometry args={[1.43, 0.008, 0.036]} />
+            <meshStandardMaterial color="#c1c7b4" roughness={0.93} />
+          </mesh>
+          <BreadboardHoles />
+          <BoardText position={[0.62, 0.101, 0.37]} size={0.06} color="#7c8571">
+            +
+          </BoardText>
+          <BoardText
+            position={[-0.65, 0.101, 0.37]}
+            size={0.06}
+            color="#7c8571"
+          >
+            −
+          </BoardText>
+        </group>
+      )}
+      <group position={[0, uno ? 0.065 : 0.136, 0]} name={`pcb-${board}`}>
+        {uno &&
+          mounting.map(([x, , z], i) => (
+            <mesh key={i} position={[x, -0.046, z]}>
+              <cylinderGeometry args={[0.038, 0.043, 0.092, 10]} />
+              <meshStandardMaterial
+                color="#dbc69c"
+                roughness={0.56}
+                metalness={0.45}
+              />
+            </mesh>
+          ))}
+        <mesh
+          geometry={pcb}
+          rotation={[-Math.PI / 2, 0, 0]}
+          castShadow
+          receiveShadow
+        >
           <meshPhysicalMaterial
-            color={arduino ? "#277d87" : "#277653"}
-            roughness={0.5}
-            clearcoat={0.25}
-            clearcoatRoughness={0.52}
+            color={profile.color}
+            roughness={0.47}
+            clearcoat={0.28}
+            clearcoatRoughness={0.43}
           />
         </mesh>
-        <mesh position={[uno ? 0.09 : 0.1, 0.054, 0]}>
-          <boxGeometry args={[uno ? 0.4 : 0.2, 0.065, uno ? 0.14 : 0.2]} />
-          <meshStandardMaterial color="#202c28" roughness={0.67} />
+        {mounting.map(([x, , z], i) => (
+          <mesh
+            key={i}
+            position={[x, 0.0315, z]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
+            <ringGeometry args={[0.025, 0.043, 18]} />
+            <meshStandardMaterial
+              color="#dabf72"
+              metalness={0.78}
+              roughness={0.35}
+            />
+          </mesh>
+        ))}
+        <mesh position={[chipX, 0.067, chipZ]} castShadow>
+          <boxGeometry
+            args={[uno ? 0.58 : 0.205, uno ? 0.07 : 0.055, uno ? 0.17 : 0.205]}
+          />
+          <meshStandardMaterial color="#202c28" roughness={0.59} />
         </mesh>
         {[-1, 1].flatMap((side) =>
-          Array.from({ length: uno ? 8 : 5 }, (_, i) => (
+          Array.from({ length: uno ? 14 : 8 }, (_, i) => (
             <mesh
               key={`chip-${side}-${i}`}
               position={[
-                uno ? -0.08 + i * 0.046 : 0.022 + i * 0.036,
-                0.039,
-                side * (uno ? 0.089 : 0.116),
+                chipX - (uno ? 0.265 : 0.087) + i * (uno ? 0.04 : 0.025),
+                0.049,
+                chipZ + side * (uno ? 0.105 : 0.12),
               ]}
             >
-              <boxGeometry args={[0.024, 0.018, 0.046]} />
+              <boxGeometry args={[uno ? 0.026 : 0.015, 0.018, 0.045]} />
               <meshStandardMaterial
-                color="#a1aaa0"
-                metalness={0.8}
-                roughness={0.3}
+                color="#acb6af"
+                metalness={0.83}
+                roughness={0.29}
               />
             </mesh>
           )),
         )}
-        <group position={[-width / 2 + 0.063, 0.07, 0]}>
-          <mesh>
-            <boxGeometry args={[uno ? 0.22 : 0.16, uno ? 0.15 : 0.092, 0.18]} />
-            <meshStandardMaterial
-              color="#b9c3b9"
-              metalness={0.87}
-              roughness={0.26}
-            />
-          </mesh>
-          <mesh position={[-(uno ? 0.111 : 0.081), 0, 0]}>
-            <boxGeometry args={[0.004, uno ? 0.083 : 0.046, 0.122]} />
-            <meshStandardMaterial color="#36433b" roughness={0.7} />
-          </mesh>
-        </group>
+        {!uno &&
+          [-1, 1].flatMap((side) =>
+            Array.from({ length: 8 }, (_, i) => (
+              <mesh
+                key={`chip-end-${side}-${i}`}
+                position={[chipX + side * 0.12, 0.049, -0.087 + i * 0.025]}
+              >
+                <boxGeometry args={[0.045, 0.018, 0.015]} />
+                <meshStandardMaterial
+                  color="#acb6af"
+                  metalness={0.83}
+                  roughness={0.29}
+                />
+              </mesh>
+            )),
+          )}
+        <UsbSocket uno={uno} nano={nano} width={width} />
         {uno ? (
           <>
-            <Header count={8} position={[-0.53, 0.025, -0.35]} female />
-            <Header count={6} position={[-0.025, 0.025, -0.35]} female />
-            <Header count={8} position={[-0.53, 0.025, 0.35]} female />
-            <Header count={6} position={[-0.025, 0.025, 0.35]} female />
+            <Header
+              count={10}
+              position={[-0.54, 0.03, -0.525]}
+              female
+              pitch={0.062}
+            />
+            <Header
+              count={8}
+              position={[0.13, 0.03, -0.525]}
+              female
+              pitch={0.062}
+            />
+            <Header
+              count={8}
+              position={[-0.49, 0.03, 0.525]}
+              female
+              pitch={0.062}
+            />
+            <Header
+              count={6}
+              position={[0.13, 0.03, 0.525]}
+              female
+              pitch={0.062}
+            />
+            <group position={[-0.64, 0.096, 0.32]}>
+              <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+                <cylinderGeometry args={[0.105, 0.105, 0.22, 18]} />
+                <meshStandardMaterial color="#202d29" roughness={0.5} />
+              </mesh>
+              <mesh position={[-0.113, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.057, 0.057, 0.004, 18]} />
+                <meshStandardMaterial color="#101d18" roughness={0.82} />
+              </mesh>
+            </group>
+            <mesh position={[-0.4, 0.055, -0.33]}>
+              <boxGeometry args={[0.074, 0.044, 0.074]} />
+              <meshStandardMaterial
+                color="#b0b8a9"
+                metalness={0.6}
+                roughness={0.35}
+              />
+            </mesh>
+            <mesh position={[-0.4, 0.083, -0.33]}>
+              <boxGeometry args={[0.04, 0.025, 0.04]} />
+              <meshStandardMaterial color="#aa584f" roughness={0.72} />
+            </mesh>
+            <BoardText
+              position={[0.27, 0.033, -0.21]}
+              size={0.115}
+              color="#e5efd6"
+            >
+              UNO
+            </BoardText>
+            <BoardText
+              position={[-0.25, 0.033, -0.05]}
+              size={0.12}
+              color="#e5efd6"
+            >
+              ∞
+            </BoardText>
+            <BoardText
+              position={[0.13, 0.034, 0.405]}
+              size={0.047}
+              color="#e5efd6"
+            >
+              A0
+            </BoardText>
+            <BoardText
+              position={[0.44, 0.034, -0.405]}
+              size={0.047}
+              color="#e5efd6"
+            >
+              D2
+            </BoardText>
           </>
         ) : (
           <>
             <Header
-              count={board === "pico" ? 20 : 15}
-              position={[-width / 2 + 0.04, 0.025, depth / 2 - 0.032]}
-              pitch={(width - 0.08) / (board === "pico" ? 19 : 14)}
+              count={profile.pinsPerSide}
+              position={[-width / 2 + 0.038, 0.025, depth / 2 - 0.022]}
+              pitch={(width - 0.076) / (profile.pinsPerSide - 1)}
             />
             <Header
-              count={board === "pico" ? 20 : 15}
-              position={[-width / 2 + 0.04, 0.025, -depth / 2 + 0.032]}
-              pitch={(width - 0.08) / (board === "pico" ? 19 : 14)}
+              count={profile.pinsPerSide}
+              position={[-width / 2 + 0.038, 0.025, -depth / 2 + 0.022]}
+              pitch={(width - 0.076) / (profile.pinsPerSide - 1)}
             />
+            {pico && (
+              <>
+                <mesh position={[0.395, 0.05, 0]} castShadow>
+                  <boxGeometry args={[0.26, 0.045, 0.305]} />
+                  <meshStandardMaterial
+                    color="#bcc5ba"
+                    metalness={0.78}
+                    roughness={0.35}
+                  />
+                </mesh>
+                <BoardText
+                  position={[0.395, 0.075, 0]}
+                  size={0.034}
+                  color="#58715b"
+                >
+                  Wi-Fi
+                </BoardText>
+              </>
+            )}
+            {nano && (
+              <mesh position={[-0.235, 0.051, 0]}>
+                <boxGeometry args={[0.12, 0.032, 0.14]} />
+                <meshStandardMaterial color="#253430" roughness={0.64} />
+              </mesh>
+            )}
+            <BoardText
+              position={[-0.12, 0.032, depth / 2 - 0.092]}
+              size={0.053}
+              color="#e5efd6"
+            >
+              {pico ? "PICO W" : "NANO"}
+            </BoardText>
+            <BoardText
+              position={[-0.32, 0.032, -depth / 2 + 0.092]}
+              size={0.037}
+              color="#e5efd6"
+            >
+              {pico ? "GP2" : "D2"}
+            </BoardText>
           </>
         )}
-        {uno ? (
-          <>
-            <mesh position={[-0.43, 0.073, 0.27]}>
-              <boxGeometry args={[0.19, 0.14, 0.15]} />
-              <meshStandardMaterial color="#1e2e29" roughness={0.68} />
-            </mesh>
-            <mesh position={[-0.31, 0.065, -0.27]}>
-              <boxGeometry args={[0.07, 0.06, 0.065]} />
-              <meshStandardMaterial color="#e4ded0" roughness={0.55} />
-            </mesh>
-          </>
-        ) : board === "pico" ? (
-          <mesh position={[0.36, 0.053, 0.035]}>
-            <boxGeometry args={[0.27, 0.046, 0.3]} />
-            <meshStandardMaterial
-              color="#b5c1ab"
-              metalness={0.78}
-              roughness={0.36}
-            />
-          </mesh>
-        ) : null}
-        {[0, 1, 2].map((i) => (
-          <mesh key={i} position={[-0.25 + i * 0.077, 0.034, -0.07]}>
-            <boxGeometry args={[0.034, 0.022, 0.018]} />
-            <meshStandardMaterial color="#c3b79c" roughness={0.75} />
+        {[0, 1, 2, 3].map((i) => (
+          <mesh
+            key={i}
+            position={[-0.16 + i * 0.063, 0.043, uno ? -0.34 : -0.14]}
+          >
+            <boxGeometry args={[0.03, 0.019, 0.017]} />
+            <meshStandardMaterial color="#c5b798" roughness={0.64} />
           </mesh>
         ))}
-        <mesh position={[0.37, 0.032, -0.105]}>
-          <boxGeometry args={[0.038, 0.021, 0.029]} />
+        <mesh position={[uno ? 0.54 : -0.22, 0.042, uno ? -0.3 : 0.113]}>
+          <boxGeometry args={[0.031, 0.018, 0.022]} />
           <meshStandardMaterial
             color="#d4ea87"
             emissive="#99bd61"
-            emissiveIntensity={0.35}
+            emissiveIntensity={0.25}
             roughness={0.4}
           />
         </mesh>
-        <BoardText
-          position={[uno ? 0.05 : -0.12, 0.024, uno ? 0.2 : 0.12]}
-          size={0.063}
-          color="#e5efd6"
-        >
-          {uno ? "UNO" : arduino ? "NANO" : "PICO W"}
-        </BoardText>
       </group>
     </group>
   );

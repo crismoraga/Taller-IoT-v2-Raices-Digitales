@@ -14,6 +14,7 @@ import { arduinoStationSketch } from "./lib/arduino";
 import { filterCalibrations } from "./lib/calibration";
 import {
   AppContext,
+  BOARD_NAMES,
   type AppContextType,
   type Board,
   type Health,
@@ -84,6 +85,8 @@ export default function App() {
   const [usbChoice, setUSBChoice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
+  const [uploadStatus, setUploadStatus] =
+    useState<AppContextType["uploadStatus"]>(null);
   const [terminal, setTerminal] = useState("");
   const [localReadings, setLocalReadings] = useState<Reading[]>([]);
   const [lastDiagnostics, setLastDiagnostics] = useState<
@@ -130,6 +133,7 @@ export default function App() {
     lastForward.current = 0;
     setLocalReadings([]);
     setLastDiagnostics({});
+    setUploadStatus(null);
   }, []);
   useEffect(() => {
     if (!drawer) return;
@@ -468,6 +472,13 @@ export default function App() {
     };
     serial.onOutput = output;
     ArduinoSerial.onOutput = output;
+    ArduinoSerial.onUploadProgress = (progress) => setUploadStatus(progress);
+    ArduinoSerial.onBootloaderDetected = (detected) => {
+      boardRef.current = detected;
+      setBoardState(detected);
+      writeLocal("raices.board", detected);
+      rememberedUSBBoard.current = detected;
+    };
     serial.onDisconnect = lost("Pico");
     ArduinoSerial.onDisconnect = lost("Placa Arduino");
     serial.onRunEnd = () => setRunning(false);
@@ -476,6 +487,8 @@ export default function App() {
       clearInterval(flush);
       serial.onOutput = () => {};
       ArduinoSerial.onOutput = () => {};
+      ArduinoSerial.onUploadProgress = () => {};
+      ArduinoSerial.onBootloaderDetected = () => {};
       serial.onDisconnect = () => {};
       ArduinoSerial.onDisconnect = () => {};
       serial.onRunEnd = () => {};
@@ -533,6 +546,10 @@ export default function App() {
         const port = existing ?? (await requestUSBPort());
         if (generation !== usbGeneration.current) return;
         const detected = identifyUSBBoard(port);
+        if (detected.unsupported)
+          throw new Error(
+            `${detected.unsupported} usa otro protocolo de carga. Este taller programa Raspberry Pi Pico W y Arduino Uno/Nano clásicos con ATmega328P.`,
+          );
         const current = chosenBoard ?? detected.board;
         if (!current) {
           pendingUSBPort.current = port;
@@ -679,7 +696,11 @@ export default function App() {
         );
         return;
       }
+      // A manual model choice is an exploration intent. A previously authorized
+      // USB port must not silently replace it on the next discovery event.
+      automaticUSBPaused.current = true;
       usbGeneration.current += 1;
+      boardRef.current = value;
       setBoardState(value);
       writeLocal("raices.board", value);
       resetUSBReadings();
@@ -688,23 +709,41 @@ export default function App() {
   );
   const compileAndUpload = useCallback(async (code: string, target: Board) => {
     const generation = usbGeneration.current;
-    const result = await post<{ hex: string; output: string }>(
-      "/arduino/compile",
-      {
-        code,
-        board: target,
-      },
+    setUploadStatus({ stage: "compile" });
+    setTerminal(
+      (previous) =>
+        `${previous}\nCompilando el programa para ${BOARD_NAMES[target]}…\n`,
     );
-    if (
-      generation !== usbGeneration.current ||
-      target !== boardRef.current ||
-      !ArduinoSerial.connected
-    )
-      throw new Error(
-        "La conexión cambió durante la compilación. Conecta la placa y vuelve a ejecutar.",
+    try {
+      const result = await post<{ hex: string; output: string }>(
+        "/arduino/compile",
+        { code, board: target },
       );
-    setTerminal((previous) => `${previous}\n${result.output}\n`);
-    await ArduinoSerial.upload(result.hex);
+      if (
+        generation !== usbGeneration.current ||
+        target !== boardRef.current ||
+        !ArduinoSerial.connected
+      )
+        throw new Error(
+          "La conexión cambió durante la compilación. Conecta la placa y vuelve a ejecutar.",
+        );
+      setHealth((previous) =>
+        previous ? { ...previous, arduinoAvailable: true } : previous,
+      );
+      setTerminal(
+        (previous) =>
+          `${previous}\n${result.output}\nEnviando el programa por USB…\n`,
+      );
+      await ArduinoSerial.upload(result.hex);
+    } catch (problem) {
+      const message =
+        problem instanceof Error ? problem.message : String(problem);
+      setUploadStatus({ stage: "error", message });
+      setTerminal(
+        (previous) => `${previous}\nNo se completó la carga: ${message}\n`,
+      );
+      throw problem;
+    }
   }, []);
   const runCode = useCallback(
     (code: string, lessonId?: string) =>
@@ -729,7 +768,7 @@ export default function App() {
           void updateSession({
             lastRun: {
               lessonId,
-              board: current,
+              board: boardRef.current,
               code,
               at: new Date().toISOString(),
             },
@@ -908,6 +947,7 @@ export default function App() {
       connecting,
       busy,
       running,
+      uploadStatus,
       connect,
       usbChoice,
       chooseUSBBoard,
@@ -947,6 +987,7 @@ export default function App() {
       connecting,
       busy,
       running,
+      uploadStatus,
       connect,
       usbChoice,
       chooseUSBBoard,

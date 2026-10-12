@@ -93,13 +93,17 @@ export function Onboarding({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Placa del equipo"
-            hint="Puedes explorar este modelo ahora. Al conectar USB reconoceremos la placa compatible."
+            hint={
+              app.connected
+                ? `USB conectado: ${BOARD_NAMES[app.board]}.`
+                : "Puedes explorar este modelo ahora. Al conectar USB reconoceremos la placa compatible."
+            }
           >
             {(props) => (
               <Select
                 {...props}
                 value={app.board}
-                disabled={saving}
+                disabled={saving || app.connected || app.connecting || app.busy}
                 onChange={(event) => app.setBoard(event.target.value as Board)}
               >
                 {(Object.keys(BOARD_NAMES) as Board[]).map((board) => (

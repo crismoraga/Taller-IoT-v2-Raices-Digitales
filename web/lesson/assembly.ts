@@ -5,7 +5,13 @@ import {
   shortPoint,
   stripOf,
 } from "../circuit/breadboard";
-import type { Circuit, WiringStep } from "../circuit/model";
+import {
+  resistorBandNames,
+  type Circuit,
+  type PartInstance,
+  type Wire,
+  type WiringStep,
+} from "../circuit/model";
 import { controllerPin } from "../circuit/boards";
 import { partDef } from "../circuit/parts";
 import { picoPinForStrip } from "../circuit/pico";
@@ -21,7 +27,7 @@ export function endpointInfo(
     if (point.kind === "rail")
       return {
         label: `${RAIL_INFO[point.rail].sign} · ${point.column}`,
-        sub: `Riel ${RAIL_INFO[point.rail].color} de ${point.rail.startsWith("t") ? "arriba" : "abajo"}`,
+        sub: `Riel ${RAIL_INFO[point.rail].color} de ${point.rail.startsWith("t") ? "arriba" : "abajo"}, frente al número ${point.column}`,
       };
     const pin =
       !circuit.board || circuit.board === "pico"
@@ -29,7 +35,7 @@ export function endpointInfo(
         : undefined;
     return {
       label: shortPoint(endpoint),
-      sub: `Letra ${point.letter}, número ${point.column}${pin ? ` · ${pin.name} (pin ${pin.physical})` : ""}`,
+      sub: `Letra ${point.letter}, número ${point.column} · lado ${point.half === "lower" ? "inferior (a–e)" : "superior (f–j)"}${pin ? ` · ${pin.name} (pin ${pin.physical})` : ""}`,
     };
   }
   const [partId, pinId] = endpoint.split(".");
@@ -43,7 +49,128 @@ export function endpointInfo(
   const part = circuit.parts.find((candidate) => candidate.id === partId);
   const pin =
     part && partDef(part).pins.find((candidate) => candidate.id === pinId);
-  return { label: pin?.label ?? pinId, sub: part?.label ?? partId };
+  return {
+    label: pin?.label ?? pinId,
+    sub: `${part?.label ?? partId}${pin?.aka?.length ? ` · también marcado ${pin.aka.join(" / ")}` : ""}. Busca esta marca en tu pieza.`,
+  };
+}
+
+/** A replica needs the rail side and module name even when no model is open. */
+export function assemblyEndpointLabel(
+  circuit: Circuit,
+  endpoint: string,
+): string {
+  const info = endpointInfo(circuit, endpoint);
+  if (isPoint(endpoint)) {
+    const point = parsePoint(endpoint);
+    return point.kind === "rail"
+      ? `${RAIL_INFO[point.rail].label} · ${point.column}`
+      : info.label;
+  }
+  const [partId] = endpoint.split(".");
+  if (partId === "controller")
+    return `Arduino ${circuit.board === "uno" ? "Uno" : "Nano"} · ${info.label}`;
+  return `${circuit.parts.find((part) => part.id === partId)?.label ?? partId} · ${info.label}`;
+}
+
+/** Use the actual connector at each end, including the sensor's own leads. */
+export function wireItemInfo(circuit: Circuit, wire: Wire) {
+  const connectorAt = (
+    endpoint: string,
+  ): "macho" | "hembra" | "hilo del sensor" => {
+    if (isPoint(endpoint)) return "macho";
+    const [partId] = endpoint.split(".");
+    if (partId === "controller")
+      return circuit.board === "uno" ? "macho" : "hembra";
+    const part = circuit.parts.find((candidate) => candidate.id === partId);
+    return part?.type === "ds18b20" ? "hilo del sensor" : "hembra";
+  };
+  const a = connectorAt(wire.from);
+  const b = connectorAt(wire.to);
+  const ownLead = a === "hilo del sensor" || b === "hilo del sensor";
+  const connector =
+    wire.connector ??
+    (a === "hembra" && b === "hembra"
+      ? "hembra-hembra"
+      : a === "hembra" || b === "hembra"
+        ? "hembra-macho"
+        : "macho-macho");
+  return {
+    label: ownLead
+      ? `Un solo hilo ${wire.color} del sensor.`
+      : `Un solo cable ${connector} ${wire.color}.`,
+    connector,
+    a,
+    b,
+    ownLead,
+  };
+}
+
+/** Every inserted leg follows the catalogue order, never an inferred sensor pinout. */
+export function assemblyPartPins(part: PartInstance) {
+  if (!part.holes) return [];
+  const definition = partDef(part);
+  const ids = [
+    ...definition.pins.map((pin) => pin.id).filter((id) => part.holes?.[id]),
+    ...Object.keys(part.holes).filter(
+      (id) => !definition.pins.some((pin) => pin.id === id),
+    ),
+  ];
+  return ids.map((id) => {
+    const pin = definition.pins.find((candidate) => candidate.id === id);
+    return {
+      id,
+      hole: part.holes![id],
+      label:
+        part.type === "led"
+          ? id === "anodo"
+            ? "pata larga (+)"
+            : "pata corta (−)"
+          : (pin?.label ?? id),
+      aka: pin?.aka,
+    };
+  });
+}
+
+export function identifyAssemblyPart(part: PartInstance): string {
+  if (part.type === "resistor" && part.props?.ohms)
+    return `Bandas: ${resistorBandNames(part.props.ohms)}. Sus dos patas se pueden intercambiar.`;
+  if (part.type === "led")
+    return "Pata larga: +. Pata corta, junto al lado plano de la cápsula: −.";
+  if (!part.holes)
+    return `Busca las marcas ${partDef(part)
+      .pins.map((pin) => pin.label)
+      .join(", ")} en el conector. Seguiremos esas marcas, una a una.`;
+  return (
+    partDef(part).orientation ?? "El modelo te mostrará dónde va cada pata."
+  );
+}
+
+/** A reload resumes exactly the pending leg; invalid indices never skip placement. */
+export function restoreAssemblyPinIndex(
+  value: unknown,
+  signature: string,
+  step: Pick<WiringStep, "id" | "wires" | "parts">,
+  pinCount: number,
+): number {
+  if (
+    pinCount < 1 ||
+    restoreAssemblyAction(value, signature, step) !== "place" ||
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  )
+    return 0;
+  const journey = (value as Record<string, unknown>).journey as Record<
+    string,
+    unknown
+  >;
+  return typeof journey.pinIndex === "number" &&
+    Number.isInteger(journey.pinIndex) &&
+    journey.pinIndex >= 0 &&
+    journey.pinIndex < pinCount
+    ? journey.pinIndex
+    : 0;
 }
 
 /** Both renderers receive this exact sequence: place a component OR connect a wire. */
@@ -92,7 +219,7 @@ export interface AssemblyProgress {
   verified: Record<string, boolean>;
 }
 
-export type AssemblyAction = "take" | "a" | "b" | "place" | "done";
+export type AssemblyAction = "take" | "a" | "b" | "place" | "insert" | "done";
 
 /** A ready kit starts directly with the first component or cable. */
 export function firstAssemblyAction(
@@ -124,7 +251,7 @@ export function restoreAssemblyAction(
   const actions: AssemblyAction[] = step.wires?.length
     ? ["take", "a", "b", "done"]
     : step.parts?.length
-      ? ["take", "place", "done"]
+      ? ["take", "place", "insert", "done"]
       : ["place", "done"];
   return typeof journey.action === "string" &&
     actions.includes(journey.action as AssemblyAction)

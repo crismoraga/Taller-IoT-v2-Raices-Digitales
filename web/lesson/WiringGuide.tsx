@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../brand/Graphics";
 import { BreadboardView } from "../circuit/BreadboardView";
 import { WIRE_HEX, type Circuit, type WiringStep } from "../circuit/model";
-import { partDef } from "../circuit/parts";
 import { useApp } from "../lib/context";
 import { readLocal, writeLocal } from "../lib/theme";
 import { Button } from "../ui/Button";
@@ -12,11 +11,16 @@ import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
 import {
   circuitProgressSignature,
+  assemblyEndpointLabel,
+  assemblyPartPins,
   endpointInfo,
   firstAssemblyAction,
+  identifyAssemblyPart,
   normalizeCircuitSteps,
   restoreAssemblyAction,
+  restoreAssemblyPinIndex,
   restoreAssemblyProgress,
+  wireItemInfo,
   type AssemblyAction,
 } from "./assembly";
 const CircuitExperience = lazy(() => import("../experience/CircuitExperience"));
@@ -27,6 +31,10 @@ type Props = { circuit: Circuit; storageKey: string; onDone?: () => void };
 /** The same board and atomic sequence feed both renderers. */
 export function WiringGuide({ circuit: source, storageKey, onDone }: Props) {
   const app = useApp();
+  // Switching hardware starts that board's own journey, while retaining the
+  // participant's chosen view of the same workbench.
+  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
+  const [view, setView] = useState<"step" | "all">("step");
   const circuit = useMemo(() => normalizeCircuitSteps(source), [source]);
   const signature = useMemo(
     () => circuitProgressSignature(app.board, circuit),
@@ -39,6 +47,10 @@ export function WiringGuide({ circuit: source, storageKey, onDone }: Props) {
       storageKey={storageKey}
       signature={signature}
       onDone={onDone}
+      dimension={dimension}
+      onDimensionChange={setDimension}
+      view={view}
+      onViewChange={setView}
     />
   );
 }
@@ -48,7 +60,17 @@ function WiringSession({
   storageKey,
   signature,
   onDone,
-}: Props & { signature: string }) {
+  dimension,
+  onDimensionChange,
+  view,
+  onViewChange,
+}: Props & {
+  signature: string;
+  dimension: "3d" | "2d";
+  onDimensionChange: (value: "3d" | "2d") => void;
+  view: "step" | "all";
+  onViewChange: (value: "step" | "all") => void;
+}) {
   const total = circuit.steps.length;
   const [progress, setProgress] = useState(() =>
     restoreAssemblyProgress(
@@ -80,8 +102,6 @@ function WiringSession({
     endpoint: Endpoint;
     token: number;
   }>();
-  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
-  const [view, setView] = useState<"step" | "all">("step");
   const diagramAnchor = useRef<HTMLDivElement>(null);
   const scrollAfterNavigation = useRef(false);
   const reviewed = (item: WiringStep) =>
@@ -94,6 +114,33 @@ function WiringSession({
   const placed = circuit.parts.find(
     (candidate) => candidate.id === step?.parts?.[0],
   );
+  const partPins = placed ? assemblyPartPins(placed) : [];
+  const [pinState, setPinState] = useState(() => ({
+    stepId: step?.id,
+    index: step
+      ? restoreAssemblyPinIndex(
+          readLocal<unknown>(storageKey, null),
+          signature,
+          step,
+          partPins.length,
+        )
+      : 0,
+  }));
+  const pinIndex = pinState.stepId === step?.id ? pinState.index : 0;
+  const activePin = action === "place" ? partPins[pinIndex] : undefined;
+  const [requestFocusPartPin, setRequestFocusPartPin] = useState<{
+    partId: string;
+    pinId: string;
+    token: number;
+  }>();
+  const wireItem = wire ? wireItemInfo(circuit, wire) : undefined;
+  const completedSteps = circuit.steps.filter(
+    (item) => reviewed(item) || (item.id === step?.id && action === "done"),
+  );
+  const cableCount = new Set(completedSteps.flatMap((item) => item.wires ?? []))
+    .size;
+  const partCount = new Set(completedSteps.flatMap((item) => item.parts ?? []))
+    .size;
   const activeEndpoint: Endpoint | undefined =
     wire && (action === "a" || action === "b") ? action : undefined;
   const activeInfo =
@@ -106,7 +153,9 @@ function WiringSession({
     ? action === "take"
       ? `Toma un cable ${wire.color}`
       : action === "a"
-        ? `Conecta A en ${endpointInfo(circuit, wire.from).label}`
+        ? wireItem?.a === "hilo del sensor"
+          ? `Encuentra el hilo ${wire.color}: ${endpointInfo(circuit, wire.from).label}`
+          : `Conecta A en ${endpointInfo(circuit, wire.from).label}`
         : action === "b"
           ? `Conecta B en ${endpointInfo(circuit, wire.to).label}`
           : "¡Cable conectado!"
@@ -114,8 +163,12 @@ function WiringSession({
       ? action === "take"
         ? `Toma ${placed.label}`
         : action === "place"
-          ? `Coloca ${placed.label}`
-          : "¡Pieza en su lugar!"
+          ? activePin
+            ? `Alinea ${activePin.label} con ${endpointInfo(circuit, activePin.hole).label}`
+            : `Ubica ${placed.label}`
+          : action === "insert"
+            ? `Inserta ${placed.label}`
+            : "¡Pieza en su lugar!"
       : (step?.title ?? "¡Tu circuito está listo!");
 
   useEffect(
@@ -125,10 +178,18 @@ function WiringSession({
         signature,
         ...progress,
         position,
-        journey: step ? { stepId: step.id, action } : undefined,
+        journey: step ? { stepId: step.id, action, pinIndex } : undefined,
       }),
-    [storageKey, signature, progress, position, step, action],
+    [storageKey, signature, progress, position, step, action, pinIndex],
   );
+  useEffect(() => {
+    if (!placed || !activePin) return;
+    setRequestFocusPartPin((current) => ({
+      partId: placed.id,
+      pinId: activePin.id,
+      token: (current?.token ?? 0) + 1,
+    }));
+  }, [placed?.id, activePin?.id]);
   useEffect(() => {
     setSelectedEndpoint(undefined);
     if (!scrollAfterNavigation.current) return;
@@ -151,6 +212,12 @@ function WiringSession({
   };
   const changeAction = (next: AssemblyAction) => {
     setActionState({ stepId: step?.id, action: next });
+    if (next === "take") setPinState({ stepId: step?.id, index: 0 });
+    if (next === "place" && (action === "done" || action === "insert"))
+      setPinState({
+        stepId: step?.id,
+        index: Math.max(0, partPins.length - 1),
+      });
     setSelectedEndpoint(undefined);
     if (next === "a" || next === "b")
       setRequestFocusEndpoint((current) => ({
@@ -161,6 +228,7 @@ function WiringSession({
   const go = (next: number) => {
     if (frontier >= 0 && next > frontier) return;
     setRequestFocusEndpoint(undefined);
+    setRequestFocusPartPin(undefined);
     scrollAfterNavigation.current = next !== position;
     const target = Math.max(0, Math.min(total, next));
     setActionState({
@@ -169,6 +237,7 @@ function WiringSession({
         ? firstAssemblyAction(circuit.steps[target])
         : "done",
     });
+    setPinState({ stepId: circuit.steps[target]?.id, index: 0 });
     setProgress((current) => ({ ...current, position: target }));
   };
   const advance = () => {
@@ -184,17 +253,25 @@ function WiringSession({
       changeAction("b");
       return;
     }
-    if (action === "b" || action === "place") {
+    if (action === "place" && partPins.length) {
+      if (pinIndex < partPins.length - 1)
+        setPinState({ stepId: step.id, index: pinIndex + 1 });
+      else changeAction("insert");
+      return;
+    }
+    if (action === "b" || action === "place" || action === "insert") {
       changeAction("done");
       return;
     }
     scrollAfterNavigation.current = true;
     setRequestFocusEndpoint(undefined);
+    setRequestFocusPartPin(undefined);
     const next = circuit.steps[position + 1];
     setActionState({
       stepId: next?.id,
       action: next ? firstAssemblyAction(next) : "done",
     });
+    setPinState({ stepId: next?.id, index: 0 });
     setProgress((current) => ({
       ...current,
       position: position + 1,
@@ -207,16 +284,24 @@ function WiringSession({
     : action === "take"
       ? "Lo tengo"
       : action === "a"
-        ? "Ya conecté A"
+        ? wireItem?.a === "hilo del sensor"
+          ? "Encontré el hilo"
+          : "Ya conecté A"
         : action === "b"
           ? "Ya conecté B"
           : action === "place"
             ? placed
-              ? "Ya lo coloqué"
+              ? partPins.length
+                ? pinIndex < partPins.length - 1
+                  ? "Ubicar siguiente pata"
+                  : "Patas alineadas"
+                : "Ya lo coloqué"
               : "Entendido"
-            : wire
-              ? "Conectado, siguiente"
-              : "Listo, siguiente";
+            : action === "insert"
+              ? "Ya lo coloqué"
+              : wire
+                ? "Conectado, siguiente"
+                : "Listo, siguiente";
   const microSteps: { action: AssemblyAction; label: string }[] = wire
     ? [
         { action: "take", label: "Toma" },
@@ -226,12 +311,25 @@ function WiringSession({
       ]
     : [
         { action: "take", label: "Toma" },
-        { action: "place", label: "Coloca" },
+        {
+          action: "place",
+          label: partPins.length
+            ? `Pata ${pinIndex + 1}/${partPins.length}`
+            : "Ubica",
+        },
+        ...(partPins.length
+          ? [{ action: "insert" as const, label: "Inserta" }]
+          : []),
         { action: "done", label: "Listo" },
       ];
   const diagramProps = {
     circuit,
     activeEndpoint,
+    activePartPin:
+      placed && activePin
+        ? { partId: placed.id, pinId: activePin.id }
+        : undefined,
+    requestFocusPartPin,
     connectionState: wire
       ? action === "done"
         ? ("placed" as const)
@@ -254,7 +352,7 @@ function WiringSession({
             size="sm"
             label="Vista del circuito"
             value={dimension}
-            onChange={setDimension}
+            onChange={onDimensionChange}
             options={[
               { value: "3d", label: "3D interactivo", icon: "cube" },
               { value: "2d", label: "Plano 2D", icon: "layers" },
@@ -306,7 +404,7 @@ function WiringSession({
             size="sm"
             label="Qué mostrar en el diagrama"
             value={view}
-            onChange={setView}
+            onChange={onViewChange}
             options={[
               { value: "step", label: "Este paso", icon: "steps" },
               { value: "all", label: "Todo", icon: "layers" },
@@ -328,6 +426,13 @@ function WiringSession({
               current={position}
               label="Avance del montaje"
             />
+            <p
+              className="mt-2 text-xs font-semibold text-ink-soft"
+              aria-live="polite"
+            >
+              {cableCount} {cableCount === 1 ? "cable" : "cables"} · {partCount}{" "}
+              {partCount === 1 ? "pieza colocada" : "piezas colocadas"}
+            </p>
           </div>
           {step ? (
             <>
@@ -381,17 +486,13 @@ function WiringSession({
                       style={{ background: WIRE_HEX[wire.color] }}
                     />
                     <p className="text-sm font-bold text-ink">
-                      Un solo{" "}
-                      {wire.connector
-                        ? `cable ${wire.connector}`
-                        : wire.kind === "cable"
-                          ? "cable de sensor o hembra-macho"
-                          : "cable macho-macho"}{" "}
-                      {wire.color}.
+                      {wireItem?.label}
                     </p>
                   </div>
                   <p className="text-sm leading-6 text-ink-soft">
-                    Elige el cable. Te mostraremos cada extremo, uno a uno.
+                    {wireItem?.ownLead
+                      ? "Sigue el hilo desde el sensor. Después insertaremos su punta libre en el agujero indicado."
+                      : `A: extremo ${wireItem?.a}. B: extremo ${wireItem?.b}. Primero conectaremos A; después B.`}
                   </p>
                 </>
               )}
@@ -405,8 +506,16 @@ function WiringSession({
                   />
                   <p className="text-sm leading-6 text-ink">
                     {activeEndpoint === "a"
-                      ? "Inserta el primer extremo del cable en el lugar marcado A."
-                      : "Ahora inserta el otro extremo del mismo cable en el lugar marcado B."}
+                      ? wireItem?.a === "hilo del sensor"
+                        ? "Este extremo ya sale del sensor. Encuentra el hilo indicado y síguelo hasta su punta libre."
+                        : wireItem?.a === "hembra"
+                          ? "Encaja el extremo hembra sobre el pin marcado A."
+                          : "Inserta el extremo macho en el agujero marcado A."
+                      : wireItem?.b === "hembra"
+                        ? "Ahora encaja el otro extremo, hembra, sobre el pin marcado B."
+                        : wireItem?.ownLead
+                          ? "Inserta la punta libre del hilo del sensor en el agujero marcado B."
+                          : "Ahora inserta el otro extremo, macho, en el agujero marcado B."}
                   </p>
                   <p
                     className="text-xs leading-5 text-ink-soft"
@@ -419,47 +528,85 @@ function WiringSession({
                 </>
               )}
               {placed && action === "take" && (
-                <p className="text-sm leading-6 text-ink">
-                  Busca <strong>{placed.label}</strong>.{" "}
-                  {partDef(placed).orientation
-                    ? "Vamos a descubrir cómo orientarlo."
-                    : "El modelo te mostrará su lugar."}
-                </p>
+                <div className="space-y-2 rounded-md bg-surface-alt p-3 text-sm leading-6 text-ink">
+                  <p>
+                    Toma <strong>una sola pieza: {placed.label}</strong>.
+                  </p>
+                  <p>{identifyAssemblyPart(placed)}</p>
+                </div>
               )}
               {placed && action === "place" && (
                 <>
-                  <p className="rounded-md bg-surface-alt p-3 text-sm font-semibold leading-6 text-ink">
-                    {partDef(placed).orientation ??
-                      (placed.holes
-                        ? "Inserta las patas en los agujeros iluminados del modelo."
-                        : "Deja el módulo junto a la protoboard con sus terminales a la vista.")}
-                  </p>
-                  {placed.holes && (
-                    <div
-                      className="grid grid-cols-2 gap-2"
-                      aria-label="Patas de la pieza"
-                    >
-                      {Object.entries(placed.holes).map(([pinId, hole]) => {
-                        const pin = partDef(placed).pins.find(
-                          (candidate) => candidate.id === pinId,
-                        );
-                        return (
-                          <div
-                            key={pinId}
-                            className="rounded-md border border-border bg-surface-alt p-3"
-                          >
-                            <p className="text-xs font-bold text-ink-accent">
-                              {pin?.label ?? pinId}
-                            </p>
-                            <p className="t-mono mt-1 text-base font-extrabold text-ink">
-                              {endpointInfo(circuit, hole).label}
-                            </p>
-                          </div>
-                        );
-                      })}
+                  {activePin ? (
+                    <>
+                      <p className="text-xs font-bold text-ink-accent">
+                        Pata {pinIndex + 1} de {partPins.length} ·{" "}
+                        {placed.label}
+                      </p>
+                      <EndpointTarget
+                        end={String(pinIndex + 1)}
+                        {...endpointInfo(circuit, activePin.hole)}
+                        selected={false}
+                        onClick={() =>
+                          setRequestFocusPartPin((current) => ({
+                            partId: placed.id,
+                            pinId: activePin.id,
+                            token: (current?.token ?? 0) + 1,
+                          }))
+                        }
+                        ariaLabel={`Explorar ${activePin.label}: ${activePin.hole}`}
+                      />
+                      <p className="text-sm leading-6 text-ink">
+                        {placed.type === "led" && activePin.id === "catodo"
+                          ? "Encuentra la pata corta, junto al lado plano del LED."
+                          : placed.type === "resistor"
+                            ? pinIndex === 0
+                              ? "Dobla las patas en forma de U. Cualquiera de sus extremos sirve como pata 1."
+                              : "Conserva la primera pata en su lugar y lleva la otra a este agujero."
+                            : `Identifica ${activePin.label} en la pieza.`}{" "}
+                        Sostén la pieza sobre la protoboard y alinea esta pata
+                        con <strong>{activePin.hole}</strong>.
+                      </p>
+                      {pinIndex > 0 && (
+                        <p className="text-xs leading-5 text-ink-soft">
+                          {partPins
+                            .slice(0, pinIndex)
+                            .map((pin) => `${pin.label}: ${pin.hole}`)
+                            .join(" · ")}{" "}
+                          ya{" "}
+                          {pinIndex === 1 ? "está alineada" : "están alineadas"}
+                          .
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="space-y-2 rounded-md bg-surface-alt p-3 text-sm leading-6 text-ink">
+                      <p className="font-semibold">{step.title}</p>
+                      <p>{step.detail}</p>
+                      <p className="text-ink-soft">
+                        Deja el módulo junto a la protoboard con sus marcas a la
+                        vista. Seguiremos cada conexión en los próximos pasos.
+                      </p>
                     </div>
                   )}
                 </>
+              )}
+              {placed && action === "insert" && (
+                <div
+                  className="rounded-md bg-surface-alt p-3 text-sm leading-6 text-ink"
+                  aria-label="Colocar la pieza completa"
+                >
+                  <p className="font-semibold">
+                    {partPins
+                      .map((pin) => `${pin.label}: ${pin.hole}`)
+                      .join(" · ")}
+                  </p>
+                  <p className="mt-2">
+                    Con todas las patas alineadas, inserta la pieza completa en
+                    estos agujeros. Conserva la orientación que acabas de
+                    identificar.
+                  </p>
+                </div>
               )}
               {!wire && !placed && (
                 <p className="text-sm leading-6 text-ink">{step.detail}</p>
@@ -472,8 +619,10 @@ function WiringSession({
                   <Icon name="check" size={20} className="mt-0.5 shrink-0" />
                   <p className="text-sm font-semibold leading-6">
                     {wire
-                      ? `A: ${endpointInfo(circuit, wire.from).label} → B: ${endpointInfo(circuit, wire.to).label}. Un cable, una nueva conexión.`
-                      : "¡Una pieza más en tu estación! Vamos con el siguiente descubrimiento."}
+                      ? `Sigue el cable ${wire.color}: A (${endpointInfo(circuit, wire.from).label}) → B (${endpointInfo(circuit, wire.to).label}). Coincide con la línea del modelo.`
+                      : partPins.length
+                        ? `${placed?.label}: ${partPins.map((pin) => `${pin.label} en ${pin.hole}`).join(" · ")}. Las patas coinciden con el modelo.`
+                        : "El módulo está junto a tu placa, con sus terminales a la vista."}
                   </p>
                 </div>
               )}
@@ -506,9 +655,48 @@ function WiringSession({
               </div>
               <h3 className="t-heading text-ink">¡Tu circuito está listo!</h3>
               <p className="text-sm leading-6 text-ink">
-                Construiste {circuit.wires.length} conexiones, una a una. Ahora
-                haz que cobren vida con el programa.
+                Construiste {circuit.wires.length} conexiones y colocaste{" "}
+                {circuit.parts.length} piezas, una a una. Ahora haz que cobren
+                vida con el programa.
               </p>
+              <Disclosure
+                title="Mi mapa de conexiones"
+                icon="layers"
+                tone="alt"
+              >
+                <div
+                  aria-label="Resumen del montaje"
+                  className="space-y-3 text-xs leading-5"
+                >
+                  <p className="font-semibold text-ink">
+                    El mismo mapa aparece en 2D y 3D.
+                  </p>
+                  {circuit.wires.map((item) => (
+                    <p key={item.id} className="border-b border-border pb-2">
+                      <strong className="text-ink">{item.color}</strong> ·{" "}
+                      {wireItemInfo(circuit, item).ownLead
+                        ? "hilo del sensor"
+                        : wireItemInfo(circuit, item).connector}
+                      <br />
+                      {assemblyEndpointLabel(circuit, item.from)} →{" "}
+                      {assemblyEndpointLabel(circuit, item.to)}
+                      <br />
+                      <span className="text-ink-soft">{item.carries}</span>
+                    </p>
+                  ))}
+                  {circuit.parts.map((item) => (
+                    <p key={item.id}>
+                      <strong className="text-ink">{item.label}</strong>
+                      <br />
+                      {assemblyPartPins(item).length
+                        ? assemblyPartPins(item)
+                            .map((pin) => `${pin.label}: ${pin.hole}`)
+                            .join(" · ")
+                        : "Módulo externo · conectado por las marcas de sus terminales"}
+                    </p>
+                  ))}
+                </div>
+              </Disclosure>
             </>
           )}
           <div className="flex gap-2">
@@ -520,7 +708,9 @@ function WiringSession({
                 const index = microSteps.findIndex(
                   (item) => item.action === action,
                 );
-                if (step && index > 0)
+                if (step && action === "place" && pinIndex > 0)
+                  setPinState({ stepId: step.id, index: pinIndex - 1 });
+                else if (step && index > 0)
                   changeAction(microSteps[index - 1].action);
                 else go(position - 1);
               }}
@@ -537,6 +727,12 @@ function WiringSession({
               {primaryLabel}
             </Button>
           </div>
+          {activePin && (
+            <p className="text-xs leading-5 text-ink-soft">
+              Ahora ubicamos {activePin.label} sobre {activePin.hole}.
+              Insertaremos la pieza completa al terminar de alinear sus patas.
+            </p>
+          )}
           {step && (
             <p className="text-xs leading-5 text-ink-soft">
               El modelo te guía; tú confirmas cada conexión de tu montaje.
@@ -590,18 +786,20 @@ function EndpointTarget({
   sub,
   selected,
   onClick,
+  ariaLabel,
 }: {
   end: string;
   label: string;
   sub: string;
   selected: boolean;
   onClick: () => void;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={`Explorar extremo ${end}: ${label}`}
+      aria-label={ariaLabel ?? `Explorar extremo ${end}: ${label}`}
       aria-pressed={selected}
       className="focus-ring flex min-w-0 items-center gap-3 rounded-lg border-2 border-accent bg-accent-soft p-4 text-left transition-transform hover:scale-[1.02] motion-reduce:transform-none"
     >

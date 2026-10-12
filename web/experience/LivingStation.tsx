@@ -35,7 +35,11 @@ import {
   useSceneActive,
   type CameraAction,
 } from "./SceneSupport";
-import { normalizedLivingReadings, type LivingReadings } from "./living-state";
+import {
+  livingBoardProfile,
+  normalizedLivingReadings,
+  type LivingReadings,
+} from "./living-state";
 import "./experience.css";
 
 type ElementId = "plant" | "sensor" | "pico" | "led" | "network";
@@ -285,7 +289,7 @@ function HeroPico({
 }) {
   return (
     <group
-      position={[-2.03, 0.18, 0.7]}
+      position={[-2.03, board === "uno" ? 0.035 : 0.1, 0.7]}
       rotation={[0, -0.22, 0]}
       onPointerOver={(event) => sceneCursor(event, true)}
       onPointerOut={(event) => sceneCursor(event, false)}
@@ -296,13 +300,9 @@ function HeroPico({
     >
       <LivingBoard board={board} />
       {selected && (
-        <Html center position={[0, 0.08, 0.78]}>
+        <Html center position={[0, 0.18, board === "uno" ? 0.82 : 0.68]}>
           <span className="rdx-world-tag">
-            {board === "pico"
-              ? "Pico W"
-              : board === "uno"
-                ? "Arduino Uno"
-                : "Arduino Nano"}
+            {livingBoardProfile(board).shortName}
           </span>
         </Html>
       )}
@@ -315,33 +315,26 @@ function Network({
   onSelect,
   pulse,
   selected,
+  board,
 }: {
   animate: boolean;
   onSelect: (id: ElementId) => void;
   pulse: number;
   selected: boolean;
+  board: Board;
 }) {
+  const signalPoint = livingBoardProfile(board).signalPoint;
   const paths = useMemo<V3[][]>(
     () => [
-      [
-        [0.73, 2.13, 0.33],
-        [0.2, 2.03, 1],
-        [-1.2, 0.62, 1.1],
-        [-1.95, 0.43, 0.75],
-      ],
-      [
-        [-1.95, 0.45, 0.7],
-        [-1.6, 1.9, -0.6],
-        [0.7, 2.48, -1.3],
-        [2.1, 2.2, -0.5],
-      ],
+      [[0.73, 2.13, 0.33], [0.2, 2.03, 1], [-1.2, 0.62, 1.1], signalPoint],
+      [signalPoint, [-1.6, 1.9, -0.6], [0.7, 2.48, -1.3], [2.1, 2.2, -0.5]],
       [
         [2.1, 2.2, -0.5],
         [2.47, 1.45, -0.12],
         [2.3, 0.95, 0.58],
       ],
     ],
-    [],
+    [signalPoint],
   );
   return (
     <group>
@@ -395,7 +388,9 @@ function Network({
         ))}
         {selected && (
           <Html center position={[0, 0.85, 0]}>
-            <span className="rdx-world-tag">Wi-Fi</span>
+            <span className="rdx-world-tag">
+              {board === "pico" ? "Wi-Fi" : "USB → navegador"}
+            </span>
           </Html>
         )}
       </group>
@@ -619,6 +614,7 @@ function LivingWorld({
         onSelect={onSelect}
         pulse={pulse}
         selected={selected === "network"}
+        board={board}
       />
       <mesh
         position={[FOCUS[selected].target[0], 0.025, FOCUS[selected].target[2]]}
@@ -680,12 +676,32 @@ export function LivingStation({
     type: "reset",
     sequence: 0,
   });
+  const previousBoard = useRef(board);
+  const boardProfile = livingBoardProfile(board);
+  useEffect(() => {
+    if (previousBoard.current === board) return;
+    previousBoard.current = board;
+    setFeedback("");
+    if (selected === "pico")
+      setAction((current) => ({
+        type: "focus",
+        sequence: current.sequence + 1,
+        focusTarget: boardProfile.focus.target,
+        focusPosition: boardProfile.focus.position,
+      }));
+  }, [board, boardProfile, selected]);
   const animate = !paused && !reduced && active;
   const selection = ELEMENTS.find((element) => element.id === selected)!;
   const selectedTitle =
     selected === "pico"
       ? `${BOARD_NAMES[board]} · aquí vive tu código`
       : selection.title;
+  const selectedText =
+    selected === "pico"
+      ? boardProfile.description
+      : selected === "network" && board !== "pico"
+        ? "Tu Arduino entrega sus datos por USB. El navegador los lleva al dashboard: observa cómo una lectura se convierte en información para tu equipo."
+        : selection.text;
   const reported = readings ? normalizedLivingReadings(readings) : undefined;
   const soilValue = readings ? reported?.soil : soil;
   const lightValue = readings ? reported?.light : light;
@@ -698,6 +714,7 @@ export function LivingStation({
   const camera = (type: CameraAction["type"]) =>
     setAction((current) => ({ type, sequence: current.sequence + 1 }));
   const select = (id: ElementId) => {
+    const focus = id === "pico" ? boardProfile.focus : FOCUS[id];
     setSelected(id);
     setVisited((current) =>
       current.includes(id) ? current : [...current, id],
@@ -706,8 +723,8 @@ export function LivingStation({
     setAction((current) => ({
       type: "focus",
       sequence: current.sequence + 1,
-      focusTarget: FOCUS[id].target,
-      focusPosition: FOCUS[id].position,
+      focusTarget: focus.target,
+      focusPosition: focus.position,
     }));
   };
   const touchModel = (id: ElementId) => {
@@ -730,6 +747,7 @@ export function LivingStation({
       ref={reference}
       className={`rdx-living rdx-living--${mode} ${className}`}
       aria-label="Estación de planta en 3D: toca y descubre sus partes"
+      data-board={board}
     >
       <div className="rdx-scene-eyebrow">
         <span /> {sourceLabel}
@@ -851,19 +869,11 @@ export function LivingStation({
               onClick={() => select(element.id)}
               aria-pressed={selected === element.id}
               aria-label={
-                element.id === "pico"
-                  ? board === "pico"
-                    ? "Pico W"
-                    : "Arduino"
-                  : element.short
+                element.id === "pico" ? boardProfile.shortName : element.short
               }
             >
               <element.icon size={15} />
-              {element.id === "pico"
-                ? board === "pico"
-                  ? "Pico W"
-                  : "Arduino"
-                : element.short}
+              {element.id === "pico" ? boardProfile.shortName : element.short}
               {visited.includes(element.id) && (
                 <Check size={12} aria-hidden="true" />
               )}
@@ -882,8 +892,8 @@ export function LivingStation({
                   ? reported?.led !== undefined
                     ? `LED de tu estación: ${reported.led ? "encendido" : "apagado"}.`
                     : "Explora la luz que controlarás desde tu código."
-                  : selection.text
-              : selection.text}
+                  : selectedText
+              : selectedText}
           </p>
         </div>
         {!readings && (

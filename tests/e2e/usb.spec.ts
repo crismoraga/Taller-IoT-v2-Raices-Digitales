@@ -3,6 +3,26 @@ import { test, expect, type Page } from "@playwright/test";
 // Keep protocol tests independent of GPU animation load; the immersive scene is
 // exercised with motion enabled in workshop.spec.ts.
 test.use({ reducedMotion: "reduce" });
+test.beforeEach(async ({ page }) => {
+  // Exercise USB and its real UI without competing with the separate WebGL
+  // regression suite for a software GPU. The accessible fallback stays usable.
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...args: unknown[]
+    ) {
+      if (
+        kind === "webgl" ||
+        kind === "webgl2" ||
+        kind === "experimental-webgl"
+      )
+        return null;
+      return Reflect.apply(original, this, [kind, ...args]);
+    } as typeof original;
+  });
+});
 
 test.afterEach(async ({ page }) => {
   await page.request.delete("/api/session", {
@@ -381,6 +401,68 @@ test("a single previously authorized Pico reconnects after reload without a new 
       ).__usbPeer.stats(),
     ),
   ).toMatchObject({ requests: 0, opens: 1 });
+});
+
+test("an authorized USB port does not overwrite a manual model choice and changing boards unlocks the current view", async ({
+  page,
+}) => {
+  await openUsbLesson(page);
+  const board = page.getByRole("combobox", { name: "Tu placa", exact: true });
+  await board.selectOption("uno");
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        __usbPeer: { setAuthorizedPorts: (count: number) => void };
+      }
+    ).__usbPeer.setAuthorizedPorts(1);
+    (navigator as Navigator & { serial: EventTarget }).serial.dispatchEvent(
+      new Event("connect"),
+    );
+  });
+  // Discovery is asynchronous: give the queued port event time to finish.
+  await page.waitForTimeout(250);
+  await expect(board).toHaveValue("uno");
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as { __usbPeer: { stats: () => { opens: number } } }
+        ).__usbPeer.stats().opens,
+    ),
+  ).toBe(0);
+  await expect(page.locator(".monaco-editor").first()).toContainText(
+    "digitalWrite(2",
+  );
+
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first()
+    .click();
+  await expect(board).toHaveValue("pico");
+  await expect(board).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Cambiar placa", exact: true })
+    .click();
+  await expect(board).toBeEnabled();
+  await board.selectOption("nano");
+  await page.evaluate(() =>
+    (navigator as Navigator & { serial: EventTarget }).serial.dispatchEvent(
+      new Event("connect"),
+    ),
+  );
+  await page.waitForTimeout(250);
+  await expect(board).toHaveValue("nano");
+  await expect(page.locator(".monaco-editor").first()).toContainText(
+    "digitalWrite(2",
+  );
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as { __usbPeer: { stats: () => { opens: number } } }
+        ).__usbPeer.stats().opens,
+    ),
+  ).toBe(1);
 });
 
 test("pending USB selection prevents a board change and cancellation restores it", async ({

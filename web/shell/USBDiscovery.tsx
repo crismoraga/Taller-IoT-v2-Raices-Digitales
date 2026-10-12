@@ -93,7 +93,7 @@ export function USBDiscovery() {
       title={arduino ? "¿Tu Arduino es Uno o Nano?" : "Reconozcamos tu placa"}
       description={
         arduino
-          ? "Elige el modelo que tienes frente a ti."
+          ? "Elige tu Uno o Nano clásico con ATmega328P."
           : "El puerto ya está elegido. ¿Qué placa estás conectando?"
       }
       icon="usb"

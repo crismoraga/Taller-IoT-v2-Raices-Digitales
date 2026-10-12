@@ -29,6 +29,8 @@ export type USBDetectedBoard = "pico" | "uno";
 export interface USBBoardDetection {
   /** Set only when the USB identifiers identify a supported board. */
   board?: USBDetectedBoard;
+  /** Known board using a different MCU or upload protocol, never a guessed bridge. */
+  unsupported?: string;
   label: string;
 }
 
@@ -39,11 +41,22 @@ export function identifyUSBBoard(
   const { usbVendorId: vendor, usbProductId: product } = port.getInfo?.() ?? {};
   if (vendor === 0x2e8a && product === 0x0005)
     return { board: "pico", label: "Raspberry Pi Pico" };
-  if (
-    (vendor === 0x2341 || vendor === 0x2a03) &&
-    (product === 0x0043 || product === 0x0001)
-  )
-    return { board: "uno", label: "Arduino Uno" };
+  if (vendor === 0x2341 || vendor === 0x2a03) {
+    if ([0x0043, 0x0001, 0x0243, 0x006a].includes(product ?? -1))
+      return { board: "uno", label: "Arduino Uno" };
+    // Published USB IDs from Arduino's AVR and Renesas board definitions.
+    // These models must not be offered an ATmega328P/STK500v1 upload.
+    const unsupported = [0x0069, 0x0369, 0x006d, 0x1002].includes(product ?? -1)
+      ? "Arduino Uno R4"
+      : [0x0010, 0x0042, 0x0210, 0x0242, 0x003f, 0x0044].includes(product ?? -1)
+        ? "Arduino Mega"
+        : [0x0036, 0x8036].includes(product ?? -1)
+          ? "Arduino Leonardo"
+          : [0x0037, 0x8037, 0x0237, 0x8237].includes(product ?? -1)
+            ? "Arduino Micro"
+            : undefined;
+    if (unsupported) return { label: unsupported, unsupported };
+  }
   if (vendor === 0x1a86 && [0x7523, 0x5523, 0x55d4].includes(product ?? -1))
     return { label: "Adaptador USB CH340 / CH9102" };
   if (vendor === 0x0403 && product === 0x6001)
@@ -535,6 +548,10 @@ export class MicroPythonSerial extends SerialLink {
 }
 
 export type ArduinoBoard = "uno" | "nano" | "nano-old";
+export interface ArduinoUploadProgress {
+  stage: "sync" | "write" | "verify" | "complete";
+  percent: number;
+}
 /** Strict Intel HEX parser: checks every record, address bounds, checksum and EOF. */
 export function parseIntelHex(hex: string, maxSize = 32256): Uint8Array {
   let upper = 0,
@@ -588,6 +605,8 @@ export function parseIntelHex(hex: string, maxSize = 32256): Uint8Array {
 }
 
 export class ArduinoUSBSerial extends SerialLink {
+  onUploadProgress: (progress: ArduinoUploadProgress) => void = () => {};
+  onBootloaderDetected: (board: ArduinoBoard) => void = () => {};
   protected board: ArduinoBoard = "uno";
   async connect(board: ArduinoBoard = "uno", port?: USBPort) {
     this.board = board;
@@ -604,6 +623,41 @@ export class ArduinoUSBSerial extends SerialLink {
       throw new Error("El bootloader STK500v1 respondió con error.");
     return response.slice(1, -1);
   }
+  private async resetForUpload() {
+    const port = this.port;
+    const stillConnected = () => {
+      if (!port || this.port !== port || !this.connected)
+        throw new Error(
+          "La placa se desconectó. Conéctala de nuevo para instalar.",
+        );
+    };
+    stillConnected();
+    await port!.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await delay(250);
+    stillConnected();
+    await port!.setSignals({ dataTerminalReady: true, requestToSend: true });
+    await delay(1);
+    stillConnected();
+    // Release reset, as avrdude does. A direct RTS/DTR reset connection must
+    // not remain asserted throughout programming; capacitor-reset boards work
+    // with the same pulse. Keep this before the short Optiboot entry window.
+    await port!.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await delay(80);
+    stillConnected();
+  }
+  private async synchronize(timeout: number) {
+    await this.send([0x30, 0x20]);
+    const deadline = Date.now() + timeout;
+    let previous = -1;
+    // USB adapters can deliver the tail of the old sketch or NOSYNC before the
+    // real response. Match the complete SYNC frame, even across separate reads.
+    while (Date.now() < deadline) {
+      const byte = (await this.bytes(1, Math.max(1, deadline - Date.now())))[0];
+      if (previous === 0x14 && byte === 0x10) return;
+      previous = byte;
+    }
+    throw new Error("El bootloader Arduino no respondió a la sincronización.");
+  }
   async upload(hex: string) {
     if (!this.connected)
       throw new Error("Conecta la placa Arduino por USB primero.");
@@ -613,6 +667,7 @@ export class ArduinoUSBSerial extends SerialLink {
       // Keep the existing permission and restore terminal speed after uploading.
       try {
         let synchronized = false;
+        let detectedBoard = this.board;
         const speeds =
           this.board === "nano-old"
             ? [57600]
@@ -623,20 +678,12 @@ export class ArduinoUSBSerial extends SerialLink {
           await this.reconfigure(speed);
           this.protocol = true;
           this.inbox = [];
-          await this.port!.setSignals({
-            dataTerminalReady: false,
-            requestToSend: false,
-          });
-          await delay(250);
-          await this.port!.setSignals({
-            dataTerminalReady: true,
-            requestToSend: true,
-          });
-          await delay(80);
+          this.onUploadProgress({ stage: "sync", percent: 0 });
+          await this.resetForUpload();
           for (let attempt = 0; attempt < 10 && !synchronized; attempt++) {
             this.inbox = [];
             try {
-              await this.command([0x30], 0, 180);
+              await this.synchronize(180);
               synchronized = true;
             } catch {
               if (!this.connected)
@@ -648,10 +695,7 @@ export class ArduinoUSBSerial extends SerialLink {
           }
           if (synchronized) {
             if (speed === 57600 && this.board === "nano") {
-              this.board = "nano-old";
-              this.onOutput(
-                "\nNano reconocido: velocidad del bootloader ajustada automáticamente.\n",
-              );
+              detectedBoard = "nano-old";
             }
             break;
           }
@@ -671,15 +715,31 @@ export class ArduinoUSBSerial extends SerialLink {
           throw new Error(
             "La placa conectada no es ATmega328P (Uno/Nano clásico).",
           );
+        if (detectedBoard !== this.board) {
+          this.board = detectedBoard;
+          this.onBootloaderDetected(detectedBoard);
+          this.onOutput(
+            "\nNano reconocido: velocidad del bootloader ajustada automáticamente.\n",
+          );
+        }
         await this.command([0x50]);
         const pageSize = 128;
         for (let offset = 0; offset < data.length; offset += pageSize) {
           const page = new Uint8Array(pageSize).fill(255);
           page.set(data.slice(offset, offset + pageSize));
           const word = offset / 2;
+          const percent = Math.min(
+            100,
+            Math.round(((offset + pageSize) * 100) / data.length),
+          );
+          this.onUploadProgress({
+            stage: "write",
+            percent: Math.round((offset * 100) / data.length),
+          });
           await this.command([0x55, word & 255, word >> 8]);
           await this.command([0x64, 0, pageSize, 0x46, ...page]);
           await this.command([0x55, word & 255, word >> 8]);
+          this.onUploadProgress({ stage: "verify", percent });
           const readback = await this.command(
             [0x74, 0, pageSize, 0x46],
             pageSize,
@@ -691,6 +751,7 @@ export class ArduinoUSBSerial extends SerialLink {
           );
         }
         await this.command([0x51]);
+        this.onUploadProgress({ stage: "complete", percent: 100 });
         this.onOutput("\nPrograma Arduino grabado y verificado.\n");
       } finally {
         this.protocol = false;

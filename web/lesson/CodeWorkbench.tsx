@@ -21,6 +21,7 @@ import { Button, IconButton } from "../ui/Button";
 import { Tag } from "../ui/Card";
 import { Callout } from "../ui/Feedback";
 import { ConfirmDialog } from "../ui/Overlay";
+import { ProgressBar } from "../ui/Progress";
 import { cx } from "../ui/cx";
 
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
@@ -271,8 +272,18 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     const unavailable = arduino && !arduinoCode;
     const noCompiler =
       arduino && app.health !== null && !app.health.arduinoAvailable;
-    const canRun =
-      app.connected && Boolean(value.trim()) && !unavailable && !noCompiler;
+    const canRun = app.connected && Boolean(value.trim()) && !unavailable;
+    const upload = arduino ? app.uploadStatus : null;
+    const uploadLabel = upload
+      ? {
+          compile: "1 de 3 · Compilando tu programa",
+          sync: "2 de 3 · Conectando con tu Arduino",
+          write: "3 de 3 · Grabando y verificando",
+          verify: "3 de 3 · Grabando y verificando",
+          complete: "Programa grabado y verificado",
+          error: "La carga no se completó",
+        }[upload.stage]
+      : "";
     const run = (text: string) => void app.runCode(text, lessonId);
     latest.current = { value, run };
 
@@ -396,7 +407,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             variant="outline"
             icon="stop"
             onClick={() => void app.stopCode()}
-            disabled={!app.connected || app.busy || noCompiler}
+            disabled={!app.connected || app.busy}
           >
             Detener
           </Button>
@@ -422,7 +433,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
               }
               tone="ghost"
               size="sm"
-              disabled={!app.connected || app.busy || unavailable || noCompiler}
+              disabled={!app.connected || app.busy || unavailable}
               onClick={() =>
                 arduino ? void app.saveCode(value) : setConfirmSave(true)
               }
@@ -459,6 +470,43 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
           </div>
         </div>
 
+        {upload && (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Estado de carga del programa"
+            className="flex flex-col gap-2 border-t border-border bg-highlight px-3.5 py-3 text-sm text-ink"
+          >
+            <span className="inline-flex items-center gap-2 font-bold">
+              <Icon
+                name={
+                  upload.stage === "complete"
+                    ? "check"
+                    : upload.stage === "error"
+                      ? "alert"
+                      : "usb"
+                }
+                size={17}
+              />
+              {uploadLabel}
+            </span>
+            {upload.percent !== undefined &&
+              upload.stage !== "complete" &&
+              upload.stage !== "error" && (
+                <ProgressBar
+                  value={upload.percent}
+                  label="Avance de grabación y verificación"
+                />
+              )}
+            {upload.stage === "error" && (
+              <p className="text-xs leading-5 text-ink-soft">
+                El detalle quedó en la terminal. Puedes corregirlo y volver a
+                pulsar «Compilar y cargar».
+              </p>
+            )}
+          </div>
+        )}
+
         {!app.connected && !unavailable && (
           <div className="flex flex-wrap items-center gap-3 border-t border-border bg-highlight px-3.5 py-3">
             <Icon
@@ -493,11 +541,10 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             <Callout
               tone="info"
               compact
-              title="Arduino se compila en el servidor local del taller"
+              title="Comprobación del compilador pendiente"
             >
-              En esta versión web puedes editar y descargar el archivo .ino para
-              cargarlo con Arduino IDE. Con la Pico W todo funciona directo
-              desde el navegador.
+              El compilador no respondió a la última comprobación. Puedes pulsar
+              «Compilar y cargar» para intentar el envío de nuevo.
             </Callout>
           </div>
         )}
@@ -538,8 +585,10 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
           >
             {app.terminal || (
               <span className="text-slate">
-                Aquí aparece lo que imprime tu programa con print().{"\n"}
-                Conecta la placa y presiona Ejecutar.
+                Aquí aparece lo que imprime tu programa con{" "}
+                {arduino ? "Serial.println()" : "print()"}.{"\n"}
+                Conecta la placa y presiona{" "}
+                {arduino ? "Compilar y cargar" : "Ejecutar"}.
               </span>
             )}
           </pre>
@@ -562,7 +611,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             <input
               value={command}
               onChange={(event) => setCommand(event.target.value)}
-              disabled={!app.connected}
+              disabled={!app.connected || app.busy || app.connecting}
               aria-label="Enviar texto a la placa"
               placeholder={
                 app.connected
@@ -577,7 +626,9 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
               label="Enviar"
               tone="ghostLight"
               size="sm"
-              disabled={!app.connected || !command}
+              disabled={
+                !app.connected || app.busy || app.connecting || !command
+              }
             />
           </form>
         </div>

@@ -73,12 +73,23 @@ test("a complete LED assembly confirms every piece and cable before the program 
   await instruction
     .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
-  await expect(instruction.getByLabel("Patas de la pieza")).toContainText(
-    "d26",
-  );
-  await expect(instruction.getByLabel("Patas de la pieza")).toContainText(
-    "d27",
-  );
+  await expect(instruction.getByRole("heading")).toContainText("d26");
+  await expect(
+    instruction.getByRole("button", { name: "Ya lo coloqué", exact: true }),
+  ).toHaveCount(0);
+  await instruction
+    .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+    .click();
+  await expect(instruction.getByRole("heading")).toContainText("d27");
+  await instruction
+    .getByRole("button", { name: "Patas alineadas", exact: true })
+    .click();
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("d26");
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("d27");
   await instruction
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
     .click();
@@ -90,12 +101,23 @@ test("a complete LED assembly confirms every piece and cable before the program 
   await instruction
     .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
-  await expect(instruction.getByLabel("Patas de la pieza")).toContainText(
-    "c22",
-  );
-  await expect(instruction.getByLabel("Patas de la pieza")).toContainText(
-    "c26",
-  );
+  await expect(instruction.getByRole("heading")).toContainText("c22");
+  await expect(
+    instruction.getByRole("button", { name: "Ya lo coloqué", exact: true }),
+  ).toHaveCount(0);
+  await instruction
+    .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+    .click();
+  await expect(instruction.getByRole("heading")).toContainText("c26");
+  await instruction
+    .getByRole("button", { name: "Patas alineadas", exact: true })
+    .click();
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("c22");
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("c26");
   await instruction
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
     .click();
@@ -112,7 +134,7 @@ test("a complete LED assembly confirms every piece and cable before the program 
     }),
   ).toBeVisible();
   await expect(instruction).toContainText(
-    "Construiste 3 conexiones, una a una.",
+    "Construiste 3 conexiones y colocaste 2 piezas, una a una.",
   );
   await instruction
     .getByRole("button", { name: "Montaje listo, continuar", exact: true })
@@ -133,6 +155,8 @@ test("a complete LED assembly confirms every piece and cable before the program 
 test("switching Pico and Uno keeps their wiring journeys separate and resumes the correct pending end", async ({
   page,
 }) => {
+  // Several real software-rendered 3D scenes are mounted in this regression.
+  test.setTimeout(90000);
   await group(page);
   await page.goto("/taller/led");
   await phase(page, "Conecta");

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../brand/Graphics";
-import { WIRE_HEX } from "../circuit/model";
+import { WIRE_HEX, resistorBandNames } from "../circuit/model";
 import { PICO_PINS } from "../circuit/pico";
 import type { PinRow } from "../content/types";
 import { useApp } from "../lib/context";
@@ -119,6 +119,21 @@ function PinSession({
         ),
     ) ?? [];
   const to = row && target(row.to, board);
+  const resistorValue =
+    row &&
+    /(?:resistencia(?: \d+)?(?: de)?\s+)(\d+(?:[.,]\d+)?)\s*(k)?Ω/i.exec(
+      `${row.from} ${row.to}`,
+    );
+  const resistorOhms = resistorValue
+    ? Number(resistorValue[1].replace(",", ".")) * (resistorValue[2] ? 1000 : 1)
+    : undefined;
+  const sameResistor =
+    row &&
+    position > 0 &&
+    resistorValue &&
+    `${rows[position - 1].from} ${rows[position - 1].to}`.includes(
+      resistorValue[0],
+    );
   const actions: { action: AssemblyAction; label: string }[] = isolated
     ? [
         { action: "place", label: "Observa" },
@@ -169,7 +184,9 @@ function PinSession({
       : action === "take"
         ? row.color
           ? `Toma un cable ${row.color}`
-          : "Toma la pieza indicada"
+          : resistorValue
+            ? `${sameResistor ? "Conserva" : "Toma"} la resistencia de ${resistorValue[1]} ${resistorValue[2] ?? ""}Ω`
+            : "Toma una sola pieza: la indicada"
         : action === "a"
           ? `Conecta A: ${row.from}`
           : action === "b"
@@ -195,6 +212,12 @@ function PinSession({
           current={position}
           label="Avance de las conexiones"
         />
+        <p
+          className="mt-2 text-xs font-semibold text-ink-soft"
+          aria-live="polite"
+        >
+          {count} {count === 1 ? "conexión lista" : "conexiones listas"}
+        </p>
       </div>
       {row && (
         <ol className="flex gap-2" aria-label="Acciones de esta conexión">
@@ -243,8 +266,16 @@ function PinSession({
               <p className="text-sm leading-6 text-ink">
                 {row.color
                   ? "Usaremos un solo cable en esta conexión. Primero uno de sus extremos y después el otro."
-                  : `Seguiremos esta unión, una pata por vez: ${row.from} → ${row.to}.`}
+                  : sameResistor
+                    ? `Seguimos con la otra pata de la misma resistencia: ${row.from} → ${row.to}.`
+                    : `Seguiremos esta unión, una pata por vez: ${row.from} → ${row.to}.`}
               </p>
+              {!row.color && resistorOhms && (
+                <p className="rounded-md bg-surface-alt p-3 text-sm leading-6 text-ink">
+                  Bandas: {resistorBandNames(resistorOhms)}. La resistencia no
+                  tiene polaridad: ambos extremos son intercambiables.
+                </p>
+              )}
             </>
           ) : action === "a" || action === "b" ? (
             <>
@@ -274,10 +305,27 @@ function PinSession({
             )}
         </>
       ) : (
-        <p className="text-sm leading-6 text-ink">
-          Cada conexión está en su lugar. Continúa con el programa para
-          descubrir qué hace tu circuito.
-        </p>
+        <>
+          <p className="text-sm leading-6 text-ink">
+            Cada conexión está en su lugar. Continúa con el programa para
+            descubrir qué hace tu circuito.
+          </p>
+          <Disclosure title="Mi mapa de conexiones" icon="layers" tone="alt">
+            <ol
+              aria-label="Resumen del montaje"
+              className="space-y-3 text-sm leading-6"
+            >
+              {rows.map((item, index) => (
+                <li key={index}>
+                  <strong>
+                    {index + 1}. {item.color ? `Cable ${item.color} · ` : ""}
+                  </strong>
+                  {item.from} → {target(item.to, board).label}
+                </li>
+              ))}
+            </ol>
+          </Disclosure>
+        </>
       )}
       {detailNotes.length > 0 && (
         <Disclosure title="Descubrir más sobre el componente" icon="lightbulb">

@@ -2,12 +2,20 @@ import { lazy, Suspense, useState } from "react";
 import { BreadboardView } from "../circuit/BreadboardView";
 import type { Circuit } from "../circuit/model";
 import { Segmented } from "../ui/Card";
+import { readLocal, writeLocal } from "../lib/theme";
 
 const CircuitExperience = lazy(() => import("../experience/CircuitExperience"));
 
 /** A touchable model is the lesson's first explanation, rather than a materials checklist. */
 export function BoardDiscovery({ circuit }: { circuit: Circuit }) {
-  const [view, setView] = useState<"3d" | "2d">("3d");
+  // Board variants share the same preference: choosing Uno must not silently
+  // replace a learner's 2D plan with a different viewing mode.
+  const baseId = circuit.id.replace(/-(?:uno|nano(?:-old)?)$/, "");
+  const viewPreference = `raices.discovery.view.${baseId}`;
+  const [view, setView] = useState<"3d" | "2d">(() => {
+    const saved = readLocal<"3d" | "2d">(viewPreference, "3d");
+    return saved === "2d" ? "2d" : "3d";
+  });
   return (
     <section
       className="solarpunk-discovery-card min-w-0 overflow-hidden rounded-2xl border border-border bg-surface"
@@ -26,7 +34,10 @@ export function BoardDiscovery({ circuit }: { circuit: Circuit }) {
           size="sm"
           label="Vista del explorador"
           value={view}
-          onChange={setView}
+          onChange={(value) => {
+            setView(value);
+            writeLocal(viewPreference, value);
+          }}
           options={[
             { value: "3d", label: "Explorar en 3D", icon: "cube" },
             { value: "2d", label: "Plano 2D", icon: "layers" },

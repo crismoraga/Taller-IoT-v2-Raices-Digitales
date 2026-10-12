@@ -253,7 +253,7 @@ test("3D wiring guides one cable and one end at a time without preparation gates
     }),
   ).toBeVisible();
   await expect(instruction.getByRole("status")).toContainText(
-    "A: a3 → B: − · 3",
+    "A (a3) → B (− · 3)",
   );
   await instruction
     .getByRole("button", { name: "Conectado, siguiente", exact: true })
@@ -268,11 +268,38 @@ test("3D wiring guides one cable and one end at a time without preparation gates
     .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
   await expect(
-    instruction.getByRole("heading", { name: "Coloca LED rojo", exact: true }),
+    instruction.getByRole("heading", {
+      name: "Alinea pata larga (+) con d26",
+      exact: true,
+    }),
   ).toBeVisible();
-  const legs = instruction.locator('[aria-label="Patas de la pieza"]');
-  await expect(legs).toContainText("d26");
-  await expect(legs).toContainText("d27");
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar pata larga (+): d26",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    instruction.getByRole("button", { name: "Ya lo coloqué", exact: true }),
+  ).toHaveCount(0);
+  await instruction
+    .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar pata corta (−): d27",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await instruction
+    .getByRole("button", { name: "Patas alineadas", exact: true })
+    .click();
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("d26");
+  await expect(
+    instruction.getByLabel("Colocar la pieza completa"),
+  ).toContainText("d27");
   await instruction
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
     .click();
@@ -295,7 +322,7 @@ test("3D wiring guides one cable and one end at a time without preparation gates
   expect(errors).toEqual([]);
 });
 
-async function completeAssemblyConnection(page: Page) {
+async function completeAssemblyConnection(page: Page, placementText?: string) {
   const instruction = page.getByRole("region", {
     name: "Instrucción de montaje",
   });
@@ -317,6 +344,23 @@ async function completeAssemblyConnection(page: Page) {
       .getByRole("button", { name: "Conectado, siguiente", exact: true })
       .click();
   } else {
+    if (placementText) await expect(instruction).toContainText(placementText);
+    while (
+      await instruction
+        .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+        .count()
+    )
+      await instruction
+        .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+        .click();
+    if (
+      await instruction
+        .getByRole("button", { name: "Patas alineadas", exact: true })
+        .count()
+    )
+      await instruction
+        .getByRole("button", { name: "Patas alineadas", exact: true })
+        .click();
     await instruction
       .getByRole("button", { name: "Ya lo coloqué", exact: true })
       .click();
@@ -378,16 +422,19 @@ test("soil wiring discovers a single sensor cable and preserves its active end b
     name: "Instrucción de montaje",
   });
   for (let count = 0; count < 3; count++)
-    await completeAssemblyConnection(page);
+    await completeAssemblyConnection(
+      page,
+      count === 2
+        ? "El conector blanco entra en una sola posición."
+        : undefined,
+    );
   await expect(
     instruction.getByRole("heading", {
       name: "Toma un cable rojo",
       exact: true,
     }),
   ).toBeVisible();
-  await expect(instruction).toContainText(
-    "Un solo cable de sensor o hembra-macho rojo.",
-  );
+  await expect(instruction).toContainText("Un solo cable hembra-macho rojo.");
   await instruction
     .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
@@ -437,6 +484,55 @@ test("soil wiring discovers a single sensor cable and preserves its active end b
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  await instruction
+    .getByRole("button", { name: "Ya conecté B", exact: true })
+    .click();
+  await instruction
+    .getByRole("button", { name: "Conectado, siguiente", exact: true })
+    .click();
+  for (const [color, terminal, destination] of [
+    ["negro", "GND", "− · 12"],
+    ["amarillo", "AOUT", "j10"],
+  ]) {
+    await expect(instruction.getByRole("heading")).toHaveText(
+      `Toma un cable ${color}`,
+    );
+    await instruction
+      .getByRole("button", { name: "Lo tengo", exact: true })
+      .click();
+    await expect(instruction.getByRole("heading")).toHaveText(
+      `Conecta A en ${terminal}`,
+    );
+    await expect(instruction).toContainText("Sonda de humedad de suelo");
+    await instruction
+      .getByRole("button", { name: "Ya conecté A", exact: true })
+      .click();
+    await expect(instruction.getByRole("heading")).toHaveText(
+      `Conecta B en ${destination}`,
+    );
+    await instruction
+      .getByRole("button", { name: "Ya conecté B", exact: true })
+      .click();
+    await instruction
+      .getByRole("button", { name: "Conectado, siguiente", exact: true })
+      .click();
+  }
+  await expect(instruction.getByRole("heading")).toHaveText(
+    "¡Tu circuito está listo!",
+  );
+  await expect(instruction).toContainText("5 cables · 1 pieza colocada");
+  await instruction
+    .getByRole("button", { name: "Mi mapa de conexiones", exact: true })
+    .click();
+  await expect(instruction.getByLabel("Resumen del montaje")).toContainText(
+    "Sonda de humedad de suelo · VCC",
+  );
+  await expect(instruction.getByLabel("Resumen del montaje")).toContainText(
+    "Sonda de humedad de suelo · GND",
+  );
+  await expect(instruction.getByLabel("Resumen del montaje")).toContainText(
+    "Sonda de humedad de suelo · AOUT",
+  );
 });
 
 test("Arduino uses its real board and breadboard in 3D and 2D with guided C++ edits", async ({

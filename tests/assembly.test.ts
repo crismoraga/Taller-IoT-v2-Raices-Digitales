@@ -5,12 +5,17 @@ import { analyze } from "../web/circuit/netlist";
 import { circuitForBoard } from "../web/circuit/boards";
 import {
   circuitProgressSignature,
+  assemblyEndpointLabel,
+  assemblyPartPins,
   endpointInfo,
   normalizeCircuitSteps,
   normalizePinRows,
   firstAssemblyAction,
+  identifyAssemblyPart,
   restoreAssemblyAction,
+  restoreAssemblyPinIndex,
   restoreAssemblyProgress,
+  wireItemInfo,
 } from "../web/lesson/assembly";
 
 describe("montaje: una acción física por paso", () => {
@@ -94,14 +99,14 @@ describe("montaje: una acción física por paso", () => {
   it("nombra letra, número y riel con coordenadas concretas", () => {
     expect(endpointInfo(circuits.led, "a4")).toEqual({
       label: "a4",
-      sub: "Letra a, número 4 · GP2 (pin 4)",
+      sub: "Letra a, número 4 · lado inferior (a–e) · GP2 (pin 4)",
     });
     expect(endpointInfo(circuits.led, "bn:27")).toEqual({
       label: "− · 27",
-      sub: "Riel azul de abajo",
+      sub: "Riel azul de abajo, frente al número 27",
     });
     expect(endpointInfo(circuits.led, "led.anodo")).toMatchObject({
-      sub: "LED rojo",
+      sub: "LED rojo · también marcado pata larga. Busca esta marca en tu pieza.",
     });
   });
 
@@ -109,7 +114,7 @@ describe("montaje: una acción física por paso", () => {
     const arduino = circuitForBoard(circuits.led, "uno");
     expect(endpointInfo(arduino, "a4")).toEqual({
       label: "a4",
-      sub: "Letra a, número 4",
+      sub: "Letra a, número 4 · lado inferior (a–e)",
     });
     expect(endpointInfo(arduino, "controller.D2")).toEqual({
       label: "D2",
@@ -285,6 +290,31 @@ describe("avance guardado: reanudar sin saltarse comprobaciones", () => {
     changedCheck.steps[0].verify = "Una comprobación distinta";
     expect(circuitProgressSignature("pico", changedCheck)).not.toBe(signature);
   });
+
+  it("mantiene el avance de la frontera al recargar mientras se repasa un paso anterior", () => {
+    expect(
+      restoreAssemblyProgress(saved({ position: 0 }), "current", steps),
+    ).toEqual({
+      position: 0,
+      completed: { first: true, second: true, third: true },
+      verified: { first: true, third: true },
+    });
+    expect(
+      restoreAssemblyProgress(
+        saved({
+          position: 0,
+          completed: { first: true, second: true },
+          verified: { first: true },
+        }),
+        "current",
+        steps,
+      ),
+    ).toEqual({
+      position: 0,
+      completed: { first: true, second: true },
+      verified: { first: true },
+    });
+  });
 });
 
 describe("microacciones guardadas: retomar el extremo actual", () => {
@@ -343,5 +373,140 @@ describe("microacciones guardadas: retomar el extremo actual", () => {
     expect(restoreAssemblyAction(save(wire.id, "place"), "current", wire)).toBe(
       "take",
     );
+    expect(
+      restoreAssemblyAction(save(part.id, "insert"), "current", part),
+    ).toBe("insert");
+    expect(
+      restoreAssemblyAction(save(wire.id, "insert"), "current", wire),
+    ).toBe("take");
+  });
+});
+
+describe("alineación de patas y mapa replicable", () => {
+  const led = circuits.led.parts.find((part) => part.id === "led")!;
+  const step = { id: "led-place", parts: ["led"] };
+  const saved = (pinIndex: unknown, extra: Record<string, unknown> = {}) => ({
+    version: 2,
+    signature: "current",
+    journey: { stepId: step.id, action: "place", pinIndex },
+    ...extra,
+  });
+
+  it("alinea las patas del LED según su polaridad y agujeros exactos", () => {
+    expect(
+      assemblyPartPins(led).map(({ id, label, hole }) => ({ id, label, hole })),
+    ).toEqual([
+      { id: "anodo", label: "pata larga (+)", hole: "d26" },
+      { id: "catodo", label: "pata corta (−)", hole: "d27" },
+    ]);
+    expect(identifyAssemblyPart(led)).toContain("lado plano");
+  });
+
+  it("identifica los 220 Ω por sus bandas y conserva ambos agujeros sin polaridad", () => {
+    const part = circuits.led.parts.find((part) => part.id === "r_led")!;
+    expect(identifyAssemblyPart(part)).toBe(
+      "Bandas: rojo, rojo, café y dorado. Sus dos patas se pueden intercambiar.",
+    );
+    expect(assemblyPartPins(part).map((pin) => pin.hole)).toEqual([
+      "c22",
+      "c26",
+    ]);
+  });
+
+  it("respeta todas las patas del sensor rígido y deja los módulos externos fuera de la protoboard", () => {
+    const lm35 = circuits.lm35.parts.find((part) => part.id === "lm35")!;
+    expect(assemblyPartPins(lm35).map(({ id, hole }) => [id, hole])).toEqual([
+      ["vs", "f33"],
+      ["vout", "f34"],
+      ["gnd", "f35"],
+    ]);
+    const soil = circuits.soil.parts.find((part) => part.id === "soil")!;
+    expect(assemblyPartPins(soil)).toEqual([]);
+    expect(identifyAssemblyPart(soil)).toContain("GND, VCC, AOUT");
+  });
+
+  it("recuerda la segunda pata pendiente sin saltarse la colocación de la pieza completa", () => {
+    expect(restoreAssemblyPinIndex(saved(1), "current", step, 2)).toBe(1);
+    expect(restoreAssemblyAction(saved(1), "current", step)).toBe("place");
+  });
+
+  it.each([-1, 2, 1.5, Number.NaN, Infinity, "1", null, undefined])(
+    "rechaza un índice de pata inválido %j",
+    (index) => {
+      expect(restoreAssemblyPinIndex(saved(index), "current", step, 2)).toBe(0);
+    },
+  );
+
+  it("no aplica la pata guardada a otra placa, otro componente ni la acción de inserción", () => {
+    expect(restoreAssemblyPinIndex(saved(1), "other-board", step, 2)).toBe(0);
+    expect(
+      restoreAssemblyPinIndex(
+        saved(1),
+        "current",
+        { id: "other", parts: ["sensor"] },
+        2,
+      ),
+    ).toBe(0);
+    expect(
+      restoreAssemblyPinIndex(
+        saved(1, {
+          journey: { stepId: step.id, action: "insert", pinIndex: 1 },
+        }),
+        "current",
+        step,
+        2,
+      ),
+    ).toBe(0);
+  });
+
+  it("distingue los conectores reales de Uno, Nano, módulos y los hilos del termómetro", () => {
+    const uno = circuitForBoard(circuits.led, "uno");
+    const nano = circuitForBoard(circuits.led, "nano");
+    const unoWire = uno.wires.find((wire) => wire.id === "w_led_sig")!;
+    const nanoWire = nano.wires.find((wire) => wire.id === "w_led_sig")!;
+    expect(wireItemInfo(uno, unoWire)).toMatchObject({
+      connector: "macho-macho",
+      a: "macho",
+      b: "macho",
+      ownLead: false,
+    });
+    expect(wireItemInfo(nano, nanoWire)).toMatchObject({
+      connector: "hembra-macho",
+      a: "hembra",
+      b: "macho",
+      ownLead: false,
+    });
+    expect(
+      wireItemInfo(
+        circuits.soil,
+        circuits.soil.wires.find((wire) => wire.from === "soil.VCC")!,
+      ),
+    ).toMatchObject({ a: "hembra", b: "macho", ownLead: false });
+    expect(
+      wireItemInfo(
+        circuits.ds18b20,
+        circuits.ds18b20.wires.find((wire) => wire.id === "c_ds_3v3")!,
+      ),
+    ).toMatchObject({
+      a: "hilo del sensor",
+      b: "macho",
+      ownLead: true,
+      label: "Un solo hilo rojo del sensor.",
+    });
+  });
+
+  it("el mapa compacto distingue riel superior/inferior y la placa y módulo de cada pin", () => {
+    expect(assemblyEndpointLabel(circuits.led, "bn:27")).toBe(
+      "riel azul (−) de abajo · 27",
+    );
+    expect(assemblyEndpointLabel(circuits.soil, "soil.VCC")).toBe(
+      "Sonda de humedad de suelo · VCC",
+    );
+    expect(
+      assemblyEndpointLabel(
+        circuitForBoard(circuits.led, "nano"),
+        "controller.D2",
+      ),
+    ).toBe("Arduino Nano · D2");
   });
 });

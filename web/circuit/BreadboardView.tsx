@@ -106,6 +106,8 @@ export interface BreadboardViewProps {
   onEndpointActivate?: (endpoint: "a" | "b") => void;
   requestFocusEndpoint?: { endpoint: "a" | "b"; token: number };
   connectionState?: "take" | "a" | "b" | "placed";
+  activePartPin?: { partId: string; pinId: string };
+  requestFocusPartPin?: { partId: string; pinId: string; token: number };
 }
 
 /* ── Capa estática: la protoboard ─────────────────────────────── */
@@ -1440,6 +1442,8 @@ export function BreadboardView({
   onEndpointActivate,
   requestFocusEndpoint,
   connectionState,
+  activePartPin,
+  requestFocusPartPin,
 }: BreadboardViewProps) {
   const isPico = !circuit.board || circuit.board === "pico";
   const container = useRef<HTMLDivElement>(null);
@@ -1506,6 +1510,11 @@ export function BreadboardView({
       if (!part) continue;
       if (part.holes)
         for (const [pinId, hole] of Object.entries(part.holes)) {
+          if (
+            activePartPin?.partId === part.id &&
+            activePartPin.pinId !== pinId
+          )
+            continue;
           const pin = partDef(part).pins.find(
             (candidate) => candidate.id === pinId,
           );
@@ -1528,7 +1537,7 @@ export function BreadboardView({
       for (const hole of step.focus ?? [])
         points.push({ at: pointXY(hole), id: hole });
     return points;
-  }, [circuit, step]);
+  }, [circuit, step, activePartPin?.partId, activePartPin?.pinId]);
 
   const whole = useMemo<Box>(() => {
     const modules = circuit.parts.filter(
@@ -1909,7 +1918,16 @@ export function BreadboardView({
     focusEndpoint(
       requestFocusEndpoint.endpoint === "a" ? activeWire.from : activeWire.to,
     );
-  }, [requestFocusEndpoint?.token, activeWire?.id]);
+  }, [requestFocusEndpoint?.token, activeWire?.id, circuit.board]);
+
+  useEffect(() => {
+    if (!requestFocusPartPin) return;
+    const part = circuit.parts.find(
+      (candidate) => candidate.id === requestFocusPartPin.partId,
+    );
+    const hole = part?.holes?.[requestFocusPartPin.pinId];
+    if (hole) focusEndpoint(hole);
+  }, [requestFocusPartPin?.token, circuit.id, circuit.board]);
 
   const wires = circuit.wires
     .map((wire, index) => ({ wire, index, state: stateOf(wire.id) }))
@@ -1928,6 +1946,8 @@ export function BreadboardView({
     >
       <svg
         role="img"
+        data-board={circuit.board ?? "pico"}
+        data-circuit={circuit.id}
         aria-label={
           description ?? `Diagrama de la protoboard: ${circuit.title}`
         }
