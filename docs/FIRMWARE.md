@@ -1,13 +1,13 @@
 # Firmware y USB reales
 
-La estación principal utiliza Pico W con el firmware oficial MicroPython para **RPI_PICO_W**, no Pico sin Wi-Fi. El navegador abre su USB mediante Web Serial. No hay intérprete de Python local ni emulación: el código se transmite a la placa, allí se ejecuta y su salida vuelve a la terminal. Chrome/Edge de escritorio necesitan HTTPS o localhost y un cable USB de datos. El usuario selecciona el puerto al conectar. Cierra Thonny, Arduino IDE y otras pestañas que lo tengan abierto.
+El proyecto implementa dos rutas de firmware: MicroPython por USB para **Raspberry Pi Pico, Pico W, Pico 2 y Pico 2 W**, y Arduino AVR para Uno/Nano clásicos compatibles. En Pico, el navegador transmite código a la placa física por Web Serial: no es un intérprete local ni una emulación. El UF2 debe corresponder al modelo exacto. El uso por USB no necesita Wi-Fi; esta red es opcional para Pico W/Pico 2 W. Consulta la [matriz de placas](SUPPORTED_BOARDS.md). Chrome/Edge de escritorio necesitan HTTPS o localhost y un cable USB de datos. El usuario selecciona el puerto al conectar. Cierra Thonny, Arduino IDE y otras pestañas que lo tengan abierto.
 
-## Instalación de Pico W
+## Instalación MicroPython para Pico
 
-1. Mantén BOOTSEL al conectar USB. Copia el UF2 oficial de [MicroPython para Pico W](https://micropython.org/download/RPI_PICO_W/) al volumen RPI-RP2. Al reiniciar deja de ser un disco y aparece como puerto serial. BOOTSEL solo es necesario para instalar MicroPython.
-2. Abre Raíces Digitales, entra a tu grupo y selecciona Pico W. Conecta USB.
+1. Selecciona el UF2 oficial MicroPython del modelo exacto: [Pico](https://micropython.org/download/RPI_PICO/), [Pico W](https://micropython.org/download/RPI_PICO_W/), [Pico 2](https://micropython.org/download/RPI_PICO2/) o [Pico 2 W](https://micropython.org/download/RPI_PICO2_W/). Mantén BOOTSEL al conectar USB y copia el UF2 al volumen RPI-RP2. Al reiniciar deja de ser un disco y aparece como puerto serial. BOOTSEL solo es necesario para instalar MicroPython.
+2. Abre Raíces Digitales, entra a tu grupo y selecciona el modelo que tienes. Conecta USB.
 3. En configuración activa solamente sensores realmente cableados. Calibra suelo/nivel antes de pedir porcentajes.
-4. En Conectar ingresa la red Wi-Fi **2.4 GHz** y el endpoint HTTPS completo, por ejemplo `https://taller.example.org/api/device/ingest`. Usa un servidor accesible desde esa red; `localhost` en la Pico sería la propia Pico. No admite portales cautivos ni WPA Enterprise.
+4. La ruta USB es suficiente para ejecutar actividades y pasar telemetría a través del computador. Solo si usarás red autónoma, elige Wi-Fi en un modelo W e ingresa red **2.4 GHz** y endpoint HTTPS completo, por ejemplo `https://taller.example.org/api/device/ingest`. Usa un servidor accesible desde esa red; `localhost` en la Pico sería la propia Pico. No admite portales cautivos ni WPA Enterprise.
 5. Instala la estación. El navegador obtiene una credencial propia del grupo, guarda todos los módulos y genera `config.json` directamente en tu placa. La contraseña Wi-Fi y token nunca están en el repositorio ni en el bundle descargable. Se almacenan en claro en la memoria física de la Pico: no prestes una placa configurada con credenciales privadas.
 6. La instalación inicia `main.py`. También arranca al reiniciar la placa. Al terminar el taller revoca la estación desde la plataforma y borra `config.json` si vas a compartirla.
 
@@ -23,7 +23,7 @@ La estación principal utiliza Pico W con el firmware oficial MicroPython para *
 
 Si Wi-Fi falla pero el computador alcanza la API, el puente USB permite continuar con la estación instalada, la página abierta y la placa conectada. Anota ese transporte como USB; no equivale a haber validado Wi-Fi autónomo. No hay reenvío de una cola histórica de lecturas perdidas durante un corte.
 
-## Dejar una Pico W lista para otro grupo
+## Dejar una Pico lista para otro grupo
 
 Desde **Configuración → Dispositivos vinculados**, revoca el acceso de la estación antes de entregarla a otra persona. Después pulsa Detener código. Para borrar las credenciales guardadas, ejecuta este programa breve en el editor de una actividad con Pico W seleccionada:
 
@@ -80,7 +80,7 @@ El código editable se ejecuta con los permisos físicos normales de MicroPython
 
 ## Arduino real
 
-Uno/Nano clásicos ATmega328P están soportados por STK500v1, con bootloader `uno`/`nano` a 115200 baudios y `nano-old` a 57600. El monitor de los ejemplos trabaja a 115200: para Nano antiguo el transporte cambia a 57600 durante la carga y vuelve a 115200 al terminar, usando el mismo permiso USB. El backend compila C++ con Arduino CLI y devuelve Intel HEX. El navegador valida checksums, EOF, direcciones y solapamientos, reinicia mediante DTR, comprueba la firma ATmega328P, graba páginas de 128 bytes y **relee cada página para verificarla** antes de declarar éxito. No soporta Mega, Leonardo, Uno R4, Nano Every ni otras arquitecturas; no se les escribe por aproximación.
+Uno/Nano clásicos ATmega328P están soportados por STK500v1, con bootloader `uno`/`nano` a 115200 baudios y `nano-old` a 57600. También hay perfil **Nano ATmega168**, FQBN `arduino:avr:nano:cpu=atmega168`, firma `1E 94 06` y velocidad de bootloader 19200. La selección USB no distingue por sí sola los MCU del Nano: el usuario elige variante y el cargador verifica la firma antes de grabar. Nunca conviertas automáticamente un perfil 168 a 328P. El monitor de los ejemplos trabaja a 115200: para variantes antiguas el transporte cambia durante la carga y vuelve al final, usando el mismo permiso USB. El backend compila C++ con Arduino CLI y devuelve Intel HEX. El navegador valida checksums, EOF, direcciones y solapamientos, reinicia mediante DTR, comprueba la firma esperada, graba páginas de 128 bytes y **relee cada página para verificarla** antes de declarar éxito. No soporta Mega, Leonardo, Uno R4, Nano Every, ESP32 ni otras arquitecturas; no se les escribe por aproximación.
 
 `arduinoStationSketch(calibrations, enabled)` genera una estación completa de ocho drivers a partir de `firmware/arduino/station.ino`. Usa solamente Arduino core y `math.h`: DHT11 y 1-Wire/DS18B20 llevan implementaciones incluidas, con timeouts y CRC. Descubre una ROM DS18B20 en cada conversión, pensada para la única sonda del kit. Escribe el mismo formato JSON que Pico; el navegador vinculado reenvía lecturas al servidor. **Uno/Nano no tiene Wi-Fi**: debe quedar conectado por USB con la pestaña abierta. El botón **Detener código** compila y carga un programa de reposo que deja D2–D13 en alta impedancia; reemplaza el sketch activo mientras tu borrador permanece en la web. Este botón necesita compilador disponible. El sketch integrado además acepta `STOP\n` y `RUN\n` desde la terminal; esos comandos solo sirven en programas que los implementan.
 

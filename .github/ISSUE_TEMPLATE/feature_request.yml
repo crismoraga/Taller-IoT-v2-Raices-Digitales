@@ -1,0 +1,37 @@
+name: Proponer una mejora
+description: Sugiere una mejora de aprendizaje, interfaz, firmware o compatibilidad.
+title: "[Mejora]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Necesidad
+      description: Quién encuentra el problema y en qué momento del taller.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado deseado
+      description: Qué debería poder hacer o entender la persona.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Interfaz y experiencia
+        - Actividad y contenido
+        - Cableado 2D/3D
+        - Placa, USB o firmware
+        - Telemetría y servidor
+        - Documentación
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Placa, navegador o límites conocidos
+      description: Añade únicamente información pública y sin secretos.

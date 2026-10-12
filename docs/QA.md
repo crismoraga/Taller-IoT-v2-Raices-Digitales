@@ -1,5 +1,13 @@
 # Verificación de Raíces Digitales
 
+## Revisión de compatibilidad publicada · 12 de octubre de 2026
+
+La revisión más reciente amplió perfiles y recuperación de transporte. Pasaron 59 pruebas de navegador, 701 pruebas de aplicación, 30 pruebas de firmware y 70 compilaciones AVR reales para catálogo/estación. Diez equipos de prueba compilaron a la vez mediante el endpoint público. El conjunto incluye Uno, Nano ATmega328P, Nano con bootloader antiguo y Nano ATmega168; este último usa firma y velocidad propias. La selección de Pico distingue Pico, Pico W, Pico 2 y Pico 2 W y ofrece USB como transporte inicial, con Wi-Fi opcional en modelos W.
+
+Las pruebas USB usaron peers seriales/bootloaders de protocolo para verificar escritura, firma, lecturas de vuelta, reconexión y errores. No había placas físicas conectadas en esa ejecución; no se afirma validar voltajes, controladores, bootloaders físicos, sensores o montaje real. Las páginas [Historias de usuario](USER_STORIES.md) y [Placas compatibles](SUPPORTED_BOARDS.md) relacionan los criterios y límites.
+
+Las cifras de las secciones históricas que siguen corresponden a revisiones anteriores y se conservan como registro, no como conteo acumulado del estado publicado.
+
 La aplicación conserva la distinción entre software verificado, telemetría simulada y hardware físico pendiente. Revisión de la experiencia y del código: 8 de octubre de 2026, America/Santiago.
 
 ## Comandos

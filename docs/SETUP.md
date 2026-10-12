@@ -1,6 +1,6 @@
 # Ejecutar Raíces Digitales
 
-Requisitos: Node.js 24, npm, navegador Chrome/Edge de escritorio para Web Serial, cable USB con datos y Pico W con MicroPython o Arduino Uno/Nano. La guía y el dashboard funcionan sin placa; la sección de simulación se etiqueta y almacena como simulación. No se inventan lecturas de hardware.
+Requisitos: Node.js 24, npm, navegador Chrome/Edge de escritorio para Web Serial, cable USB con datos y una placa compatible: Pico/Pico W/Pico 2/Pico 2 W con MicroPython o Arduino Uno/Nano AVR compatible. La guía y el dashboard funcionan sin placa; la sección de simulación se etiqueta y almacena como simulación. No se inventan lecturas de hardware.
 
 Desde la raíz del repositorio, en PowerShell:
 
@@ -27,14 +27,14 @@ npm start
 
 Abre `http://localhost:3001`. Producción remota requiere HTTPS; consulta [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Pico W
+## Raspberry Pi Pico y Pico W
 
-1. Instala el firmware MicroPython oficial para **Pico W**, con BOOTSEL y su UF2; una Pico sin W no tiene Wi-Fi.
+1. Instala con BOOTSEL el UF2 MicroPython oficial correspondiente al modelo: Pico `RPI_PICO`, Pico W `RPI_PICO_W`, Pico 2 `RPI_PICO2` o Pico 2 W `RPI_PICO2_W`. Una Pico sin W no tiene Wi-Fi.
 2. Cierra Thonny y otras aplicaciones que ocupen el puerto USB.
-3. En la plataforma selecciona Pico W, conecta USB y autoriza su puerto serial.
+3. En la plataforma selecciona el modelo exacto, conecta USB y autoriza su puerto serial.
 4. Ejecuta LED y parpadeo, luego el ejemplo de sensor correspondiente al cableado.
 5. Para instalar la estación usa el instalador de la plataforma. Descarga archivos reales de `firmware/` desde `/api/firmware`; `config.json` con los datos de tu estación se genera en el navegador y se envía a la placa.
-6. Usa Wi-Fi 2.4 GHz con salida al dominio HTTPS de la plataforma. La Pico empareja su token y publica `/api/device/ingest`. Comprueba primero la dirección, el código de un uso y su vencimiento de cinco minutos.
+6. Si seleccionaste Wi-Fi y una Pico W, usa red 2.4 GHz con salida al dominio HTTPS de la API. La Pico empareja su token y publica `/api/device/ingest`. Comprueba primero la dirección, el código de un uso y su vencimiento de cinco minutos. La conexión USB no requiere Wi-Fi y puede transportar lecturas desde Pico sin W.
 
 El USB permite leer telemetría y controlar código sin red Wi-Fi. La misma estación debe usar una única vía de envío para no publicar duplicados. La etapa Arduino usa USB hacia el navegador como puente de telemetría; Uno/Nano no incluyen radio Wi-Fi.
 
@@ -48,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File scripts/setup-arduino.ps1
 
 El instalador descarga el archivo oficial Arduino CLI 1.4.1, valida SHA-256 con los checksums de esa misma publicación e instala AVR 1.8.6 y las bibliotecas DHT, Unified Sensor, OneWire, DallasTemperature y Servo. Los archivos permanecen en `tools/`, fuera de Git. La configuración por defecto del backend detecta esos directorios.
 
-Selecciona Uno, Nano o Nano con bootloader antiguo según tu placa. La subida requiere el bootloader original STK500v1, un cable de datos, puerto disponible y un puente USB compatible. Si una Nano lleva CH340, el sistema operativo debe tener su controlador. Una placa con bootloader distinto puede compilar correctamente y fallar al subir; la interfaz comunica el fallo real del transporte.
+Selecciona Uno, Nano 328P, Nano 328P con bootloader antiguo o Nano ATmega168 según tu placa. El ATmega168 usa su perfil y firma específicos; no elijas Nano 328P para forzar la carga. La subida requiere un bootloader compatible STK500v1, cable de datos, puerto disponible y puente USB compatible. Si una Nano lleva CH340, el sistema operativo debe tener su controlador. Una placa con otro bootloader puede compilar correctamente y fallar al subir; la interfaz comunica el fallo real del transporte.
 
 El compilador local admite bibliotecas `Arduino.h`, `DHT.h`, `Adafruit_Sensor.h`, `OneWire.h`, `DallasTemperature.h`, `Servo.h`, `Wire.h`, `SPI.h` y `math.h`. Es un servicio de compilación supervisado para el taller local. El despliegue público utiliza un contenedor privado separado, sin datos ni secretos del servidor.
 

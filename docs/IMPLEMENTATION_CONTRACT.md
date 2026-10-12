@@ -23,14 +23,14 @@ Cookie HttpOnly opaca por navegador. Un ID ajeno nunca concede acceso. Todos los
 - GET `/api/health`→ok/version/telegramConfigured/arduinoAvailable.
 - POST `/api/teacher/login`, POST logout, GET `/api/teacher/groups` y GET groups/:id, consulta docente de sólo lectura.
 - GET `/api/telegram`; POST `/api/telegram` y `/api/telegram/test` sólo docente. Token cifrado, nunca devuelto al cliente.
-- POST `/api/arduino/compile` `{code,board:uno|nano|nano-old}`→HEX/output de ArduinoCLI real; autenticado, sin shell, límites de tamaño/tiempo/concurrencia.
+- POST `/api/arduino/compile` `{code,board:uno|nano|nano-old|nano-168}`→HEX/output de ArduinoCLI real; autenticado, sin shell, límites de tamaño/tiempo/concurrencia.
 - GET `/api/firmware`→fuentes y CA sin credenciales; configuración final se genera en memoria y escribe por USB.
 
 Sensor IDs canónicos: soil(%), soil_temperature(°C), air_temperature(°C), air_humidity(%), light(%relativo), rain(0/1), water_level(%), distance(cm), motion(0/1). DHT11 habilita air_temperature+air_humidity juntos. Estados READING/NEEDS_CALIBRATION/NO_RESPONSE/OUT_OF_RANGE/UNVERIFIED/DISABLED/ERROR. ADC flotante no prueba ausencia física.
 
 ## Ejecución y persistencia
 
-Web Serial ejecuta MicroPython raw-paste y escribe archivos en bloques con renombrado final. STK500v1 carga HEX real Uno/Nano/Nano antiguo y verifica flash. La ejecución ocurre en la placa, no en un simulador oculto. Pico W publica HTTPS con CA/hora verificados; Uno/Nano usa puente USB. El firmware conserva lectura USB durante fallos de Wi-Fi.
+Web Serial ejecuta MicroPython raw-paste y escribe archivos en bloques con renombrado final. STK500v1 carga HEX real Uno/Nano/Nano antiguo/Nano ATmega168 y verifica flash. La ejecución ocurre en la placa, no en un simulador oculto. Pico/Pico W/Pico 2/Pico 2 W puede usar USB; Pico W/Pico 2 W publica HTTPS opcional con CA/hora verificados; Uno/Nano usa puente USB. El firmware conserva lectura USB durante fallos de Wi-Fi.
 
 El build precachea contenido/editor/recursos para recarga sin red; nunca cachea API o credenciales. Borradores se guardan inmediatamente en el navegador y se sincronizan por sesión autorizada. Cola y recuperación serializadas, revisiones evitan borrar cambios posteriores a una respuesta. Wi-Fi y token de instalación Pico no se persisten en navegador.
 

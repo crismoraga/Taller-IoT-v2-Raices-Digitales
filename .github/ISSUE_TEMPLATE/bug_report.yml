@@ -1,0 +1,58 @@
+name: Reportar un problema
+description: Informa un error reproducible en la aplicación, USB o firmware.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        No incluyas claves, tokens, contraseñas, cookies, SSID, `config.json`, base de datos ni datos personales.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Qué esperabas que ocurriera
+      description: Describe el resultado esperado de forma concreta.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Qué ocurrió
+      description: Copia el error exacto después de retirar información privada.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Pasos para reproducir
+      placeholder: 1. Abre… 2. Selecciona… 3. Pulsa…
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Placa y variante
+      placeholder: Ej. Nano ATmega328P bootloader antiguo, Pico 2 W
+  - type: input
+    id: environment
+    attributes:
+      label: Navegador y sistema operativo
+      placeholder: Ej. Chrome 140, Windows 11
+  - type: dropdown
+    id: validation
+    attributes:
+      label: Qué validaste
+      options:
+        - Solo interfaz o instrucciones
+        - Compilación de firmware
+        - Protocolo con simulador/peer
+        - Placa y componentes físicos
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidad
+      options:
+        - label: Revisé que el reporte no contiene secretos ni datos personales.
+          required: true

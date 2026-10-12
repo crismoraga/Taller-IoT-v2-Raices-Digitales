@@ -3,8 +3,8 @@
 ```mermaid
 flowchart LR
   Group[Navegador del grupo\nReact + Three.js + Monaco] -->|HTTPS cookie privada| Proxy[Caddy]
-  Group <-->|USB Web Serial\nMicroPython / STK500v1| Board[Pico W o Uno/Nano]
-  Board -->|Pico W: HTTPS Bearer| Proxy
+  Group <-->|USB Web Serial\nMicroPython / STK500v1| Board[Pico familia RP2 o AVR Uno/Nano]
+  Board -->|Pico W/Pico 2 W: HTTPS Bearer opcional| Proxy
   Proxy --> API[Fastify Node 24]
   API --> DB[(SQLite WAL\nvolumen persistente)]
   API -->|SSE update| Group
@@ -17,7 +17,7 @@ El frontend sirve seis actividades esenciales de 60 minutos y una biblioteca de 
 
 El montaje tiene un único modelo físico (`web/circuit/`): agujeros, tiras conductoras, pines físicos de la Pico, piezas, resistencias y cables. SVG y Three.js leen ese modelo; el guía confirma acciones críticas y avanza una conexión a la vez. La cámara se adapta al canvas y al circuito. Los flujos animados son ilustraciones educativas identificadas; las lecturas reales proceden exclusivamente de la API o del USB. Las escenas se pausan fuera de pantalla, al ocultar la pestaña o por preferencia de movimiento reducido. WebGL dispone de alternativa textual/2D.
 
-El navegador ejecuta y modifica MicroPython mediante el REPL real de la Pico; instala módulos desde el servidor y guarda la configuración de su propia estación. Arduino se compila con AVR-GCC por Arduino CLI y se sube al bootloader con Web Serial. El programa se ejecuta únicamente en la placa física.
+El navegador ejecuta y modifica MicroPython mediante el REPL real de las Pico compatibles; instala módulos desde el servidor y guarda la configuración de su propia estación. Arduino Uno/Nano AVR se compila con AVR-GCC por Arduino CLI y se sube al bootloader con Web Serial, incluyendo los perfiles Nano ATmega168, Nano ATmega328P y bootloader antiguo. El programa se ejecuta únicamente en la placa física. Los perfiles y sus límites están en [SUPPORTED_BOARDS.md](SUPPORTED_BOARDS.md).
 
 El puente USB usa `/api/bridge/connect` y `/api/bridge/ingest`: cookie HttpOnly del grupo y origen autorizado, sin token de dispositivo en JavaScript. El servidor deriva el grupo de la cookie y limita dispositivos activos. Las líneas JSON consecutivas se combinan por sensor antes de publicar; un Wi-Fi activo con IP y TLS confirmado evita duplicar las muestras que la Pico ya publica. La revocación impide ingresar nuevos datos hasta reconectar. La credencial de instalación Pico permanece sólo en memoria y se reutiliza hasta revocarla.
 

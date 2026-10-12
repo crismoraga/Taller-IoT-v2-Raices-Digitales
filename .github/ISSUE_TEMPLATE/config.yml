@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guía de solución de problemas
+    url: https://github.com/crismoraga/Taller-IoT-v2-Raices-Digitales/blob/main/docs/TROUBLESHOOTING.md
+    about: Revisa diagnósticos de USB, bootloader, sensores y conectividad antes de reportar.
+  - name: Guía de uso
+    url: https://github.com/crismoraga/Taller-IoT-v2-Raices-Digitales/blob/main/docs/STUDENT_GUIDE.md
+    about: Instrucciones para el recorrido del taller.
