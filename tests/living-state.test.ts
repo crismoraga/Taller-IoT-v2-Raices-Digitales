@@ -42,8 +42,30 @@ describe("the selected controller in the living station", () => {
     expect(oldNano.description).toContain("bootloader antiguo");
   });
 
+  it("shows an ATmega168 as a real Nano with the same contacts, not as a fallback Pico", () => {
+    const nano = livingBoardProfile("nano");
+    const nano168 = livingBoardProfile("nano-168");
+    expect(nano168).toMatchObject({
+      width: nano.width,
+      depth: nano.depth,
+      pinsPerSide: nano.pinsPerSide,
+      usb: nano.usb,
+      focus: nano.focus,
+      signalPoint: nano.signalPoint,
+      sensorPin: "A0",
+    });
+    expect(nano168.description).toContain("ATmega168");
+    expect(nano168.description).not.toContain("bootloader antiguo");
+  });
+
   it("frames each controller above the table without exceeding the camera orbit limit", () => {
-    for (const board of ["pico", "uno", "nano", "nano-old"] as const) {
+    for (const board of [
+      "pico",
+      "uno",
+      "nano",
+      "nano-old",
+      "nano-168",
+    ] as const) {
       const { target, position } = livingBoardProfile(board).focus;
       const distance = Math.hypot(...position.map((n, i) => n - target[i]));
       expect(position[1]).toBeGreaterThan(target[1]);
@@ -53,7 +75,13 @@ describe("the selected controller in the living station", () => {
   });
 
   it("attaches the signal to a contact on the selected PCB rather than hovering above it", () => {
-    for (const board of ["pico", "uno", "nano", "nano-old"] as const) {
+    for (const board of [
+      "pico",
+      "uno",
+      "nano",
+      "nano-old",
+      "nano-168",
+    ] as const) {
       const { signalPoint, width, depth } = livingBoardProfile(board);
       expect(signalPoint[1]).toBeGreaterThan(0.17);
       expect(signalPoint[1]).toBeLessThan(0.3);

@@ -5,7 +5,7 @@ import type { ThemePref } from "../lib/theme";
 import { ProgressBar, SegmentedProgress } from "../ui/Progress";
 import { Segmented } from "../ui/Card";
 import { cx } from "../ui/cx";
-import { resumeWorkshop } from "../workshop/flow";
+import { resumeWorkshop, workshopRoute } from "../workshop/flow";
 import { Brand } from "./Brand";
 
 export interface NavEntry {
@@ -60,6 +60,10 @@ export function Sidebar({
   const next = resumeWorkshop(app.guided, progress.done);
   const routeDone = app.guided ? progress.expressDone : progress.routeDone;
   const routeTotal = app.guided ? progress.expressTotal : progress.routeTotal;
+  const route = workshopRoute(app.guided);
+  const completedSteps = route.flatMap((lesson, index) =>
+    progress.done.has(lesson.id) ? [index] : [],
+  );
   const go = (path: string) => {
     app.navigate(path);
     onNavigate?.();
@@ -139,8 +143,8 @@ export function Sidebar({
             <SegmentedProgress
               className="mt-3"
               total={routeTotal}
-              done={routeDone}
-              current={routeDone}
+              done={completedSteps}
+              current={route.findIndex((lesson) => lesson.id === next?.id)}
               label="Avance de la ruta guiada"
             />
           ) : (

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BOARDS } from "../shared/boards.ts";
 
 export const sensors = [
   "soil",
@@ -79,7 +80,7 @@ const calibration = z
   .object({
     dry: finite.min(0).max(65535),
     wet: finite.min(0).max(65535),
-    board: z.enum(["pico", "uno", "nano", "nano-old"]).optional(),
+    board: z.enum(BOARDS).optional(),
   })
   .strict()
   .refine((v) => Math.abs(v.dry - v.wet) >= 8, {
@@ -117,7 +118,7 @@ export const sessionPatchSchema = z
     lastRun: z
       .object({
         lessonId: safeKey,
-        board: z.enum(["pico", "uno", "nano", "nano-old"]),
+        board: z.enum(BOARDS),
         code: z.string().max(100000),
         at: z.iso.datetime({ offset: true }),
       })

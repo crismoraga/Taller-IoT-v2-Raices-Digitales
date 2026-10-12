@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { spawnSync } from "node:child_process";
 import {
   ArduinoUSBSerial,
   MicroPythonSerial,
+  SerialLink,
   parseIntelHex,
   automaticUSBPort,
   identifyUSBBoard,
@@ -79,6 +81,21 @@ class TestSerial extends MicroPythonSerial {
     return this.open(115200, port);
   }
 }
+class TestLink extends SerialLink {
+  attach(port: USBPort) {
+    return this.open(115200, port);
+  }
+  feedProtocol(bytes: Uint8Array) {
+    this.protocol = true;
+    this.consume(bytes);
+  }
+  receive(count: number) {
+    return this.bytes(count);
+  }
+  changeBaud(baudRate: number) {
+    return this.reconfigure(baudRate);
+  }
+}
 /** Protocol peer fixture based on the documented raw-paste byte transcript. */
 function pico(
   options: {
@@ -87,6 +104,7 @@ function pico(
     output?: string;
     running?: boolean;
     fileWriteError?: boolean;
+    shortWrite?: boolean;
   } = {},
 ) {
   let controller: ReadableStreamDefaultController<Uint8Array>;
@@ -139,12 +157,26 @@ function pico(
           mode = "running";
           emit(options.fallback ? "OK" : [4]);
           emit(options.output ?? "¡Hola, planta!\r\n");
-          const error =
+          let error =
             options.fileWriteError &&
             source.includes("_rdfile.write") &&
             !fileFailed
               ? "OSError: disk full"
               : options.error;
+          if (options.shortWrite && source.includes("_rdfile.write")) {
+            // Execute the generated Python, with the documented write() return
+            // value for a filesystem that accepts only part of a chunk.
+            const execution = spawnSync(
+              "python3",
+              [
+                "-c",
+                `class PartialFile:\n def write(self, data):\n  return len(data) - 1\n_rdfile = PartialFile()\n${source}`,
+              ],
+              { encoding: "utf8" },
+            );
+            if (execution.error) throw execution.error;
+            if (execution.status !== 0) error = execution.stderr;
+          }
           if (error && options.fileWriteError) fileFailed = true;
           if (!options.running) {
             emit([4]);
@@ -183,6 +215,195 @@ function pico(
     },
   };
 }
+
+describe("USB port ownership", () => {
+  it("does not reopen a Nano port when disconnect is requested during a baud change", async () => {
+    const transport = new TestLink(),
+      peer = avr();
+    let release!: () => void,
+      closeStarted = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    peer.port.close = async () => {
+      closeStarted = true;
+      await gate;
+    };
+    await transport.attach(peer.port);
+    const changing = transport.changeBaud(57600);
+    const settled = Promise.allSettled([changing]);
+    while (!closeStarted)
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    const disconnecting = transport.disconnect();
+    release();
+    try {
+      await disconnecting;
+      const result = (await settled)[0];
+      expect(result.status).toBe("rejected");
+      expect(peer.rates).toEqual([115200]);
+      expect(transport.connected).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("cancels a connection that finishes opening after disconnect was requested", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    peer.port.open = async () => {
+      await gate;
+    };
+    const pending = transport.attach(peer.port);
+    const settled = Promise.allSettled([pending]);
+    await transport.disconnect();
+    release();
+    expect((await settled)[0].status).toBe("rejected");
+    expect(transport.connected).toBe(false);
+    expect(peer.closed).toBe(true);
+    expect(peer.port.readable!.locked).toBe(false);
+    expect(peer.port.writable!.locked).toBe(false);
+  });
+
+  it("accepts a large valid USB chunk without overflowing JavaScript function arguments", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    await transport.attach(peer.port);
+    try {
+      const chunk = new Uint8Array(196608).fill(49);
+      expect(() => transport.feedProtocol(chunk)).not.toThrow();
+      expect(await transport.receive(chunk.length)).toEqual(chunk);
+      expect(transport.connected).toBe(true);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("drops an over-limit protocol chunk and releases the port without allocating an oversized inbox", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    await transport.attach(peer.port);
+    expect(() => transport.feedProtocol(new Uint8Array(300000))).not.toThrow();
+    await transport.disconnect();
+    expect(transport.connected).toBe(false);
+    expect(peer.port.readable!.locked).toBe(false);
+    expect(peer.port.writable!.locked).toBe(false);
+  });
+
+  it("rejects a second connection while the first port is still opening", async () => {
+    const transport = new TestLink(),
+      first = pico(),
+      second = pico();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let openings = 0;
+    first.port.open = async () => {
+      openings++;
+      await gate;
+    };
+    second.port.open = async () => {
+      openings++;
+    };
+    const pending = transport.attach(first.port);
+    const concurrent = transport.attach(second.port);
+    const results = Promise.allSettled([pending, concurrent]);
+    release();
+    try {
+      const settled = await results;
+      expect(settled.map((result) => result.status)).toEqual([
+        "fulfilled",
+        "rejected",
+      ]);
+      expect(openings).toBe(1);
+      expect(second.port.readable!.locked).toBe(false);
+      expect(second.port.writable!.locked).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("releases its writer and closes a port when the reader is already claimed", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    const externalReader = peer.port.readable!.getReader();
+    try {
+      await expect(transport.attach(peer.port)).rejects.toThrow();
+      expect(transport.connected).toBe(false);
+      expect(peer.port.writable!.locked).toBe(false);
+      expect(peer.closed).toBe(true);
+      // Never cancel or release the lock owned by another consumer.
+      expect(peer.port.readable!.locked).toBe(true);
+    } finally {
+      externalReader.releaseLock();
+      await transport.disconnect();
+    }
+  });
+
+  it("waits for a concurrent close before allowing another connection", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    let release!: () => void,
+      closeStarted = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    peer.port.close = async () => {
+      closeStarted = true;
+      await gate;
+    };
+    await transport.attach(peer.port);
+    const first = transport.disconnect();
+    while (!closeStarted)
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    let secondSettled = false;
+    const second = transport.disconnect().then(() => {
+      secondSettled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    try {
+      expect(secondSettled).toBe(false);
+    } finally {
+      release();
+      await Promise.all([first, second]);
+    }
+    const next = pico();
+    await transport.attach(next.port);
+    expect(transport.connected).toBe(true);
+    await transport.disconnect();
+  });
+
+  it("ends the connection when a writable stream fails instead of presenting a reusable port", async () => {
+    const transport = new TestLink(),
+      peer = pico();
+    peer.port.writable = new WritableStream<Uint8Array>({
+      write() {
+        throw new Error("USB write failed");
+      },
+    });
+    let disconnects = 0;
+    transport.onDisconnect = () => {
+      disconnects++;
+    };
+    await transport.attach(peer.port);
+    try {
+      await expect(transport.write("hello")).rejects.toThrow(
+        "USB write failed",
+      );
+      expect(transport.connected).toBe(false);
+      expect(peer.port.readable!.locked).toBe(false);
+      expect(peer.port.writable!.locked).toBe(false);
+      expect(disconnects).toBe(1);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+});
 
 describe("MicroPython USB protocol", () => {
   it("closes only the unplugged port when modern Serial events expose event.port", async () => {
@@ -304,6 +525,27 @@ describe("MicroPython USB protocol", () => {
       false,
     );
     await transport.disconnect();
+  });
+
+  it("rejects a short filesystem write and preserves the previously installed main.py", async () => {
+    const transport = new TestSerial(),
+      peer = pico({ shortWrite: true });
+    await transport.attach(peer.port);
+    try {
+      await expect(
+        transport.saveFile("main.py", "print('sensor listo')"),
+      ).rejects.toThrow("Escritura de archivo incompleta");
+      expect(
+        peer.programs.some((source) =>
+          source.includes('os.remove("main.py.rdtmp")'),
+        ),
+      ).toBe(true);
+      expect(peer.programs.some((source) => source.includes("os.rename"))).toBe(
+        false,
+      );
+    } finally {
+      await transport.disconnect();
+    }
   });
 });
 

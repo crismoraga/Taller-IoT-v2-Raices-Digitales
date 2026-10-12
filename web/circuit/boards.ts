@@ -1,4 +1,4 @@
-import type { Board } from "../lib/context";
+import { BOARD_NAMES, type Board } from "../lib/context";
 import { isPoint, describePoint, stripOf } from "./breadboard";
 import { picoPinForStrip } from "./pico";
 import { mergeGroups, type Circuit, type Endpoint } from "./model";
@@ -55,7 +55,7 @@ export function controllerPins(board: Board = "pico"): ControllerPin[] {
       ...Array.from({ length: 6 }, (_, i) => pin(`A${i}`, 16 + i, 18.5)),
     ];
   }
-  // Classic ATmega328P Nano (not Nano Every / RP2040 / ESP32).
+  // Classic ATmega328P/ATmega168 Nano (not Nano Every / RP2040 / ESP32).
   return [
     ...[
       "D12",
@@ -136,7 +136,7 @@ export function describeEndpoint(circuit: Circuit, endpoint: string): string {
   if (isPoint(endpoint)) return describePoint(endpoint);
   const [id, name] = endpoint.split(".");
   if (id === "controller")
-    return `pin ${controllerPin(circuit.board, name).label} de ${circuit.board === "uno" ? "Arduino Uno" : "Arduino Nano"}`;
+    return `pin ${controllerPin(circuit.board, name).label} de ${BOARD_NAMES[circuit.board ?? "pico"]}`;
   return `pin ${name} de ${circuit.parts.find((part) => part.id === id)?.label ?? id}`;
 }
 

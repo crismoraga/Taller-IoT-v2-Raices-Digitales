@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PerspectiveCamera, Vector3 } from "three";
 import { circuits } from "../web/circuit/layouts";
 import { circuitForBoard } from "../web/circuit/boards";
 import { endpointXY } from "../web/circuit/geometry";
@@ -8,7 +9,10 @@ import {
   hardwareWireCurve,
   terminalConnector,
   ledFlangeGeometry,
+  ledDomeGeometry,
+  LED_POLARITY,
 } from "../web/experience/HardwareModels";
+import { fittedCameraDistance } from "../web/experience/SceneSupport";
 
 describe("physical terminal highlighting in the 3D inspector", () => {
   it("uses plugs that fit the actual breadboard and each controller header", () => {
@@ -33,6 +37,29 @@ describe("physical terminal highlighting in the 3D inspector", () => {
     flange.dispose();
   });
 
+  it("keeps the longer anode lead opposite the cathode flat in both scenes", () => {
+    const flange = ledFlangeGeometry();
+    flange.computeBoundingBox();
+    expect(LED_POLARITY.cathode.x).toBeGreaterThan(0);
+    expect(LED_POLARITY.anode.x).toBeLessThan(0);
+    expect(LED_POLARITY.anode.leadLength).toBeGreaterThan(
+      LED_POLARITY.cathode.leadLength,
+    );
+    expect(flange.boundingBox!.max.x).toBeLessThan(-flange.boundingBox!.min.x);
+    flange.dispose();
+  });
+
+  it("closes a continuous LED barrel and dome inside the same physical envelope", () => {
+    const dome = ledDomeGeometry();
+    dome.computeBoundingBox();
+    expect(dome.boundingBox!.min.x).toBeCloseTo(-0.125);
+    expect(dome.boundingBox!.max.x).toBeCloseTo(0.125);
+    expect(dome.boundingBox!.min.y).toBeCloseTo(0.012);
+    expect(dome.boundingBox!.max.y).toBeCloseTo(0.327);
+    expect([...dome.attributes.normal.array].every(Number.isFinite)).toBe(true);
+    dome.dispose();
+  });
+
   it("takes a short cable upwards out of a tall header instead of through its casing", () => {
     const a: [number, number, number] = [0, 0.49, 0];
     const b: [number, number, number] = [0.1, 0.15, 0.1];
@@ -47,6 +74,12 @@ describe("physical terminal highlighting in the 3D inspector", () => {
         ...hardwareWireCurve(a, [20, 0.36, 10]).map((point) => point[1]),
       ),
     ).toBeLessThanOrEqual(1.05);
+  });
+
+  it("does not bend a lead below a terminal taller than the usual wire arc", () => {
+    const points = hardwareWireCurve([0, 1.3, 0], [1, 0.25, 0]);
+    expect(points[1][1]).toBeGreaterThan(1.3);
+    expect(points[2][1]).toBeGreaterThan(1.3);
   });
   it("keeps LED polarity labels while highlighting its two real holes", () => {
     const led = circuits.led.parts.find((part) => part.id === "led")!;
@@ -85,4 +118,34 @@ describe("physical terminal highlighting in the 3D inspector", () => {
     expect(highlightedTerminals(circuits.led, ["controller.D2"])).toEqual([]);
     expect(highlightedTerminals(circuits.led)).toEqual([]);
   });
+});
+
+describe("physical scene framing", () => {
+  it.each([0.5, 1, 2.2])(
+    "fits every corner in a perfectly vertical top view at aspect %s",
+    (aspect) => {
+      const bounds = { min: [-5, 0, -2], max: [5, 0.8, 2] } as const;
+      const target = new Vector3(0, 0.4, 0);
+      const outward = new Vector3(0, 1, 0);
+      const distance = fittedCameraDistance(
+        { min: [...bounds.min], max: [...bounds.max] },
+        target,
+        outward,
+        40,
+        aspect,
+      );
+      const camera = new PerspectiveCamera(40, aspect, 0.1, 100);
+      camera.up.set(0, 0, -1);
+      camera.position.copy(target).add(outward.multiplyScalar(distance));
+      camera.lookAt(target);
+      camera.updateMatrixWorld();
+      for (const x of [bounds.min[0], bounds.max[0]])
+        for (const y of [bounds.min[1], bounds.max[1]])
+          for (const z of [bounds.min[2], bounds.max[2]]) {
+            const screen = new Vector3(x, y, z).project(camera);
+            expect(Math.abs(screen.x)).toBeLessThan(1);
+            expect(Math.abs(screen.y)).toBeLessThan(1);
+          }
+    },
+  );
 });

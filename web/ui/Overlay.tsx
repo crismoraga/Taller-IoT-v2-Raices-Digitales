@@ -40,7 +40,16 @@ export function Modal({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // React mounts autofocus fields before the closed dialog can receive focus.
+      // Once visible, honor that field instead of starting on the close button.
+      dialog
+        .querySelector<HTMLElement>(
+          "[data-dialog-autofocus]:not(:disabled),[autofocus]:not(:disabled)",
+        )
+        ?.focus({ preventScroll: true });
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
   useEffect(() => {

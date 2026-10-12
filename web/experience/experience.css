@@ -68,6 +68,19 @@
   pointer-events: none;
   backdrop-filter: blur(5px);
 }
+.rdx-terminal-overlay g[role="button"]:focus-visible {
+  outline: none;
+}
+.rdx-terminal-overlay g[role="button"]:focus-visible rect {
+  stroke: #143829;
+  stroke-width: 3px;
+  fill: #ecffb2;
+}
+.rdx-terminal-overlay g[role="button"]:focus-visible circle {
+  stroke: #143829;
+  stroke-width: 3px;
+  fill: #d6f96c;
+}
 .rdx-scene-tools {
   position: absolute;
   z-index: 3;

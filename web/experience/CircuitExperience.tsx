@@ -71,7 +71,7 @@ import {
   inspectedTerminals,
   highlightedTerminals,
   hardwareWireCurve,
-  ledFlangeGeometry,
+  LedOptic,
   terminalConnector,
 } from "./HardwareModels";
 import {
@@ -198,7 +198,7 @@ function Breadboard({
                 ? `Estos cinco agujeros están unidos por dentro: ${linked.join(", ")}. El canal del centro separa las dos mitades.`
                 : "Esta mitad del riel comparte la alimentación de los agujeros resaltados.",
             detail: pin
-              ? `Esta tira llega al pin ${pin.name} de Pico W.`
+              ? `Esta tira llega al pin ${pin.name} de Pico.`
               : "Toca otra fila para descubrir cómo se conectan los componentes.",
             terminals: linked,
           });
@@ -281,13 +281,84 @@ function Breadboard({
   );
 }
 
+/** Forty contacts share two draws, including individual click targets. */
+function PicoContacts({ select }: { select: (selection: Selection) => void }) {
+  const contacts = useRef<THREE.InstancedMesh>(null);
+  const rims = useRef<THREE.InstancedMesh>(null);
+  const { invalidate } = useThree();
+  useLayoutEffect(() => {
+    if (!contacts.current || !rims.current) return;
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+    PICO_PINS.forEach((pin, index) => {
+      dummy.position.set(...atHole(pin.hole, 0.235));
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      contacts.current!.setMatrixAt(index, dummy.matrix);
+      contacts.current!.setColorAt(
+        index,
+        color.set(pin.kind === "gnd" ? "#738775" : "#d2ae55"),
+      );
+      dummy.position.set(...atHole(pin.hole, 0.284));
+      dummy.rotation.x = -Math.PI / 2;
+      dummy.updateMatrix();
+      rims.current!.setMatrixAt(index, dummy.matrix);
+    });
+    for (const mesh of [contacts.current, rims.current]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    }
+    invalidate();
+  }, [invalidate]);
+  return (
+    <>
+      <instancedMesh
+        ref={rims}
+        name="pico-contact-rims"
+        args={[undefined, undefined, PICO_PINS.length]}
+        raycast={() => null}
+      >
+        <ringGeometry args={[0.036, 0.052, 12]} />
+        <meshStandardMaterial
+          color="#b79e52"
+          metalness={0.68}
+          roughness={0.39}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={contacts}
+        name="pico-individual-contacts"
+        args={[undefined, undefined, PICO_PINS.length]}
+        onClick={(event) => {
+          const pin =
+            event.instanceId === undefined
+              ? undefined
+              : PICO_PINS[event.instanceId];
+          if (!pin) return;
+          event.stopPropagation();
+          select({
+            title: `${pin.name} · pin físico ${pin.physical}`,
+            text: pin.role,
+            detail: pin.voltage,
+            terminals: [pin.hole, ...pin.free],
+          });
+        }}
+      >
+        <boxGeometry args={[0.063, 0.26, 0.061]} />
+        <meshStandardMaterial metalness={0.72} roughness={0.28} />
+      </instancedMesh>
+    </>
+  );
+}
+
 function Pico({ select }: { select: (selection: Selection) => void }) {
   return (
     <group
       onClick={(event) => {
         event.stopPropagation();
         select({
-          title: "Raspberry Pi Pico W",
+          title: "Raspberry Pi Pico · MicroPython",
           text: "El USB mira hacia el número 1, a la izquierda. Las dos filas de pines van en c y h, cruzando el canal central.",
           detail:
             "Un pin GP lleva una señal de 0 o 3,3 V. El número GP y el número físico de la pata son cosas distintas.",
@@ -314,16 +385,15 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
         size={0.052}
         color="#9bab9e"
       >
-        RP2040
+        RP2
       </BoardText>
       <HardwareBody
         position={position({ x: 16.4, y: 8.5 }, 0.31)}
-        size={[0.49, 0.085, 0.47]}
-        color="#a7b5ab"
-        radius={0.025}
-        bevel={0.009}
-        metalness={0.78}
-        roughness={0.32}
+        size={[0.17, 0.055, 0.17]}
+        color="#29392d"
+        radius={0.012}
+        bevel={0.003}
+        roughness={0.57}
       />
       <UsbJack kind="micro" position={position({ x: 1.9, y: 8.5 }, 0.33)} />
       <HardwareBody
@@ -401,7 +471,7 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
         color="#eef7dc"
         width={0.66}
       >
-        Pico W
+        Pico
       </BoardText>
       <BoardText
         position={position({ x: 1.1, y: 8.5 }, 0.425)}
@@ -410,41 +480,7 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
       >
         USB
       </BoardText>
-      {PICO_PINS.map((pin) => (
-        <group key={pin.physical}>
-          <mesh
-            position={atHole(pin.hole, 0.284)}
-            rotation={[-Math.PI / 2, 0, 0]}
-            raycast={() => null}
-          >
-            <ringGeometry args={[0.036, 0.052, 12]} />
-            <meshStandardMaterial
-              color="#b79e52"
-              metalness={0.68}
-              roughness={0.39}
-            />
-          </mesh>
-          <mesh
-            position={atHole(pin.hole, 0.235)}
-            onClick={(event) => {
-              event.stopPropagation();
-              select({
-                title: `${pin.name} · pin físico ${pin.physical}`,
-                text: pin.role,
-                detail: pin.voltage,
-                terminals: [pin.hole, ...pin.free],
-              });
-            }}
-          >
-            <boxGeometry args={[0.063, 0.26, 0.061]} />
-            <meshStandardMaterial
-              color={pin.kind === "gnd" ? "#738775" : "#d2ae55"}
-              metalness={0.72}
-              roughness={0.28}
-            />
-          </mesh>
-        </group>
-      ))}
+      <PicoContacts select={select} />
     </group>
   );
 }
@@ -497,7 +533,7 @@ function ArduinoController({
         size={board === "uno" ? 0.066 : 0.048}
         color="#a5b6a7"
       >
-        ATmega328P
+        {board === "nano-168" ? "ATmega168" : "ATmega328P"}
       </BoardText>
       {[-1, 1].flatMap((side) =>
         Array.from({ length: board === "uno" ? 14 : 8 }, (_, index) => (
@@ -816,8 +852,6 @@ function LedLens({
   dim: boolean;
   flow: boolean;
 }) {
-  const flange = useMemo(ledFlangeGeometry, []);
-  useEffect(() => () => flange.dispose(), [flange]);
   const orientation = useMemo(() => {
     const anode = pointXY(part.holes!.anodo);
     const cathode = pointXY(part.holes!.catodo);
@@ -831,63 +865,8 @@ function LedLens({
     );
   }, [part.holes]);
   return (
-    <group quaternion={orientation}>
-      <mesh position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.125, 0.125, 0.19, 24]} />
-        <meshPhysicalMaterial
-          color={color}
-          emissive={flow ? color : "#000"}
-          emissiveIntensity={flow ? 0.42 : 0}
-          roughness={0.18}
-          clearcoat={0.92}
-          clearcoatRoughness={0.15}
-          transparent
-          opacity={dim ? 0.49 : 0.72}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh position={[0, 0.145, 0]}>
-        <sphereGeometry
-          args={[0.125, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
-        />
-        <meshPhysicalMaterial
-          color={color}
-          emissive={flow ? color : "#000"}
-          emissiveIntensity={flow ? 0.46 : 0}
-          roughness={0.18}
-          clearcoat={0.92}
-          clearcoatRoughness={0.15}
-          transparent
-          opacity={dim ? 0.49 : 0.75}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh position={[0, -0.055, 0]} geometry={flange}>
-        <meshStandardMaterial color={color} roughness={0.37} />
-      </mesh>
-      {/* The larger cup and the moulded flat face the cathode hole. */}
-      <mesh position={[0.037, 0.033, 0]}>
-        <cylinderGeometry args={[0.048, 0.018, 0.022, 16]} />
-        <meshStandardMaterial
-          color="#c5d0c4"
-          metalness={0.72}
-          roughness={0.29}
-        />
-      </mesh>
-      <mesh position={[-0.042, 0.013, 0]}>
-        <boxGeometry args={[0.022, 0.045, 0.022]} />
-        <meshStandardMaterial
-          color="#b7c4b7"
-          metalness={0.66}
-          roughness={0.3}
-        />
-      </mesh>
-      <CylinderBetween
-        from={[-0.042, 0.032, 0]}
-        to={[0.037, 0.049, 0]}
-        radius={0.003}
-        color="#cfb66b"
-      />
+    <group quaternion={orientation} position={[0, -0.055, 0]}>
+      <LedOptic color={color} dim={dim} lit={flow} />
     </group>
   );
 }
@@ -1529,6 +1508,9 @@ function TerminalLabels({
               role={activate ? "button" : undefined}
               tabIndex={activate ? 0 : undefined}
               aria-label={`Tocar extremo ${label.badge.toUpperCase()}: ${label.endpoint}`}
+              aria-pressed={
+                activate ? activeEndpoint === label.badge : undefined
+              }
               style={{
                 pointerEvents: activate ? "auto" : "none",
                 cursor: activate ? "pointer" : undefined,
@@ -2117,13 +2099,13 @@ export function CircuitExperience({
           <Box size={15} /> Montaje 3D
           <small
             className="rdx-circuit-orientation"
-            aria-label={`Orientación: ${circuit.board === "uno" ? "Arduino Uno" : circuit.board && circuit.board !== "pico" ? "Arduino Nano" : "Pico W"}, USB a la izquierda`}
+            aria-label={`Orientación: ${circuit.board === "uno" ? "Arduino Uno" : circuit.board && circuit.board !== "pico" ? "Arduino Nano" : "Pico"}, USB a la izquierda`}
           >
             {circuit.board === "uno"
               ? "Uno"
               : circuit.board && circuit.board !== "pico"
                 ? "Nano"
-                : "Pico W"}{" "}
+                : "Pico"}{" "}
             · USB ←
           </small>
         </span>

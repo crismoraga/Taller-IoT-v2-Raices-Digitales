@@ -1,11 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs><linearGradient id="rd-icon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#215840"/><stop offset="1" stop-color="#0c302b"/></linearGradient></defs>
-  <rect width="64" height="64" rx="18" fill="url(#rd-icon)"/>
-  <path d="M32 44V29" fill="none" stroke="#d0ef83" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 33C20 33 16 25 16 17c12 0 17 7 16 16Z" fill="#aadba4"/>
-  <path d="M33 28c0-11 6-16 16-16 0 10-6 16-16 16Z" fill="#d0ef83"/>
-  <path d="M32 44H21v7m11-7h11v7" fill="none" stroke="#d0ef83" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="21" cy="51" r="4" fill="#aadba4"/>
-  <circle cx="43" cy="51" r="4" fill="#f3d56a"/>
-  <circle cx="32" cy="44" r="3.4" fill="#f5f0df"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>Raíces Digitales</title><desc>Hojas y raíces que conectan naturaleza y tecnología. Taller IoT · Telemática USM.</desc><rect width="64" height="64" rx="18" fill="#0c302b"/>
+<path d="M42 6a16 16 0 0 1 15 15" fill="none" stroke="#d0ef83" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M32 31v12m0 0H20v8m12-8h12v8m-12-8v12" fill="none" stroke="#d0ef83" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M31 33C21 33 16 27 16 19c10 0 16 6 15 14Z" fill="#9cd59a"/>
+<path d="M33 28c0-10 6-16 16-16 0 10-6 16-16 16Z" fill="#d0ef83"/>
+<circle cx="20" cy="51" r="3.5" fill="#9cd59a"/><circle cx="44" cy="51" r="3.5" fill="#f3d56a"/>
+<circle cx="32" cy="55" r="3" fill="#d0ef83"/><circle cx="32" cy="43" r="3" fill="#f5f0df"/></svg>

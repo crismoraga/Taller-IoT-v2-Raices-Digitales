@@ -24,7 +24,10 @@ export default function Home() {
   const app = useApp();
   const progress = useProgress();
   const route = workshopRoute(app.guided);
-  const done = route.filter((lesson) => progress.done.has(lesson.id)).length;
+  const completedSteps = route.flatMap((lesson, index) =>
+    progress.done.has(lesson.id) ? [index] : [],
+  );
+  const done = completedSteps.length;
   const finished = done === route.length;
   const resume = resumeWorkshop(app.guided, progress.done);
   const duration = route.reduce(
@@ -84,8 +87,8 @@ export default function Home() {
             </span>
           </div>
           <p className="solar-kit-note">
-            <Icon name="usb" size={17} /> Raspberry Pi Pico W o Arduino · desde
-            tu PC
+            <Icon name="usb" size={17} /> Raspberry Pi Pico o Arduino · desde tu
+            PC
           </p>
         </div>
         <div className="solar-hero-world">
@@ -140,7 +143,8 @@ export default function Home() {
             </span>
             <SegmentedProgress
               total={route.length}
-              done={done}
+              done={completedSteps}
+              current={route.findIndex((lesson) => lesson.id === resume?.id)}
               onDark={false}
               label="Avance de tu ruta"
               className="max-w-64 flex-1"
@@ -227,6 +231,7 @@ function LessonRow({
     <button
       type="button"
       onClick={onOpen}
+      aria-current={current ? "step" : undefined}
       className={cx(
         "home-lesson focus-ring group",
         current && "home-lesson-current",

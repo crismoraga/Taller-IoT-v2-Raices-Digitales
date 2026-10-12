@@ -207,9 +207,11 @@ export function fittedCameraDistance(
   verticalFov: number,
   aspect: number,
 ) {
-  const right = new Vector3()
-    .crossVectors(new Vector3(0, 1, 0), outward)
-    .normalize();
+  // A perfectly vertical top view still needs a horizontal basis. Crossing
+  // it with world-up would create zero vectors and under-fit a wide board.
+  const vertical =
+    Math.abs(outward.y) > 0.999 ? new Vector3(0, 0, -1) : new Vector3(0, 1, 0);
+  const right = new Vector3().crossVectors(vertical, outward).normalize();
   const up = new Vector3().crossVectors(outward, right).normalize();
   const tanV = Math.tan((verticalFov * Math.PI) / 360);
   const tanH = tanV * Math.max(0.1, aspect);
@@ -255,6 +257,7 @@ export function SceneCamera({
     elapsed: number;
   } | null>(null);
   const lastSize = useRef("");
+  const lastAction = useRef("");
   const orientation = useRef<"reset" | "top">("reset");
   const targetKey = target.join(",");
   const homeKey = home.join(",");
@@ -275,13 +278,15 @@ export function SceneCamera({
     const sizeKey = `${size.width}:${size.height}`;
     const resized = lastSize.current !== sizeKey;
     lastSize.current = sizeKey;
+    const actionKey = `${action.type}:${action.sequence}:${focusKey}`;
+    const resizedOnly =
+      resized && initialized.current && lastAction.current === actionKey;
+    lastAction.current = actionKey;
+    const overview = action.type === "reset" || action.type === "top";
+    if (resizedOnly && !overview) destination.copy(controls.current.target);
     if (action.type === "reset" || action.type === "top")
       orientation.current = action.type;
-    if (
-      bounds &&
-      camera instanceof PerspectiveCamera &&
-      (resized || action.type === "reset" || action.type === "top")
-    ) {
+    if (bounds && camera instanceof PerspectiveCamera && overview) {
       const outward =
         orientation.current === "top"
           ? new Vector3(0, 1, 0.001).normalize()
@@ -296,7 +301,7 @@ export function SceneCamera({
       nextPosition.copy(
         destination.clone().add(outward.multiplyScalar(distance)),
       );
-    } else if (action.type === "focus" && action.focusPosition)
+    } else if (action.type === "focus" && action.focusPosition && !resizedOnly)
       nextPosition.set(...action.focusPosition);
     else if (action.type === "reset") nextPosition.set(...home);
     else if (action.type === "top")
@@ -378,7 +383,6 @@ export function SceneCamera({
       onStart={() => {
         transition.current = null;
       }}
-      target={target}
     />
   );
 }

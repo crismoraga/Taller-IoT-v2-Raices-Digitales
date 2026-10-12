@@ -1,4 +1,4 @@
-// Raices Digitales: Arduino Uno/Nano ATmega328P, real USB telemetry.
+// Raices Digitales: classic Arduino Uno/Nano AVR, real USB telemetry.
 // Configuration constants are generated above this sketch by the browser.
 // Pico W GPIOs are 3.3 V only. Arduino ECHO may be connected directly at 5 V.
 #include <Arduino.h>
@@ -7,6 +7,7 @@
 const uint8_t DHT_PIN = 4, DS_PIN = 5, RAIN_PIN = 6;
 const uint8_t TRIG_PIN = 7, ECHO_PIN = 8, PIR_PIN = 9;
 bool firstReading = true, stopped = false;
+bool pirReady = false;
 unsigned long lastSample = 0, conversionStarted = 0;
 bool conversionPending = false;
 uint8_t dsROM[8];
@@ -123,18 +124,31 @@ uint8_t crc8(const uint8_t* data, uint8_t length) {
 }
 
 bool discoverDS18B20() {
-  // Genuine Search ROM; chooses one valid DS18B20 when several share the bus.
-  if (!oneWireReset()) return false;
-  oneWireByte(0xf0);
-  for (uint8_t bit = 0; bit < 64; ++bit) {
-    uint8_t value = oneWireReadBit(), inverse = oneWireReadBit();
-    if (value && inverse) return false;
-    uint8_t chosen = value == inverse ? 0 : value;
-    uint8_t mask = 1 << (bit & 7);
-    if (chosen) dsROM[bit >> 3] |= mask; else dsROM[bit >> 3] &= ~mask;
-    oneWireBit(chosen);
+  // Walk Search ROM discrepancies instead of abandoning the bus when the
+  // first address belongs to another family or has a damaged ROM CRC.
+  uint8_t lastDiscrepancy = 0;
+  memset(dsROM, 0, sizeof(dsROM));
+  for (uint8_t device = 0; device < 16; ++device) {
+    if (!oneWireReset()) return false;
+    oneWireByte(0xf0);
+    uint8_t lastZero = 0;
+    for (uint8_t bit = 1; bit <= 64; ++bit) {
+      uint8_t value = oneWireReadBit(), inverse = oneWireReadBit();
+      if (value && inverse) return false;
+      uint8_t index = (bit - 1) >> 3, mask = 1 << ((bit - 1) & 7);
+      uint8_t chosen = value;
+      if (value == inverse) {
+        chosen = bit < lastDiscrepancy ? !!(dsROM[index] & mask) : bit == lastDiscrepancy;
+        if (!chosen) lastZero = bit;
+      }
+      if (chosen) dsROM[index] |= mask; else dsROM[index] &= ~mask;
+      oneWireBit(chosen);
+    }
+    if (dsROM[0] == 0x28 && crc8(dsROM, 8) == 0) return true;
+    lastDiscrepancy = lastZero;
+    if (!lastDiscrepancy) return false;
   }
-  return dsROM[0] == 0x28 && crc8(dsROM, 8) == 0;
+  return false;
 }
 
 void selectDS() {
@@ -160,7 +174,11 @@ void temperatureReading() {
   if (crc8(scratch, 9) != 0) {
     emitReading(F("soil_temperature"), NAN, F("°C"), F("NO_RESPONSE"), -1, F("CRC DS18B20 invalido")); return;
   }
-  int16_t raw = (scratch[1] << 8) | scratch[0]; float value = raw / 16.0;
+  int16_t raw = (scratch[1] << 8) | scratch[0];
+  // At 9/10/11-bit resolution the unused low bits are undefined.
+  uint8_t resolution = (scratch[4] >> 5) & 3;
+  if (resolution < 3) raw &= ~((1 << (3 - resolution)) - 1);
+  float value = raw / 16.0;
   emitReading(F("soil_temperature"), value, F("°C"), value == 85 ? F("UNVERIFIED") : (value < -55 || value > 125 ? F("OUT_OF_RANGE") : F("READING")), -1, nullptr);
 }
 
@@ -174,33 +192,43 @@ void setup() {
 }
 
 void loop() {
-  // STOP command is actually supported by this station sketch; hardware stays safe.
-  static char command[8]; static uint8_t commandLength = 0;
-  while (Serial.available()) {
+  // Ignore an overlong line in its entirety; do not execute its truncated prefix.
+  static char command[8]; static uint8_t commandLength = 0; static bool commandOverflow = false;
+  for (uint8_t processed = 0; processed < 64 && Serial.available(); ++processed) {
     char byte = Serial.read();
     if (byte == '\n') {
       command[commandLength] = 0;
-      if (!strcmp(command, "STOP")) { stopped = true; digitalWrite(2, LOW); digitalWrite(3, LOW); Serial.println(F("Estacion detenida; envia RUN para continuar.")); }
-      if (!strcmp(command, "RUN")) { stopped = false; startDSConversion(); }
+      if (!commandOverflow && !strcmp(command, "STOP")) { stopped = true; digitalWrite(2, LOW); digitalWrite(3, LOW); Serial.println(F("Estacion detenida; envia RUN para continuar.")); }
+      if (!commandOverflow && !strcmp(command, "RUN")) { stopped = false; startDSConversion(); }
       commandLength = 0;
-    } else if (byte != '\r' && commandLength < sizeof(command) - 1) command[commandLength++] = byte;
+      commandOverflow = false;
+    } else if (byte != '\r') {
+      if (byte < 32 || byte > 126) { commandOverflow = true; continue; }
+      if (commandLength < sizeof(command) - 1) command[commandLength++] = byte;
+      else commandOverflow = true;
+    }
   }
   if (stopped || millis() - lastSample < 2000) return;
   lastSample = millis(); firstReading = true;
+  // Measure timing-sensitive pulses before UART output can create interrupts
+  // during a DHT bit. Read failures still leave every other sensor available.
+  float temperature = NAN, humidity = NAN;
+  bool dhtValid = ENABLE_DHT && readDHT11(&temperature, &humidity);
   Serial.print(F("{\"readings\":["));
   analogReading(F("soil"), A0, ENABLE_SOIL, SOIL_DRY, SOIL_WET, false);
   analogReading(F("light"), A1, ENABLE_LIGHT, LIGHT_DRY, LIGHT_WET, true);
   analogReading(F("water_level"), A2, ENABLE_WATER, WATER_DRY, WATER_WET, false);
   temperatureReading();
-  float temperature = NAN, humidity = NAN;
-  bool dhtValid = ENABLE_DHT && readDHT11(&temperature, &humidity);
   if (ENABLE_AIR_TEMP) emitReading(F("air_temperature"), temperature, F("°C"), !ENABLE_DHT ? F("DISABLED") : !dhtValid ? F("NO_RESPONSE") : temperature < 0 || temperature > 50 ? F("OUT_OF_RANGE") : F("READING"), -1, nullptr);
   else emitReading(F("air_temperature"), NAN, F("°C"), F("DISABLED"), -1, nullptr);
   if (ENABLE_AIR_HUMIDITY) emitReading(F("air_humidity"), humidity, F("%"), !ENABLE_DHT ? F("DISABLED") : !dhtValid ? F("NO_RESPONSE") : humidity < 20 || humidity > 90 ? F("OUT_OF_RANGE") : F("READING"), -1, nullptr);
   else emitReading(F("air_humidity"), NAN, F("%"), F("DISABLED"), -1, nullptr);
   int rain = ENABLE_RAIN ? digitalRead(RAIN_PIN) : -1;
   emitReading(F("rain"), ENABLE_RAIN ? 1 - rain : NAN, F("0/1"), ENABLE_RAIN ? F("UNVERIFIED") : F("DISABLED"), rain, nullptr);
-  if (ENABLE_PIR) emitReading(F("motion"), millis() < 60000 ? NAN : digitalRead(PIR_PIN), F("0/1"), F("UNVERIFIED"), -1, millis() < 60000 ? F("PIR estabilizando 60 segundos") : nullptr);
+  if (ENABLE_PIR) {
+    if (millis() >= 60000) pirReady = true;
+    emitReading(F("motion"), pirReady ? digitalRead(PIR_PIN) : NAN, F("0/1"), F("UNVERIFIED"), -1, !pirReady ? F("PIR estabilizando 60 segundos") : nullptr);
+  }
   else emitReading(F("motion"), NAN, F("0/1"), F("DISABLED"), -1, nullptr);
   if (ENABLE_DISTANCE) {
     digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2); digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10); digitalWrite(TRIG_PIN, LOW);
@@ -208,6 +236,6 @@ void loop() {
     float cm = duration ? duration / 58.0 : NAN;
     emitReading(F("distance"), cm, F("cm"), !duration ? F("NO_RESPONSE") : cm < 2 || cm > 400 ? F("OUT_OF_RANGE") : F("READING"), -1, !duration ? F("Sin eco; revisa rango y cableado") : nullptr);
   } else emitReading(F("distance"), NAN, F("cm"), F("DISABLED"), -1, nullptr);
-  Serial.println(F("],\"diagnostics\":{\"transport\":\"USB\",\"firmware\":\"1.0.0-arduino\",\"wifi\":\"Uno/Nano usa el puente USB del navegador\"}}"));
+  Serial.println(F("],\"diagnostics\":{\"transport\":\"USB\",\"firmware\":\"1.1.0-arduino\",\"wifi\":\"Uno/Nano usa el puente USB del navegador\"}}"));
   startDSConversion();
 }

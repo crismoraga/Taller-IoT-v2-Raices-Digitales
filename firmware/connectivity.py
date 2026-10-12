@@ -36,57 +36,88 @@ def parse_endpoint(url):
 
 class Cloud:
     def __init__(self, config):
+        config = config if isinstance(config, dict) else {}
         self.config = config
-        self.wlan = network.WLAN(network.STA_IF) if network and hasattr(network, "WLAN") else None
-        if self.wlan:
-            self.wlan.active(True)
+        self.wlan = None
+        self.last_error = None
+        if network and hasattr(network, "WLAN"):
+            try:
+                self.wlan = network.WLAN(network.STA_IF)
+                self.wlan.active(True)
+            except Exception:
+                # Wi-Fi chip/driver initialization is optional for USB use.
+                self.wlan = None
+                self.last_error = "Wi-Fi no disponible; USB sigue operativo"
         self.next_attempt = time.ticks_ms()
         self.connect_started = None
         self.backoff = 1000
         self.next_publish = time.ticks_ms()
         self.state = "Sin configuración Wi-Fi" if self.wlan else "Placa sin Wi-Fi; usa puente USB"
-        self.last_error = None
         self.clock_valid = False
         self.address = None
         self.context = None
         self.last_verified = False
         rtc = config.get("rtc")
-        if isinstance(rtc, list) and len(rtc) == 6 and 2024 <= rtc[0] <= 2099:
-            machine.RTC().datetime((rtc[0], rtc[1], rtc[2], 0, rtc[3], rtc[4], rtc[5], 0))
-            self.clock_valid = True
+        if isinstance(rtc, list) and len(rtc) == 6 and all(type(value) is int for value in rtc):
+            year, month, day, hour, minute, second = rtc
+            days = (31, 29 if year % 4 == 0 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+            if (2024 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= days[month - 1]
+                    and 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+                try:
+                    machine.RTC().datetime((year, month, day, 0, hour, minute, second, 0))
+                    self.clock_valid = True
+                except Exception:
+                    self.last_error = "No se pudo ajustar el reloj; USB sigue operativo"
+
+    def connected(self):
+        try:
+            return bool(self.wlan and self.wlan.isconnected())
+        except Exception:
+            self.last_verified = False
+            self.state = "Wi-Fi no respondió; USB sigue operativo"
+            return False
 
     def diagnostic(self):
+        connected = self.connected()
+        ip = None
+        if connected:
+            try:
+                ip = self.wlan.ifconfig()[0]
+            except Exception:
+                pass
         return {"wifi": self.state, "cloudError": self.last_error,
-                "ip": self.wlan.ifconfig()[0] if self.wlan and self.wlan.isconnected() else None,
-                "tlsVerified": bool(self.last_verified and self.wlan and self.wlan.isconnected() and not self.last_error),
+                "ip": ip,
+                "tlsVerified": bool(self.last_verified and connected and not self.last_error),
                 "clockValid": self.clock_valid,
-                "deviceId": self.config.get("deviceId"), "firmware": "1.0.0"}
+                "deviceId": self.config.get("deviceId"), "firmware": "1.1.0"}
 
     def tick(self):
         if not self.wlan or not self.config.get("ssid"):
             return False
         now = time.ticks_ms()
-        if self.wlan.isconnected():
+        if self.connected():
             self.state = "Conectado (2.4 GHz)"
             self.backoff = 1000
             self.connect_started = None
             return True
         self.state = "Sin conexión; USB sigue operativo"
-        if self.connect_started is not None:
-            if time.ticks_diff(now, self.connect_started) < 12000 and self.wlan.status() >= 0:
-                return False
-            self.wlan.disconnect()
-            self.connect_started = None
-            self.next_attempt = time.ticks_add(now, self.backoff)
-            self.backoff = min(60000, self.backoff * 2)
-        elif time.ticks_diff(now, self.next_attempt) >= 0:
-            try:
+        try:
+            if self.connect_started is not None:
+                if time.ticks_diff(now, self.connect_started) < 12000 and self.wlan.status() >= 0:
+                    return False
+                self.wlan.disconnect()
+                self.connect_started = None
+                self.next_attempt = time.ticks_add(now, self.backoff)
+                self.backoff = min(60000, self.backoff * 2)
+            elif time.ticks_diff(now, self.next_attempt) >= 0:
                 self.wlan.connect(self.config["ssid"], self.config.get("password", ""))
                 self.connect_started = now
                 self.state = "Conectando a Wi-Fi 2.4 GHz"
-            except Exception:
-                self.next_attempt = time.ticks_add(now, self.backoff)
-                self.backoff = min(60000, self.backoff * 2)
+        except Exception:
+            self.state = "Wi-Fi no respondió; USB sigue operativo"
+            self.connect_started = None
+            self.next_attempt = time.ticks_add(now, self.backoff)
+            self.backoff = min(60000, self.backoff * 2)
         return False
 
     def set_clock(self):
@@ -131,7 +162,7 @@ class Cloud:
 
     def publish(self, readings):
         now = time.ticks_ms()
-        if not self.wlan or not self.wlan.isconnected() or time.ticks_diff(now, self.next_publish) < 0:
+        if not self.connected() or time.ticks_diff(now, self.next_publish) < 0:
             return
         self.next_publish = time.ticks_add(now, 5000)
         if not self.config.get("endpoint") or not self.config.get("token"):
@@ -177,7 +208,9 @@ class Cloud:
                     raise OSError("Respuesta HTTPS truncada")
                 response.extend(byte)
             status = bytes(response).split(b" ")
-            if len(status) < 2 or status[1] not in (b"200", b"201", b"202", b"204"):
+            if (not response.endswith(b"\r\n") or len(status) < 2
+                    or status[0] not in (b"HTTP/1.0", b"HTTP/1.1")
+                    or status[1] not in (b"200", b"201", b"202", b"204")):
                 raise OSError("HTTP %s; revisa token y servidor" % (status[1].decode() if len(status) > 1 else "inválido"))
             self.last_error = None
         except Exception as error:
@@ -186,7 +219,11 @@ class Cloud:
             self.address = None
             self.next_publish = time.ticks_add(time.ticks_ms(), 15000)
         finally:
-            if tls:
-                tls.close()
-            elif sock:
-                sock.close()
+            # A failed close must not terminate the USB sampling loop.
+            try:
+                if tls:
+                    tls.close()
+                elif sock:
+                    sock.close()
+            except Exception:
+                pass

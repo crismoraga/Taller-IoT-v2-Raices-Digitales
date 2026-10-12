@@ -19,7 +19,7 @@ class AnalogSensor:
     def __init__(self, sensor, calibration=None):
         self.sensor = sensor
         self.adc = ADC(PINS[sensor])
-        self.calibration = calibration or {}
+        self.calibration = calibration if isinstance(calibration, dict) else {}
 
     def read(self):
         samples = sorted(self.adc.read_u16() for _ in range(9))
@@ -34,7 +34,15 @@ class AnalogSensor:
         if self.sensor == "light" and dry is None and wet is None:
             return [reading(self.sensor, round(raw * 100 / 65535, 1), "%", "READING", raw,
                             "Luz relativa; no mide lux ni confirma presencia")]
-        if not isinstance(dry, (int, float)) or not isinstance(wet, (int, float)) or abs(wet - dry) < 500:
+        # References must belong to this ADC family. JSON booleans, NaN and
+        # a low-range untagged AVR backup are not real Pico references.
+        valid = (type(dry) in (int, float) and type(wet) in (int, float)
+                 and 0 <= dry <= 65535 and 0 <= wet <= 65535
+                 and int(dry) == dry and int(wet) == wet
+                 and abs(wet - dry) >= 500
+                 and (self.calibration.get("board") == "pico"
+                      or ("board" not in self.calibration and max(dry, wet) > 1023)))
+        if not valid:
             return [reading(self.sensor, None, "%", "NEEDS_CALIBRATION", raw,
                             "Registra ambos extremos físicos; diferencia mínima 500")]
         percent = (raw - dry) * 100 / (wet - dry)
@@ -85,19 +93,27 @@ class SoilTemperatureSensor:
         self.device = ds18x20.DS18X20(onewire.OneWire(Pin(PINS["soil_temperature"])))
         self.roms = []
         self.converting = False
+        self.started = None
 
     def start(self):
         # Rediscover every sample so a later reconnection can recover by itself.
-        self.roms = self.device.scan()
+        self.converting = False
+        self.started = None
+        # A discovered address must have a valid CRC before it is selected.
+        self.roms = [rom for rom in self.device.scan()
+                     if len(rom) == 8 and self.device.ow.crc8(rom) == 0]
         if self.roms:
             self.device.convert_temp()
             self.converting = True
+            self.started = time.ticks_ms()
         else:
             self.converting = False
 
     def read(self):
         if not self.roms:
             return [reading("soil_temperature", None, "°C", "NO_RESPONSE", error="No se encontró DS18B20; revisa pull-up de 5 kΩ y GP16")]
+        if not self.converting or self.started is None or time.ticks_diff(time.ticks_ms(), self.started) < 750:
+            return [reading("soil_temperature", None, "°C", "UNVERIFIED", error="Conversión DS18B20 pendiente")]
         value = self.device.read_temp(self.roms[0])
         status = "READING" if -55 <= value <= 125 and value != 85 else "UNVERIFIED"
         return [reading("soil_temperature", round(value, 2), "°C", status,
@@ -133,8 +149,11 @@ class DriverRegistry:
              "air_temperature": "°C", "air_humidity": "%", "soil_temperature": "°C", "distance": "cm"}
 
     def __init__(self, config):
-        self.enabled = config.get("enabled", config.get("sensorEnabled", {}))
+        config = config if isinstance(config, dict) else {}
+        enabled = config.get("enabled", config.get("sensorEnabled", {}))
+        self.enabled = {key: value for key, value in enabled.items() if type(value) is bool} if isinstance(enabled, dict) else {}
         calibration = config.get("calibration", config.get("calibrations", {}))
+        calibration = calibration if isinstance(calibration, dict) else {}
         factories = {"soil": lambda: AnalogSensor("soil", calibration.get("soil")),
                      "light": lambda: AnalogSensor("light", calibration.get("light")),
                      "water_level": lambda: AnalogSensor("water_level", calibration.get("water_level")),
@@ -142,6 +161,8 @@ class DriverRegistry:
                      "soil_temperature": SoilTemperatureSensor, "distance": DistanceSensor}
         self.drivers = {}
         self.errors = {}
+        self.factories = factories
+        self.next_retry = {}
         for key, factory in factories.items():
             if not self.is_enabled(key):
                 continue
@@ -149,11 +170,29 @@ class DriverRegistry:
                 self.drivers[key] = factory()
             except Exception as error:
                 self.errors[key] = str(error)
+                self.next_retry[key] = time.ticks_add(time.ticks_ms(), 2000)
 
     def is_enabled(self, key):
-        return self.enabled.get(key, any(self.enabled.get(sensor, False) for sensor in self.GROUPS[key]))
+        return any(self.enabled.get(sensor, self.enabled.get(key, False)) for sensor in self.GROUPS[key])
+
+    def recover(self):
+        # Retry only missing drivers, once per sample; healthy sensors keep
+        # their warm-up timers and one failed module cannot hide the others.
+        for key, factory in self.factories.items():
+            if key in self.drivers or not self.is_enabled(key):
+                continue
+            if time.ticks_diff(time.ticks_ms(), self.next_retry.get(key, 0)) < 0:
+                continue
+            try:
+                self.drivers[key] = factory()
+                self.errors.pop(key, None)
+                self.next_retry.pop(key, None)
+            except Exception as error:
+                self.errors[key] = str(error)
+                self.next_retry[key] = time.ticks_add(time.ticks_ms(), 2000)
 
     def start_conversion(self):
+        self.recover()
         sensor = self.drivers.get("soil_temperature")
         if sensor:
             try:
@@ -163,6 +202,7 @@ class DriverRegistry:
                 self.errors["soil_temperature"] = str(error)
 
     def read_all(self):
+        self.recover()
         results = []
         for key, ids in self.GROUPS.items():
             if not self.is_enabled(key):

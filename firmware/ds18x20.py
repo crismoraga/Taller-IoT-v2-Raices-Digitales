@@ -68,6 +68,9 @@ class DS18X20:
             return t - 0.25 + (buf[7] - buf[6]) / buf[7]
         else:
             t = buf[1] << 8 | buf[0]
+            resolution = (buf[4] >> 5) & 3
+            if resolution < 3:
+                t &= ~((1 << (3 - resolution)) - 1)
             if t & 0x8000:  # sign bit set
                 t = -((t ^ 0xFFFF) + 1)
             return t / 16

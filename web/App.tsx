@@ -13,6 +13,7 @@ import { api, post, type Reading, type Session } from "./lib/api";
 import { arduinoStationSketch } from "./lib/arduino";
 import { filterCalibrations } from "./lib/calibration";
 import { browserUSBCompatibility } from "./lib/usb-support";
+import { isBoard, nanoUSBChoice } from "../shared/boards";
 import {
   AppContext,
   BOARD_NAMES,
@@ -69,8 +70,6 @@ const ALIASES: Record<string, string> = {
 };
 const canonical = (path: string) => ALIASES[path] ?? path;
 
-const BOARDS: Board[] = ["pico", "uno", "nano", "nano-old"];
-
 export default function App() {
   const [route, setRoute] = useState(() => canonical(location.pathname));
   const [session, setSession] = useState<Session | null>(null);
@@ -80,7 +79,7 @@ export default function App() {
   const usbSupport = useMemo(browserUSBCompatibility, []);
   const [board, setBoardState] = useState<Board>(() => {
     const stored = readLocal<Board>("raices.board", "pico");
-    return BOARDS.includes(stored) ? stored : "pico";
+    return isBoard(stored) ? stored : "pico";
   });
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -557,9 +556,12 @@ export default function App() {
         const detected = identifyUSBBoard(port);
         if (detected.unsupported)
           throw new Error(
-            `${detected.unsupported} usa otro protocolo de carga. Este taller programa Raspberry Pi Pico W y Arduino Uno/Nano clásicos con ATmega328P.`,
+            `${detected.unsupported} usa otro protocolo de carga. Elige una Pico con MicroPython o un Uno/Nano clásico. Nano ATmega168 tiene su propia configuración.`,
           );
-        const current = chosenBoard ?? detected.board;
+        const current =
+          chosenBoard === "nano"
+            ? nanoUSBChoice(boardRef.current)
+            : chosenBoard ?? detected.board;
         if (!current) {
           pendingUSBPort.current = port;
           setUSBChoice(detected.label);
@@ -841,7 +843,9 @@ export default function App() {
           );
           return;
         }
-        const caFile = stationCaFile(endpoint);
+        const stationSSID = ssid.trim();
+        // A USB-only Pico does not create an HTTPS socket or need a Wi-Fi CA.
+        const caFile = stationSSID ? stationCaFile(endpoint) : "";
         let device = stationCredential.current;
         if (!device) {
           const pairing = await post<{ code: string; expiresAt: string }>(
@@ -859,8 +863,8 @@ export default function App() {
         );
         const now = new Date();
         bundle.files["config.json"] = JSON.stringify({
-          ssid,
-          password,
+          ssid: stationSSID,
+          password: stationSSID ? password : "",
           endpoint,
           caFile,
           deviceId: device.deviceId,
@@ -885,7 +889,9 @@ export default function App() {
           throw problem;
         }
         notify(
-          "Estación instalada. Mira la terminal: verás el Wi-Fi y las primeras lecturas.",
+          stationSSID
+            ? "Estación instalada. Mira la terminal: verás el Wi-Fi y las primeras lecturas."
+            : "Estación instalada. Las lecturas viajan por USB a tu planta.",
         );
       }),
     [compileAndUpload, connected, guard, notify],

@@ -1,4 +1,5 @@
 import type { Calibration } from "./calibration";
+import type { Board } from "../../shared/boards";
 
 export type Reading = {
   sensor: string;
@@ -23,7 +24,7 @@ export type Session = {
   createdAt: string;
   lastRun?: {
     lessonId: string;
-    board: "pico" | "uno" | "nano" | "nano-old";
+    board: Board;
     code: string;
     at: string;
   };

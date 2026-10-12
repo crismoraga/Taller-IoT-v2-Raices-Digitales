@@ -713,6 +713,30 @@
       var(--surface)
     );
   }
+  .home-lesson-current:hover {
+    border-color: var(--ink-accent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--highlight) 55%, var(--surface)),
+      var(--surface)
+    );
+    box-shadow:
+      var(--elev-card),
+      0 0 0 1px color-mix(in srgb, var(--ink-accent) 18%, transparent);
+  }
+  .explore-search {
+    transition:
+      border-color var(--duration-fast) ease,
+      box-shadow var(--duration-fast) ease;
+  }
+  .explore-search:focus-within {
+    border-color: var(--ink-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .explore-search input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
   .home-lesson-number {
     display: inline-flex;
     align-items: center;

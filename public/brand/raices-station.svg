@@ -1,43 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 190" fill="none">
+  <title>El laboratorio vivo de Raíces Digitales</title>
+  <desc>Una planta, un sensor capacitivo, una placa USB, una protoboard y un LED.</desc>
   <defs>
-    <linearGradient id="rd-pot" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#b47852"/><stop offset=".4" stop-color="#d49c6c"/><stop offset="1" stop-color="#976044"/></linearGradient>
-    <linearGradient id="rd-foliage" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d0ef83"/><stop offset="1" stop-color="#92ce8d"/></linearGradient>
-    <linearGradient id="rd-board" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#276048"/><stop offset="1" stop-color="#103b30"/></linearGradient>
-    <linearGradient id="rd-metal" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f5f0df"/><stop offset=".5" stop-color="#c4cabb"/><stop offset="1" stop-color="#9eafa3"/></linearGradient>
+    <linearGradient id="rd-pot" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#b47852"/><stop offset=".42" stop-color="#dda678"/><stop offset="1" stop-color="#976044"/></linearGradient>
+    <linearGradient id="rd-leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e1f4a0"/><stop offset="1" stop-color="#92ce8d"/></linearGradient>
+    <linearGradient id="rd-board" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#397d56"/><stop offset="1" stop-color="#103b30"/></linearGradient>
+    <linearGradient id="rd-metal" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff9e9"/><stop offset=".45" stop-color="#c4cabb"/><stop offset="1" stop-color="#8d9e93"/></linearGradient>
+    <radialGradient id="rd-ambient"><stop stop-color="#d0ef83" stop-opacity=".12"/><stop offset="1" stop-color="#d0ef83" stop-opacity="0"/></radialGradient>
   </defs>
-  <ellipse cx="105" cy="159" rx="80" ry="9" fill="#0c302b" fill-opacity=".12"/>
-  <path d="M27 162h156" stroke="#d0ef83" stroke-opacity=".3" stroke-linecap="round"/>
-  <circle cx="119" cy="51" r="29" fill="#d0ef83" fill-opacity=".05"/>
-  <path d="M58 115h58l-9 42H67l-9-42Z" fill="url(#rd-pot)"/>
-  <path d="m64 120 8 31" stroke="#f5f0df" stroke-width="2" stroke-opacity=".22" stroke-linecap="round"/>
-  <ellipse cx="87" cy="115" rx="29" ry="5" fill="#c58f66"/>
-  <ellipse cx="87" cy="114" rx="25" ry="3.5" fill="#574432"/>
-  <path d="M68 123h38" stroke="#eac6a0" stroke-width="2" stroke-linecap="round"/>
-  <ellipse cx="87" cy="154" rx="20" ry="2.3" fill="#674430" fill-opacity=".16"/>
-  <path d="M87 115V66" stroke="#a9d998" stroke-width="3" stroke-linecap="round"/>
-  <path d="M87 84C63 83 54 67 54 47c24 0 35 16 33 37Z" fill="#92ce8d"/>
-  <path d="M88 70c0-22 13-35 36-35 0 23-15 35-36 35Z" fill="url(#rd-foliage)"/>
-  <path d="m64 58 20 23m26-35L91 66" stroke="#397e51" stroke-width="1.5" stroke-opacity=".42" stroke-linecap="round"/>
-  <path d="M81 114v18m8-18v18" stroke="#c5b46d" stroke-width="2.6" stroke-linecap="round"/>
-  <rect x="79" y="105" width="12" height="13" rx="2" fill="#3a7856" stroke="#a9d998" stroke-width=".8"/>
-  <path d="M85 105v-9h42" stroke="#d0ef83" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="126" y="73" width="44" height="40" rx="6" fill="#072c23" fill-opacity=".7"/>
-  <rect x="126" y="70" width="44" height="40" rx="6" fill="url(#rd-board)" stroke="#aadba4" stroke-width="1.2"/>
-  <path d="M133 73h29a5 5 0 0 1 5 5" stroke="#e0efcd" stroke-opacity=".28" stroke-linecap="round"/>
-  <rect x="122" y="84" width="10" height="12" rx="2" fill="url(#rd-metal)"/>
-  <path d="M122 87h4v6h-4" fill="#283d35"/>
-  <rect x="138" y="81" width="13" height="13" rx="2" fill="#102d28" stroke="#acd39a" stroke-opacity=".55"/>
-  <path d="M142 77v4m5-4v4m-5 13v5m5-5v5m-13-15h4m-4 5h4m13-5h4m-4 5h4" stroke="#b8cc9c" stroke-width="1.2" stroke-linecap="round"/>
-  <circle cx="159" cy="83" r="6" fill="#d0ef83" fill-opacity=".12"/>
-  <circle cx="159" cy="83" r="3" fill="#d0ef83"/>
-  <circle cx="158" cy="82" r=".9" fill="#f5f0df"/>
-  <path d="M134 104h4m5 0h4m5 0h4m5 0h3" stroke="#f3d56a" stroke-width="2" stroke-linecap="round"/>
-  <path d="M135 107h27" stroke="#b7cca0" stroke-opacity=".18" stroke-linecap="round"/>
-  <path d="M133 62a24 24 0 0 1 31 0m-25 6a15 15 0 0 1 19 0" stroke="#d0ef83" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="148" cy="72" r="2" fill="#f3d56a"/>
-  <circle cx="86" cy="130" r="3" fill="#f5f0df"/>
-  <path d="M180 126v7m-3.5-3.5h7" stroke="#d0ef83" stroke-opacity=".65" stroke-linecap="round"/>
-  <circle cx="179" cy="145" r="2.5" fill="#91d28b" fill-opacity=".65"/>
-  <circle cx="37" cy="90" r="2" fill="#d0ef83" fill-opacity=".6"/>
-  <circle cx="46" cy="73" r="1.5" fill="#f3d56a" fill-opacity=".7"/>
+  <circle cx="113" cy="87" r="77" fill="url(#rd-ambient)"/>
+  <ellipse cx="106" cy="163" rx="80" ry="9" fill="#071d1b" fill-opacity=".12"/>
+  <path d="M30 165h148" stroke="#d0ef83" stroke-opacity=".23" stroke-linecap="round"/>
+  <path d="M146 104v39h-31m39-37v45h-41" stroke="#d0ef83" stroke-opacity=".35" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="115" cy="143" r="2.5" fill="#d0ef83"/><circle cx="113" cy="151" r="2.5" fill="#f3d56a"/>
+  <rect x="25" y="133" width="41" height="24" rx="5" fill="#0c302b" fill-opacity=".3"/>
+  <rect x="25" y="130" width="41" height="24" rx="5" fill="#f5f0df"/>
+  <path d="M28 142h35" stroke="#c4cabb" stroke-width="2"/>
+  <path d="M30 134h31m-31 16h31" stroke="#91b98b" stroke-opacity=".6" stroke-width=".9"/>
+  <path d="M32 138h1m4 0h1m4 0h1m4 0h1m4 0h1m4 0h1m-26 8h1m4 0h1m4 0h1m4 0h1m4 0h1m4 0h1" stroke="#768a7c" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M47 130v-7m7 7v-5" stroke="url(#rd-metal)" stroke-width="1.3"/>
+  <circle cx="51" cy="121" r="10" fill="#d0ef83" fill-opacity=".07"/>
+  <path d="M47 122v-6a4 4 0 0 1 8 0v6Z" fill="#d0ef83" fill-opacity=".85"/>
+  <path d="M46 123h10" stroke="#9cd59a" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M49 115v4" stroke="#fff9e9" stroke-width="1.3" stroke-opacity=".7" stroke-linecap="round"/>
+  <path d="M67 115h60l-9 43H76l-9-43Z" fill="url(#rd-pot)"/>
+  <path d="m73 123 7 29" stroke="#fff9e9" stroke-width="2" stroke-opacity=".21" stroke-linecap="round"/>
+  <ellipse cx="97" cy="157" rx="20.5" ry="2" fill="#674430" fill-opacity=".2"/>
+  <ellipse cx="97" cy="115" rx="30" ry="6" fill="#dfa478"/>
+  <ellipse cx="97" cy="114" rx="25.5" ry="4" fill="#574432"/>
+  <path d="M75 120h44" stroke="#eac6a0" stroke-width="1.2" stroke-opacity=".6" stroke-linecap="round"/>
+  <path d="M97 114V59" stroke="#9cd59a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M97 86C72 86 60 70 60 49c26 0 38 15 37 37Z" fill="#92ce8d"/>
+  <path d="M98 67c0-24 15-38 40-38 0 25-15 38-40 38Z" fill="url(#rd-leaf)"/>
+  <path d="M97 98c16 0 25-9 25-23-16 0-25 9-25 23Z" fill="#79b990"/>
+  <path d="m70 59 24 25m32-44L102 64m13 19-14 12" stroke="#397e51" stroke-width="1.3" stroke-opacity=".5" stroke-linecap="round"/>
+  <path d="M82 102v24l5 5 5-5v-24" fill="#143c32" stroke="#aadba4" stroke-width=".9"/>
+  <path d="M85 109v13m4-13v13" stroke="#d0ef83" stroke-width="1.1" stroke-opacity=".7" stroke-linecap="round"/>
+  <rect x="81" y="96" width="12" height="12" rx="2" fill="#397d56" stroke="#aadba4" stroke-width=".8"/>
+  <rect x="83.5" y="94" width="7" height="4.5" rx="1.2" fill="#f5f0df"/>
+  <path d="M85 94v-8h49" stroke="#dc916e" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M87 94V89h53" stroke="#102a23" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M89 94V92h55" stroke="#f3d56a" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="137" y="75" width="35" height="67" rx="5" fill="#071d1b" fill-opacity=".65"/>
+  <rect x="137" y="72" width="35" height="67" rx="5" fill="url(#rd-board)" stroke="#aadba4" stroke-width="1"/>
+  <path d="M145 75h19a4 4 0 0 1 4 4" stroke="#e0efcd" stroke-opacity=".28" stroke-linecap="round"/>
+  <rect x="147" y="68" width="15" height="10" rx="2.2" fill="url(#rd-metal)"/>
+  <rect x="149" y="68" width="11" height="3" rx="1" fill="#283d35"/>
+  <rect x="147" y="92" width="15" height="15" rx="2" fill="#102a23" stroke="#8da780" stroke-width=".7"/>
+  <path d="M151 89v3m7-3v3m-7 15v3m7-3v3m-14-14h3m-3 7h3m15-7h3m-3 7h3" stroke="#b8cc9c" stroke-width=".9"/>
+  <path d="M141 80v53m27-53v53" stroke="#f3d56a" stroke-width="2" stroke-dasharray="1.3 3.4" stroke-linecap="round"/>
+  <circle cx="154.5" cy="84" r="5.5" fill="#d0ef83" fill-opacity=".12"/>
+  <circle cx="154.5" cy="84" r="2" fill="#d0ef83"/>
+  <rect x="150" y="117" width="9" height="4" rx="1.2" fill="url(#rd-metal)"/>
+  <circle cx="141.5" cy="76.5" r="1.5" fill="#0c302b"/><circle cx="167.5" cy="135" r="1.5" fill="#0c302b"/>
+  <path d="M153 60a13 13 0 0 1 18 0m-23-5a20 20 0 0 1 28 0" stroke="#d0ef83" stroke-width="1.7" stroke-linecap="round"/>
+  <circle cx="162" cy="65" r="2" fill="#f3d56a"/>
+  <circle cx="45" cy="88" r="2" fill="#9cd59a" fill-opacity=".75"/>
+  <circle cx="181" cy="119" r="2" fill="#f3d56a" fill-opacity=".65"/>
+  <path d="M43 56v6m-3-3h6" stroke="#d0ef83" stroke-opacity=".6" stroke-linecap="round"/>
 </svg>

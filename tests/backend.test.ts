@@ -1196,17 +1196,20 @@ describe("alertas reales y transporte SSE", () => {
       ).statusCode,
     ).toBe(400);
     if (existsSync(app.rdConfig.arduinoCli)) {
-      const compiled = await app.inject({
-        method: "POST",
-        url: "/api/arduino/compile",
-        headers: headers(a.cookie),
-        payload: {
-          code: "void setup(){pinMode(LED_BUILTIN,OUTPUT);} void loop(){digitalWrite(LED_BUILTIN,HIGH);delay(100);digitalWrite(LED_BUILTIN,LOW);delay(100);}",
-          board: "uno",
-        },
-      });
-      expect(compiled.statusCode, compiled.payload).toBe(200);
-      expect(compiled.json().hex).toMatch(/^:[0-9A-F]+/);
+      for (const board of ["uno", "nano-168"] as const) {
+        const compiled = await app.inject({
+          method: "POST",
+          url: "/api/arduino/compile",
+          headers: headers(a.cookie),
+          payload: {
+            code: "void setup(){pinMode(LED_BUILTIN,OUTPUT);} void loop(){digitalWrite(LED_BUILTIN,HIGH);delay(100);digitalWrite(LED_BUILTIN,LOW);delay(100);}",
+            board,
+          },
+        });
+        expect(compiled.statusCode, compiled.payload).toBe(200);
+        expect(compiled.json().hex).toMatch(/^:[0-9A-F]+/);
+        if (board === "nano-168") expect(compiled.json().output).toContain("14336");
+      }
     } else {
       expect(
         (

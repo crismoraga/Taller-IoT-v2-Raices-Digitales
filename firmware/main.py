@@ -1,4 +1,4 @@
-"""Pico W station: JSON over USB every ~2 s, verified HTTPS every >=5 s."""
+"""Pico / Pico W / Pico 2 / Pico 2 W: USB JSON and optional verified HTTPS."""
 import json
 import time
 import gc

@@ -1,4 +1,5 @@
 import { ApiError, type Session } from "./api";
+import { isBoard } from "../../shared/boards";
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 type RestorableSession = Pick<
@@ -53,8 +54,7 @@ export async function readSessionBackup(
         finite(item.dry) &&
         finite(item.wet) &&
         (item.board === undefined ||
-          (typeof item.board === "string" &&
-            ["pico", "uno", "nano", "nano-old"].includes(item.board))),
+          isBoard(item.board)),
     ) ||
     !record(saved.sensorEnabled) ||
     !Object.values(saved.sensorEnabled).every(
@@ -91,8 +91,7 @@ export async function readSessionBackup(
       typeof run.lessonId !== "string" ||
       typeof run.code !== "string" ||
       typeof run.at !== "string" ||
-      typeof run.board !== "string" ||
-      !["pico", "uno", "nano", "nano-old"].includes(run.board)
+      !isBoard(run.board)
     )
       throw invalidBackup();
     session.lastRun = {

@@ -13,7 +13,7 @@ describe("physical reference provenance across boards", () => {
   it("does not assign an ambiguous backup to either ADC family", () => {
     const legacy = { dry: 100, wet: 800 };
     expect(compatibleCalibration(legacy, "pico")).toBe(false);
-    for (const board of ["uno", "nano", "nano-old"] as const)
+    for (const board of ["uno", "nano", "nano-old", "nano-168"] as const)
       expect(compatibleCalibration(legacy, board)).toBe(false);
     const explicit: Calibration = { ...legacy, board: "pico" };
     expect(compatibleCalibration(explicit, "pico")).toBe(true);
@@ -25,7 +25,7 @@ describe("physical reference provenance across boards", () => {
 
   it("shares the AVR ADC family between Uno and both classic Nano bootloaders", () => {
     const fromUno: Calibration = { dry: 800, wet: 100, board: "uno" };
-    for (const board of ["uno", "nano", "nano-old"] as const)
+    for (const board of ["uno", "nano", "nano-old", "nano-168"] as const)
       expect(compatibleCalibration(fromUno, board)).toBe(true);
     expect(compatibleCalibration(fromUno, "pico")).toBe(false);
     expect(compatibleCalibration({ dry: 53000, wet: 16000 }, "pico")).toBe(

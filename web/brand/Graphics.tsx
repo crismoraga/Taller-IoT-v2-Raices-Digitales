@@ -10,9 +10,11 @@ import {
 import {
   networkMesh,
   orbitRings,
+  rootCircuit,
   signalRings,
   starField,
 } from "./graphics/patterns";
+import { raicesMarkDrawing } from "./graphics/identity";
 import {
   illustrationDrawing,
   type IllustrationName,
@@ -25,8 +27,8 @@ import {
 } from "./graphics/medallions";
 
 /*
- * Los gráficos de la marca (íconos, Rutix, patrones, medallas, ilustraciones) vienen del
- * repositorio SoyTEL como datos declarativos. Aquí se dibujan con SVG del DOM.
+ * Identidad del laboratorio Raíces Digitales: gráficos SVG locales, iconografía de
+ * Telemática y un emblema original de hojas, raíces y contactos. Sin servicios externos.
  */
 
 function paintProps(shape: Paint) {
@@ -274,6 +276,35 @@ export const Icon = memo(function Icon({
   );
 });
 
+/** El mismo emblema del favicon, con ids de degradado independientes por instancia. */
+export function RaicesMark({
+  size = 40,
+  tile = true,
+  monochrome = false,
+  className,
+  label,
+}: {
+  size?: number;
+  tile?: boolean;
+  monochrome?: boolean;
+  className?: string;
+  label?: string;
+}) {
+  const drawing = useMemo(
+    () => raicesMarkDrawing({ tile, monochrome }),
+    [tile, monochrome],
+  );
+  return (
+    <SvgDrawing
+      drawing={drawing}
+      size={size}
+      className={className}
+      label={label}
+      style={{ flexShrink: 0 }}
+    />
+  );
+}
+
 /* ── Rutix ────────────────────────────────────────────────────── */
 
 interface RutixProps {
@@ -290,8 +321,8 @@ interface RutixProps {
 }
 
 /**
- * Rutix, el robot-antena de Telemática USM. Sus colores son fijos (cuerpo crema, pantalla
- * azul noche): va siempre sobre azul noche o dentro de un círculo `primary`. Uno por pantalla.
+ * Rutix, el robot-antena de Telemática USM. Cuerpo crema y pantalla verde bosque:
+ * va sobre bosque o dentro de un círculo `primary`. Uno por pantalla.
  */
 export function Rutix({
   expression = "happy",
@@ -386,7 +417,7 @@ export function Illustration({
   label,
 }: {
   name: IllustrationName;
-  /** `dark` sobre fondos azul noche. */
+  /** `dark` sobre fondos verde bosque. */
   tone?: "light" | "dark";
   size?: number;
   className?: string;
@@ -404,10 +435,10 @@ export function Illustration({
   );
 }
 
-export type BackdropPattern = "estrellas" | "red" | "senal" | "orbitas";
+export type BackdropPattern = "estrellas" | "red" | "senal" | "orbitas" | "raices";
 
 /**
- * Fondo decorativo de las superficies azul noche. Siempre detrás del contenido y sin
+ * Fondo decorativo de las superficies verde bosque. Siempre detrás del contenido y sin
  * competir con texto largo: para eso baja `opacity` o usa `senal`, que vive en una esquina.
  */
 export const Backdrop = memo(function Backdrop({
@@ -427,6 +458,8 @@ export const Backdrop = memo(function Backdrop({
   const height = 480;
   const shapes = useMemo(() => {
     switch (pattern) {
+      case "raices":
+        return rootCircuit({ width, height, seed, density });
       case "red":
         return networkMesh({
           width,

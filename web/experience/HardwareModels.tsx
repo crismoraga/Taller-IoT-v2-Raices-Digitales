@@ -42,10 +42,103 @@ export function ledFlangeGeometry(radius = 0.145, height = 0.025) {
   return result;
 }
 
+/** One continuous barrel and dome prevents a visible seam in close-up views. */
+export function ledDomeGeometry(radius = 0.125, barrelHeight = 0.19) {
+  const profile = [
+    new THREE.Vector2(0, 0.012),
+    new THREE.Vector2(radius, 0.012),
+  ];
+  for (let index = 0; index <= 12; index++) {
+    const angle = ((index / 12) * Math.PI) / 2;
+    profile.push(
+      new THREE.Vector2(
+        Math.cos(angle) * radius,
+        0.012 + barrelHeight + Math.sin(angle) * radius,
+      ),
+    );
+  }
+  return new THREE.LatheGeometry(profile, 24);
+}
+
+/** Both scenes use the same polarity: the flat edge and cup face +X. */
+export const LED_POLARITY = {
+  anode: { x: -0.057, leadLength: 0.31 },
+  cathode: { x: 0.057, leadLength: 0.26 },
+} as const;
+
+export function LedOptic({
+  color,
+  lit = false,
+  dim = false,
+}: {
+  color: string;
+  lit?: boolean;
+  dim?: boolean;
+}) {
+  const model = useMemo(
+    () => ({ flange: ledFlangeGeometry(), dome: ledDomeGeometry() }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      model.flange.dispose();
+      model.dome.dispose();
+    },
+    [model],
+  );
+  return (
+    <group>
+      <mesh geometry={model.dome}>
+        <meshPhysicalMaterial
+          color={color}
+          emissive={lit ? color : "#000"}
+          emissiveIntensity={lit ? 0.52 : 0}
+          roughness={0.2}
+          clearcoat={0.9}
+          clearcoatRoughness={0.16}
+          transparent
+          opacity={dim ? 0.49 : 0.73}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh geometry={model.flange}>
+        <meshStandardMaterial color={color} roughness={0.35} />
+      </mesh>
+      <mesh position={[0.037, 0.088, 0]}>
+        <cylinderGeometry args={[0.048, 0.018, 0.022, 16]} />
+        <meshStandardMaterial
+          color="#c5d0c4"
+          metalness={0.72}
+          roughness={0.29}
+        />
+      </mesh>
+      <mesh position={[-0.042, 0.068, 0]}>
+        <boxGeometry args={[0.022, 0.045, 0.022]} />
+        <meshStandardMaterial
+          color="#b7c4b7"
+          metalness={0.66}
+          roughness={0.3}
+        />
+      </mesh>
+      <mesh
+        position={[-0.0025, 0.0955, 0]}
+        rotation={[0, 0, -Math.atan2(0.079, 0.017)]}
+      >
+        <cylinderGeometry args={[0.003, 0.003, Math.hypot(0.079, 0.017), 6]} />
+        <meshStandardMaterial color="#cfb66b" metalness={0.7} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
 /** Leads leave a tall connector upwards before arching towards the other endpoint. */
 export function hardwareWireCurve(a: V3, b: V3): V3[] {
   const distance = Math.hypot(a[0] - b[0], a[2] - b[2]);
-  const height = Math.min(1.05, Math.max(a[1], b[1]) + 0.22 + distance * 0.09);
+  const base = Math.max(a[1], b[1]);
+  const height = Math.max(
+    base + 0.22,
+    Math.min(1.05, base + 0.22 + distance * 0.09),
+  );
   return [
     a,
     [a[0], a[1] + (height - a[1]) * 0.7, a[2]],

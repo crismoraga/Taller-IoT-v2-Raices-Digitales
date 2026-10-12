@@ -39,7 +39,7 @@ const unoSignal = placedContact([0.13, 0.174, 0.525], true);
 
 const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
   pico: {
-    shortName: "Pico W",
+    shortName: "Pico",
     width: 1.15,
     depth: 0.475,
     pinsPerSide: 20,
@@ -86,6 +86,19 @@ const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
     usb: "Mini USB",
     description:
       "El mismo Nano de 30 pines y Mini USB, con bootloader antiguo. A0 recibe la humedad; D2 controla tu LED.",
+    focus: { target: [-2.03, 0.35, 0.7], position: [-1.15, 2.4, 3.02] },
+    signalPoint: nanoSignal,
+    sensorPin: "A0",
+  },
+  "nano-168": {
+    shortName: "Arduino Nano",
+    width: 1.015,
+    depth: 0.406,
+    pinsPerSide: 15,
+    color: "#287b87",
+    usb: "Mini USB",
+    description:
+      "Nano clásico con ATmega168, C++ y 30 pines. A0 recibe la humedad; D2 controla tu LED. El firmware se adapta a su memoria.",
     focus: { target: [-2.03, 0.35, 0.7], position: [-1.15, 2.4, 3.02] },
     signalPoint: nanoSignal,
     sensorPin: "A0",

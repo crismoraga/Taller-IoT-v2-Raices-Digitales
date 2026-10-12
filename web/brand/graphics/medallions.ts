@@ -412,7 +412,7 @@ export interface MedallionOptions {
 }
 
 const creamRing: [string, string, string] = ["#FBF4E2", "#EBDDB9", "#C9B78C"];
-const lockedRing: [string, string, string] = ["#E6ECF1", "#B9C5CF", "#8594A1"];
+const lockedRing: [string, string, string] = ["#E9EDE3", "#B7C5B7", "#7B927F"];
 
 const ARC_START = 150;
 const ARC_SPAN = 240;
@@ -455,8 +455,8 @@ export function medallionDrawing({
       r: 0.62,
       stops: locked
         ? [
-            { offset: 0, color: "#556878" },
-            { offset: 1, color: "#2C3A45" },
+            { offset: 0, color: "#485E4C" },
+            { offset: 1, color: "#253D31" },
           ]
         : [
             { offset: 0, color: "#286345" },
@@ -470,11 +470,11 @@ export function medallionDrawing({
   const offsetY = 0;
 
   if (ribbon) {
-    const ribbonColor = locked ? "#8594A1" : "#397D56";
+    const ribbonColor = locked ? "#7B927F" : "#397D56";
     shapes.push(
       path("M40 92 30 138l13-7 8 12 9-44Z", { fill: ribbonColor }),
       path("M80 92l10 46-13-7-8 12-9-44Z", {
-        fill: locked ? "#6F7F8C" : "#0C302B",
+        fill: locked ? "#708A73" : "#0C302B",
       }),
     );
   }
@@ -491,13 +491,13 @@ export function medallionDrawing({
     circle(60, 60, 50.5, { fill: `url(#${diskId})` }),
     circle(60, 60, 44.5, {
       fill: "none",
-      stroke: locked ? "#6F8090" : "#397D56",
+      stroke: locked ? "#708A73" : "#397D56",
       sw: 1,
       op: 0.7,
     }),
   );
 
-  const arcColor = locked ? "#8FA0AE" : S;
+  const arcColor = locked ? "#A2B69A" : S;
   if (state === "progress") {
     const clamped = Math.max(0, Math.min(1, progress));
     shapes.push(
@@ -548,7 +548,7 @@ export function medallionDrawing({
 
   const stars =
     tier === "plata" ? 2 : tier === "oro" || tier === "platino" ? 3 : 1;
-  const starColor = locked ? "#B9C5CF" : tier === "crema" ? C : ringColors[0];
+  const starColor = locked ? "#B7C5B7" : tier === "crema" ? C : ringColors[0];
   const positions = stars === 1 ? [60] : stars === 2 ? [54, 66] : [50, 60, 70];
   positions.forEach((x, index) => {
     const lift = stars === 3 && index === 1 ? -2 : 0;
@@ -587,7 +587,7 @@ export function medallionDrawing({
 
   if (locked) {
     shapes.push(
-      circle(94, 94, 14, { fill: "#5E6F7E", stroke: "#FFFFFF", sw: 3 }),
+      circle(94, 94, 14, { fill: "#607B66", stroke: "#FFFFFF", sw: 3 }),
       rect(88.2, 93, 11.6, 9, 2.2, { fill: "#FFFFFF" }),
       path("M90.6 93v-2.6a3.4 3.4 0 0 1 6.8 0V93", {
         fill: "none",

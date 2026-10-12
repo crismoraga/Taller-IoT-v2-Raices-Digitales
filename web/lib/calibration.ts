@@ -1,5 +1,6 @@
 import type { Reading } from "./api";
 import type { Board } from "./context";
+import { isBoard } from "../../shared/boards";
 
 export type Calibration = { dry: number; wet: number; board?: Board };
 
@@ -23,7 +24,7 @@ export function compatibleCalibration(
   )
     return false;
   if (calibration.board !== undefined) {
-    if (!["pico", "uno", "nano", "nano-old"].includes(calibration.board))
+    if (!isBoard(calibration.board))
       return false;
     return (calibration.board === "pico") === pico;
   }

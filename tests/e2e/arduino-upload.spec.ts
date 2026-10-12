@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import type { ArduinoBoard } from "../../shared/boards";
 import { parseIntelHex } from "../../web/lib/serial";
 
 test.use({ reducedMotion: "reduce" });
@@ -52,14 +53,26 @@ test.afterEach(async ({ page }) => {
   await page.request.delete("/api/session", { headers: { Origin: ORIGIN } });
 });
 
-async function avrPeer(
-  page: Page,
-  oldNano = false,
-  corrupt = false,
-  oldUno = false,
-) {
+type AVRPeerConfig = {
+  board?: ArduinoBoard;
+  bootBaud?: number;
+  usbBridge?: "uno" | "ch340";
+  mcu?: "atmega328p" | "atmega168";
+  corruptReadback?: boolean;
+};
+
+type AVRPeerResult = {
+  flash: number[];
+  writes: number;
+  readbacks: number;
+  signatureRequests: number;
+  entered: number;
+  speeds: number[];
+};
+
+async function avrPeer(page: Page, config: AVRPeerConfig) {
   await page.addInitScript(
-    ({ oldNano, corrupt, oldUno }) => {
+    ({ bootBaud, usbBridge, mcu, corruptReadback }) => {
       let controller: ReadableStreamDefaultController<Uint8Array>;
       let baud = 0,
         address = 0,
@@ -67,14 +80,18 @@ async function avrPeer(
         armed = false,
         released = false;
       let writes = 0,
-        readbacks = 0;
-      const flash = new Uint8Array(32768).fill(255);
+        readbacks = 0,
+        signatureRequests = 0,
+        entered = 0;
+      const flash = new Uint8Array(mcu === "atmega168" ? 16384 : 32768).fill(
+        255,
+      );
       const speeds: number[] = [];
       const port = {
         readable: null as ReadableStream<Uint8Array> | null,
         writable: null as WritableStream<Uint8Array> | null,
         getInfo: () =>
-          oldNano
+          usbBridge === "ch340"
             ? { usbVendorId: 0x1a86, usbProductId: 0x7523 }
             : { usbVendorId: 0x2341, usbProductId: 0x0043 },
         async open(options: { baudRate: number }) {
@@ -88,8 +105,7 @@ async function avrPeer(
           port.writable = new WritableStream({
             write(bytes: Uint8Array) {
               const command = bytes[0];
-              if (!released || held || ((oldNano || oldUno) && baud !== 57600))
-                return;
+              if (!released || held || baud !== bootBaud) return;
               const reply = (data: number[] = []) =>
                 controller.enqueue(Uint8Array.from([0x14, ...data, 0x10]));
               if (command === 0x30) {
@@ -104,7 +120,10 @@ async function avrPeer(
                 // delayed SYNC frame arrive with the real signature response.
                 controller.enqueue(new TextEncoder().encode("ready\r\n"));
                 controller.enqueue(Uint8Array.of(0x14, 0x10));
-                reply([0x1e, 0x95, 0x0f]);
+                signatureRequests++;
+                reply(
+                  mcu === "atmega168" ? [0x1e, 0x94, 0x06] : [0x1e, 0x95, 0x0f],
+                );
               } else if (command === 0x55) {
                 address = 2 * (bytes[1] | (bytes[2] << 8));
                 reply();
@@ -116,10 +135,13 @@ async function avrPeer(
               } else if (command === 0x74) {
                 const count = (bytes[1] << 8) | bytes[2];
                 const data = [...flash.slice(address, address + count)];
-                if (corrupt) data[0] ^= 1;
+                if (corruptReadback) data[0] ^= 1;
                 readbacks++;
                 reply(data);
-              } else if (command === 0x50 || command === 0x51) reply();
+              } else if (command === 0x50) {
+                entered++;
+                reply();
+              } else if (command === 0x51) reply();
               else throw new Error(`Unexpected AVR command ${command}`);
             },
           });
@@ -150,21 +172,28 @@ async function avrPeer(
       });
       Object.assign(window, {
         __avrPeer: {
-          result: () => ({ flash: [...flash], writes, readbacks, speeds }),
+          result: () => ({
+            flash: [...flash],
+            writes,
+            readbacks,
+            signatureRequests,
+            entered,
+            speeds,
+          }),
         },
       });
     },
-    { oldNano, corrupt, oldUno },
+    {
+      bootBaud: config.bootBaud || 115200,
+      usbBridge: config.usbBridge || "uno",
+      mcu: config.mcu || "atmega328p",
+      corruptReadback: config.corruptReadback || false,
+    },
   );
 }
 
-async function openFirstLed(
-  page: Page,
-  oldNano = false,
-  corrupt = false,
-  oldUno = false,
-) {
-  await avrPeer(page, oldNano, corrupt, oldUno);
+async function openFirstLed(page: Page, config: AVRPeerConfig = {}) {
+  await avrPeer(page, config);
   // A failed readiness probe must never permanently disable a working compiler.
   await page.route("**/api/health", (route) =>
     route.fulfill({
@@ -179,7 +208,7 @@ async function openFirstLed(
   let compiledHex = "";
   await page.route("**/api/arduino/compile", async (route) => {
     const body = route.request().postDataJSON();
-    expect(body.board).toBe(oldNano ? "nano" : "uno");
+    expect(body.board).toBe(config.board || "uno");
     expect(body.code).toContain("digitalWrite(LED_BUILTIN, HIGH)");
     expect(body.code).not.toContain("from machine import");
     const response = await fetch(`${COMPILER}/api/arduino/compile`, {
@@ -205,7 +234,7 @@ async function openFirstLed(
   await dialog.getByLabel("Nombre del equipo").fill("Primer LED Arduino QA");
   await dialog
     .getByLabel("Placa del equipo")
-    .selectOption(oldNano ? "nano" : "uno");
+    .selectOption(config.board || "uno");
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
@@ -222,7 +251,7 @@ async function openFirstLed(
     .getByRole("button", { name: "Conectar placa", exact: true })
     .first()
     .click();
-  if (oldNano) {
+  if (config.usbBridge === "ch340") {
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Arduino Nano", exact: true })
@@ -231,6 +260,11 @@ async function openFirstLed(
   await expect(
     page.getByText("Placa conectada", { exact: true }),
   ).toBeVisible();
+  // Picking the generic Nano silhouette must preserve a specific processor
+  // chosen during onboarding, even though the CH340 cannot identify its MCU.
+  await expect(
+    page.getByRole("combobox", { name: "Tu placa", exact: true }),
+  ).toHaveValue(config.board || "uno");
   const load = page.getByRole("button", {
     name: "Compilar y cargar",
     exact: true,
@@ -240,45 +274,72 @@ async function openFirstLed(
   return () => compiledHex;
 }
 
-for (const { oldNano, oldUno, label } of [
-  { oldNano: false, oldUno: false, label: "Uno" },
-  { oldNano: true, oldUno: false, label: "old Nano" },
-  { oldNano: false, oldUno: true, label: "Uno clone with old bootloader" },
-]) {
+async function peerResult(page: Page): Promise<AVRPeerResult> {
+  return page.evaluate(() =>
+    (
+      window as unknown as { __avrPeer: { result: () => AVRPeerResult } }
+    ).__avrPeer.result(),
+  );
+}
+
+const successCases: {
+  label: string;
+  config: AVRPeerConfig;
+  finalBoard: ArduinoBoard;
+}[] = [
+  { label: "Uno", config: {}, finalBoard: "uno" },
+  {
+    label: "old Nano",
+    config: { board: "nano", bootBaud: 57600, usbBridge: "ch340" },
+    finalBoard: "nano-old",
+  },
+  {
+    label: "Uno clone with old bootloader",
+    config: { bootBaud: 57600 },
+    finalBoard: "uno",
+  },
+  {
+    label: "Nano ATmega168",
+    config: {
+      board: "nano-168",
+      bootBaud: 19200,
+      usbBridge: "ch340",
+      mcu: "atmega168",
+    },
+    finalBoard: "nano-168",
+  },
+];
+
+for (const { config, label, finalBoard } of successCases) {
   test(`first integrated LED compiles real firmware and verifies every page on ${label}`, async ({
     page,
   }) => {
     test.setTimeout(100000);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const hex = await openFirstLed(page, oldNano, false, oldUno);
+    const hex = await openFirstLed(page, config);
     await expect(
       page.getByRole("status", { name: "Estado de carga del programa" }),
     ).toContainText("Programa grabado y verificado", { timeout: 80000 });
-    const result = await page.evaluate(() =>
-      (
-        window as unknown as {
-          __avrPeer: {
-            result: () => {
-              flash: number[];
-              writes: number;
-              readbacks: number;
-              speeds: number[];
-            };
-          };
-        }
-      ).__avrPeer.result(),
+    const result = await peerResult(page);
+    const image = parseIntelHex(
+      hex(),
+      config.mcu === "atmega168" ? 14336 : 32256,
     );
-    const image = parseIntelHex(hex());
     expect(image.length).toBeGreaterThan(128);
     expect(result.writes).toBe(Math.ceil(image.length / 128));
     expect(result.readbacks).toBe(result.writes);
     expect(result.flash.slice(0, image.length)).toEqual([...image]);
     await expect(
       page.getByRole("combobox", { name: "Tu placa", exact: true }),
-    ).toHaveValue(oldNano ? "nano-old" : "uno");
-    if (oldNano || oldUno)
+    ).toHaveValue(finalBoard);
+    if (config.bootBaud === 57600)
       expect(result.speeds).toEqual(expect.arrayContaining([115200, 57600]));
+    if (config.mcu === "atmega168") {
+      expect(result.flash).toHaveLength(16384);
+      expect(result.speeds).toEqual([115200, 19200, 115200]);
+      expect(result.signatureRequests).toBe(1);
+    }
     await expect(
       page.getByRole("log", { name: "Salida de la placa" }),
     ).toContainText("Programa Arduino grabado y verificado");
@@ -290,7 +351,7 @@ test("failed flash readback keeps the failure visible and allows retry without r
   page,
 }) => {
   test.setTimeout(100000);
-  await openFirstLed(page, false, true);
+  await openFirstLed(page, { corruptReadback: true });
   await expect(
     page.getByRole("status", { name: "Estado de carga del programa" }),
   ).toContainText("La carga no se completó", { timeout: 80000 });
@@ -302,4 +363,49 @@ test("failed flash readback keeps the failure visible and allows retry without r
   await expect(
     page.getByRole("button", { name: "Compilar y cargar", exact: true }),
   ).toBeEnabled();
+});
+
+test("a Nano ATmega168 selection rejects an ATmega328P before entering or writing flash", async ({
+  page,
+}) => {
+  test.setTimeout(100000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await openFirstLed(page, {
+    board: "nano-168",
+    bootBaud: 19200,
+    usbBridge: "ch340",
+    mcu: "atmega328p",
+  });
+  const status = page.getByRole("status", {
+    name: "Estado de carga del programa",
+  });
+  await expect(status).toContainText("La carga no se completó", {
+    timeout: 80000,
+  });
+  const terminal = page.getByRole("log", { name: "Salida de la placa" });
+  await expect(terminal).toContainText(
+    "no coincide con Arduino Nano · ATmega168",
+  );
+  await expect(terminal).toContainText("firma 1e 95 0f");
+  await expect(terminal).not.toContainText(
+    "Programa Arduino grabado y verificado",
+  );
+  await expect(
+    page.getByRole("button", { name: "Compilar y cargar", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("combobox", { name: "Tu placa", exact: true }),
+  ).toHaveValue("nano-168");
+  const result = await peerResult(page);
+  expect(result.signatureRequests).toBe(1);
+  expect(result.entered).toBe(0);
+  expect(result.writes).toBe(0);
+  expect(result.readbacks).toBe(0);
+  expect(result.flash.every((byte) => byte === 255)).toBe(true);
+  expect(result.speeds).toEqual([115200, 19200, 115200]);
+  // Error remains visible after the transport restores the ordinary serial
+  // baud and the next UI update; there is no automatic incompatible replay.
+  await expect(status).toContainText("La carga no se completó");
+  expect(errors).toEqual([]);
 });

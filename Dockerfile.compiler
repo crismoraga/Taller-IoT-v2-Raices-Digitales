@@ -30,6 +30,7 @@ COPY --chown=node:node package.json package-lock.json ./
 RUN --mount=type=secret,id=cloud_ca \
     if [ -f /run/secrets/cloud_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud_ca; fi; npm ci --omit=dev
 COPY --chown=node:node server ./server
+COPY --chown=node:node shared ./shared
 RUN chown -R node:node /opt/arduino
 USER node
 EXPOSE 3002

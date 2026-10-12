@@ -25,7 +25,7 @@ const errors = (circuit: Circuit, options = {}) =>
 const clone = (circuit: Circuit): Circuit => structuredClone(circuit);
 
 describe("Arduino: conexiones físicas y eléctricas de Uno y Nano", () => {
-  for (const board of ["uno", "nano", "nano-old"] as const) {
+  for (const board of ["uno", "nano", "nano-old", "nano-168"] as const) {
     for (const [id, circuit] of Object.entries(circuits)) {
       it(`${board}/${id}: todos los terminales reales producen el netlist esperado`, () => {
         const mapped = circuitForBoard(circuit, board);

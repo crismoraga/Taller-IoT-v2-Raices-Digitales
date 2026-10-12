@@ -71,7 +71,7 @@ const ELEMENTS: {
   {
     id: "pico",
     title: "Aquí vive tu código",
-    short: "Pico W",
+    short: "Pico",
     text: "Tu placa recibe la señal y ejecuta tu código.",
     icon: Cpu,
   },
@@ -405,9 +405,7 @@ function Network({
         ))}
         {selected && (
           <Html center position={[0, 0.85, 0]}>
-            <span className="rdx-world-tag">
-              {board === "pico" ? "Wi-Fi" : "USB → navegador"}
-            </span>
+            <span className="rdx-world-tag">USB → navegador</span>
           </Html>
         )}
       </group>
@@ -724,10 +722,10 @@ export function LivingStation({
   const selectedText =
     selected === "pico"
       ? boardProfile.description
-      : selected === "network" && board !== "pico"
+      : selected === "network"
         ? readings
-          ? "Arduino → USB → navegador → dashboard. Aquí llegan las lecturas de tu estación."
-          : "Arduino → USB → navegador → dashboard. Envía una señal para ver el recorrido."
+          ? "Tu placa → USB → navegador → dashboard. Aquí llegan las lecturas de tu estación."
+          : "Tu placa → USB → navegador → dashboard. Envía una señal para ver el recorrido."
         : selection.text;
   const reported = readings ? normalizedLivingReadings(readings) : undefined;
   const soilValue = readings ? reported?.soil : soil;

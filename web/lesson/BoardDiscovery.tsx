@@ -10,7 +10,7 @@ const CircuitExperience = lazy(() => import("../experience/CircuitExperience"));
 export function BoardDiscovery({ circuit }: { circuit: Circuit }) {
   // Board variants share the same preference: choosing Uno must not silently
   // replace a learner's 2D plan with a different viewing mode.
-  const baseId = circuit.id.replace(/-(?:uno|nano(?:-old)?)$/, "");
+  const baseId = circuit.id.replace(/-(?:uno|nano(?:-old|-168)?)$/, "");
   const viewPreference = `raices.discovery.view.${baseId}`;
   const [view, setView] = useState<"3d" | "2d">(() => {
     const saved = readLocal<"3d" | "2d">(viewPreference, "3d");

@@ -2,7 +2,9 @@ import { createContext, useContext } from "react";
 import type { Session, Reading } from "./api";
 import type { ThemePref } from "./theme";
 
-export type Board = "pico" | "uno" | "nano" | "nano-old";
+export type { Board } from "../../shared/boards";
+export { BOARD_NAMES } from "../../shared/boards";
+import type { Board } from "../../shared/boards";
 export type ToastTone = "success" | "error" | "info";
 export type UploadStatus = {
   stage: "compile" | "sync" | "write" | "verify" | "complete" | "error";
@@ -10,12 +12,6 @@ export type UploadStatus = {
   message?: string;
 };
 
-export const BOARD_NAMES: Record<Board, string> = {
-  pico: "Raspberry Pi Pico W",
-  uno: "Arduino Uno",
-  nano: "Arduino Nano",
-  "nano-old": "Arduino Nano (bootloader antiguo)",
-};
 
 /** Lo que el servidor informa sobre sí mismo en /api/health. */
 export interface Health {

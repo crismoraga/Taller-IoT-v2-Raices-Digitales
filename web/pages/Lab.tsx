@@ -4,9 +4,19 @@ import { lessons, stageOf } from "../content";
 import { sensors } from "../data/lessons";
 import { useApp } from "../lib/context";
 import { useProgress } from "../lib/progress";
-import { Button } from "../ui/Button";
+import { Button, IconButton } from "../ui/Button";
 import { CardButton, Segmented, Tag } from "../ui/Card";
 import { Page, PageHeader } from "../ui/Layout";
+
+/** Los nombres del kit se encuentran igual con o sin tildes. */
+function searchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es")
+    .trim()
+    .replace(/\s+/g, " ");
+}
 
 export default function Lab() {
   const app = useApp(),
@@ -24,18 +34,19 @@ export default function Lab() {
         "alerts",
       ].includes(lesson.id),
   );
+  const query = searchText(search);
   const visible = catalog.filter((lesson) => {
     const sensor = sensors.find((item) => item.lessonId === lesson.id);
-    const text = [
-      lesson.title,
-      lesson.summary,
-      sensor?.model,
-      ...lesson.materials.map((item) => item.name),
-    ]
-      .join(" ")
-      .toLocaleLowerCase("es");
+    const text = searchText(
+      [
+        lesson.title,
+        lesson.summary,
+        sensor?.model,
+        ...lesson.materials.map((item) => item.name),
+      ].join(" "),
+    );
     return (
-      text.includes(search.toLocaleLowerCase("es")) &&
+      text.includes(query) &&
       (category === "all" ||
         (category === "sensors" ? Boolean(sensor) : !sensor))
     );
@@ -43,6 +54,7 @@ export default function Lab() {
   return (
     <Page>
       <PageHeader
+        pattern="raices"
         kicker="ZONA EXPLORA"
         title="¿Y si pruebas algo nuevo?"
         subtitle="Cada pieza transforma una pregunta en un experimento. Explora tu kit, cambia el código y observa lo que sucede."
@@ -75,21 +87,44 @@ export default function Lab() {
           label="Tipo de experimento"
           value={category}
           onChange={setCategory}
+          className="w-full sm:w-auto [&>button]:min-w-0 [&>button]:flex-1 [&>button]:whitespace-normal"
           options={[
             { value: "all", label: "Todos" },
             { value: "sensors", label: "Sensores" },
             { value: "kit", label: "Actuadores y kit" },
           ]}
         />
-        <label className="flex min-h-12 w-full items-center gap-3 rounded-md border border-border bg-surface px-4 text-ink-soft sm:w-80">
+        <label className="explore-search flex min-h-12 w-full items-center gap-3 rounded-md border border-border bg-surface pl-4 pr-1 text-ink-soft sm:w-80">
           <Icon name="search" size={19} />
           <input
             className="min-w-0 flex-1 bg-transparent py-3 text-ink outline-none"
             aria-label="Buscar experimentos"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || !search) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setSearch("");
+            }}
             placeholder="Sensor, componente o pregunta…"
           />
+          {search ? (
+            <IconButton
+              icon="close"
+              label="Limpiar búsqueda"
+              tone="ghost"
+              size="sm"
+              onClick={(event) => {
+                setSearch("");
+                event.currentTarget.parentElement
+                  ?.querySelector<HTMLInputElement>("input")
+                  ?.focus();
+              }}
+            />
+          ) : (
+            <span className="w-3 shrink-0" aria-hidden="true" />
+          )}
         </label>
       </div>
       <p className="mb-3 text-sm font-bold text-ink-soft" role="status">
@@ -170,10 +205,12 @@ export default function Lab() {
       <div className="mt-8 flex flex-wrap items-center gap-3 rounded-xl bg-primary px-6 py-5 text-cream">
         <Icon name="board" size={24} />
         <div>
-          <strong>10 estaciones · 2 repuestos por sensor comprado</strong>
+          <strong>Una estación, tres señales: suelo, luz y agua.</strong>
           <p className="mt-1 text-sm text-on-dark">
-            La estación usa los tres ADC de Pico: suelo, luz y agua. El LM35 se
-            explora por separado.
+            {app.board === "pico"
+              ? "Tu Pico las recibe en GP26, GP27 y GP28."
+              : "Tu Arduino las recibe en A0, A1 y A2."}{" "}
+            El LM35 se explora por separado.
           </p>
         </div>
       </div>

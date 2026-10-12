@@ -387,7 +387,7 @@ test("the open station explorer keeps its 2D preference and actual board connect
   for (const [board, model] of [
     ["uno", "Arduino Uno"],
     ["nano", "Arduino Nano"],
-    ["pico", "Raspberry Pi Pico W"],
+    ["pico", "Raspberry Pi Pico"],
   ]) {
     await page
       .getByRole("combobox", { name: "Placa de trabajo", exact: true })

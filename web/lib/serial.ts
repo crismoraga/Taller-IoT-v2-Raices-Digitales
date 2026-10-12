@@ -1,4 +1,6 @@
 /** Real USB transports. MicroPython raw-paste and AVR STK500v1, no emulation. */
+import { AVR_BOARD_PROFILES, type ArduinoBoard } from "../../shared/boards";
+export type { ArduinoBoard } from "../../shared/boards";
 export interface USBPort {
   /** Present on real Web Serial ports; test peers may omit device metadata. */
   getInfo?(): { usbVendorId?: number; usbProductId?: number };
@@ -34,34 +36,44 @@ export interface USBBoardDetection {
   label: string;
 }
 
+/** Official Arduino core USB IDs. These need an uploader other than STK500v1. */
+const UNSUPPORTED_ARDUINO_USB: readonly (readonly [
+  string,
+  readonly number[],
+])[] = [
+  ["Arduino Nano Every", [0x0058]],
+  ["Arduino Nano 33 IoT", [0x0057, 0x8057]],
+  ["Arduino Uno R4", [0x0069, 0x0369, 0x006d, 0x1002]],
+  ["Arduino Mega", [0x0010, 0x0042, 0x0210, 0x0242, 0x003f, 0x0044]],
+  ["Arduino Leonardo", [0x0036, 0x8036]],
+  ["Arduino Micro", [0x0037, 0x8037, 0x0237, 0x8237]],
+  ["Arduino Nano R4", [0x0074, 0x0374]],
+  ["Arduino Zero", [0x804d, 0x004d, 0x824d, 0x024d]],
+  ["Arduino MKR1000", [0x804e, 0x004e, 0x824e, 0x024e]],
+  ["Arduino MKR WiFi 1010", [0x8054, 0x0054]],
+  ["Arduino MKR FOX 1200", [0x8050, 0x0050]],
+  ["Arduino MKR WAN", [0x8059, 0x0059, 0x8053, 0x0053]],
+  ["Arduino MKR GSM 1400", [0x8052, 0x0052]],
+  ["Arduino MKR NB 1500", [0x8055, 0x0055]],
+  ["Arduino MKR Vidor 4000", [0x8056, 0x0056]],
+  ["Arduino MKR Zero", [0x804f, 0x004f]],
+];
+
 /** USB bridges identify an adapter, not the Uno/Nano connected behind it. */
 export function identifyUSBBoard(
   port: Pick<USBPort, "getInfo">,
 ): USBBoardDetection {
   const { usbVendorId: vendor, usbProductId: product } = port.getInfo?.() ?? {};
   if (vendor === 0x2e8a && product === 0x0005)
-    return { board: "pico", label: "Raspberry Pi Pico" };
+    return { board: "pico", label: "Pico / Pico 2 · MicroPython" };
   if (vendor === 0x2341 || vendor === 0x2a03) {
     if ([0x0043, 0x0001, 0x0243, 0x006a].includes(product ?? -1))
       return { board: "uno", label: "Arduino Uno" };
     // Published USB IDs from Arduino's AVR, megaAVR, SAMD and Renesas cores.
     // These models must not be offered an ATmega328P/STK500v1 upload.
-    const unsupported =
-      product === 0x0058
-        ? "Arduino Nano Every"
-        : [0x0057, 0x8057].includes(product ?? -1)
-          ? "Arduino Nano 33 IoT"
-          : [0x0069, 0x0369, 0x006d, 0x1002].includes(product ?? -1)
-            ? "Arduino Uno R4"
-            : [0x0010, 0x0042, 0x0210, 0x0242, 0x003f, 0x0044].includes(
-                  product ?? -1,
-                )
-              ? "Arduino Mega"
-              : [0x0036, 0x8036].includes(product ?? -1)
-                ? "Arduino Leonardo"
-                : [0x0037, 0x8037, 0x0237, 0x8237].includes(product ?? -1)
-                  ? "Arduino Micro"
-                  : undefined;
+    const unsupported = UNSUPPORTED_ARDUINO_USB.find(([, products]) =>
+      products.includes(product ?? -1),
+    )?.[0];
     if (unsupported) return { label: unsupported, unsupported };
   }
   if (vendor === 0x1a86 && [0x7523, 0x5523, 0x55d4].includes(product ?? -1))
@@ -125,6 +137,9 @@ export class SerialLink {
   private waking = new Set<() => void>();
   private failure: Error | null = null;
   private closing = false;
+  private opening = false;
+  private connectionEpoch = 0;
+  private disconnecting: Promise<void> | null = null;
   private decoder = new TextDecoder();
   private disconnectListener = (event: Event) => {
     const disconnected =
@@ -142,39 +157,72 @@ export class SerialLink {
   }
   protected consume(bytes: Uint8Array) {
     if (this.protocol) {
-      this.inbox.push(...bytes);
-      if (this.inbox.length > 262144) {
+      if (this.inbox.length + bytes.length > 262144) {
         this.failure = new Error(
           "Salida USB demasiado grande. Detén el programa.",
         );
+        this.wake();
         void this.disconnect();
+        return;
       }
+      // Web Serial may deliver a full buffered chunk in one read. Spread would
+      // overflow the JavaScript argument stack before reaching the byte limit.
+      for (const byte of bytes) this.inbox.push(byte);
       this.wake();
     } else this.onOutput(this.decoder.decode(bytes, { stream: true }));
   }
   protected async open(baudRate: number, existing?: USBPort) {
-    if (this.port) throw new Error("Ya existe una conexión USB.");
+    if (this.port || this.opening || this.disconnecting)
+      throw new Error("Ya existe una conexión USB o se está abriendo una.");
     const api = navigatorSerial();
     if (!api && !existing)
       throw new Error(
         "Web Serial necesita Chrome o Edge en escritorio y HTTPS o localhost.",
       );
-    const port = existing ?? (await api!.requestPort());
-    await port.open({ baudRate, bufferSize: 65536 });
-    if (!port.readable || !port.writable) {
-      await port.close();
-      throw new Error("El puerto USB no ofrece lectura y escritura.");
+    this.opening = true;
+    const epoch = this.connectionEpoch;
+    let port: USBPort | undefined;
+    let opened = false;
+    let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    try {
+      port = existing ?? (await api!.requestPort());
+      if (epoch !== this.connectionEpoch)
+        throw new Error("Se canceló la conexión USB.");
+      await port.open({ baudRate, bufferSize: 65536 });
+      opened = true;
+      if (epoch !== this.connectionEpoch)
+        throw new Error("Se canceló la conexión USB.");
+      if (!port.readable || !port.writable)
+        throw new Error("El puerto USB no ofrece lectura y escritura.");
+      writer = port.writable.getWriter();
+      reader = port.readable.getReader();
+      this.port = port;
+      this.baudRate = baudRate;
+      this.failure = null;
+      this.closing = false;
+      this.inbox = [];
+      this.decoder = new TextDecoder();
+      this.writer = writer;
+      this.reader = reader;
+      api?.addEventListener("disconnect", this.disconnectListener);
+      this.pump = this.readLoop();
+    } catch (problem) {
+      // Only release locks acquired here. A stream already held elsewhere must
+      // never be cancelled just because this connection could not take it.
+      reader?.releaseLock();
+      writer?.releaseLock();
+      if (opened) {
+        try {
+          await port!.close();
+        } catch {
+          /* A foreign lock or an unplugged port can prevent close. */
+        }
+      }
+      throw problem;
+    } finally {
+      this.opening = false;
     }
-    this.port = port;
-    this.baudRate = baudRate;
-    this.failure = null;
-    this.closing = false;
-    this.inbox = [];
-    this.decoder = new TextDecoder();
-    this.writer = port.writable.getWriter();
-    this.reader = port.readable.getReader();
-    api?.addEventListener("disconnect", this.disconnectListener);
-    this.pump = this.readLoop();
   }
   private async readLoop() {
     try {
@@ -200,9 +248,19 @@ export class SerialLink {
   protected async send(bytes: Uint8Array | number[]) {
     if (!this.writer || this.closing)
       throw new Error("Conecta la placa por USB primero.");
-    await this.writer.write(
-      bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes),
-    );
+    try {
+      await this.writer.write(
+        bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes),
+      );
+    } catch (problem) {
+      const failure = new Error(
+        `No se pudo escribir por USB: ${errorText(problem)}`,
+      );
+      this.failure = failure;
+      this.wake();
+      await this.disconnect();
+      throw failure;
+    }
   }
   async write(text: string) {
     if (this.protocol || this.busy)
@@ -266,7 +324,13 @@ export class SerialLink {
     const onDisconnect = this.onDisconnect;
     this.onDisconnect = () => {};
     try {
-      await this.disconnect();
+      const closed = this.disconnect();
+      const epoch = this.connectionEpoch;
+      await closed;
+      // An explicit disconnect while the baud change closes the old stream
+      // must cancel reopening, rather than resurrect a port the user stopped.
+      if (epoch !== this.connectionEpoch)
+        throw new Error("Se canceló la conexión USB.");
       await this.open(baudRate, port);
     } catch (error) {
       onDisconnect();
@@ -275,12 +339,23 @@ export class SerialLink {
       this.onDisconnect = onDisconnect;
     }
   }
-  async disconnect() {
-    if (this.closing || !this.port) return;
+  disconnect(): Promise<void> {
+    // Also invalidate a port picker/open that has not returned yet.
+    this.connectionEpoch++;
+    if (this.disconnecting) return this.disconnecting;
+    if (!this.port) return Promise.resolve();
+    const task = this.closePort();
+    this.disconnecting = task;
+    return task.finally(() => {
+      if (this.disconnecting === task) this.disconnecting = null;
+    });
+  }
+  private async closePort() {
+    const port = this.port;
+    if (!port) return;
     this.closing = true;
     this.failure ??= new Error("Puerto USB cerrado.");
     this.wake();
-    const port = this.port;
     navigatorSerial()?.removeEventListener(
       "disconnect",
       this.disconnectListener,
@@ -291,6 +366,7 @@ export class SerialLink {
       /* Already unplugged. */
     }
     await this.pump;
+    this.pump = null;
     try {
       await this.writer?.abort();
     } catch {
@@ -511,7 +587,10 @@ export class MicroPythonSerial extends SerialLink {
         const escaped = [...data.slice(offset, offset + 512)]
           .map((byte) => `\\x${byte.toString(16).padStart(2, "0")}`)
           .join("");
-        await this.execute(`_rdfile.write(b'${escaped}')`);
+        const size = Math.min(512, data.length - offset);
+        await this.execute(
+          `if _rdfile.write(b'${escaped}') != ${size}:\n raise OSError("Escritura de archivo incompleta")`,
+        );
       }
       await this.execute(
         `_rdfile.close()\nimport os\nos.rename(${JSON.stringify(temp)},${JSON.stringify(path)})`,
@@ -554,7 +633,6 @@ export class MicroPythonSerial extends SerialLink {
   }
 }
 
-export type ArduinoBoard = "uno" | "nano" | "nano-old";
 export interface ArduinoUploadProgress {
   stage: "sync" | "write" | "verify" | "complete";
   percent: number;
@@ -630,7 +708,7 @@ export class ArduinoUSBSerial extends SerialLink {
       0x55: "selección de la dirección de memoria",
       0x64: "grabación de la página",
       0x74: "verificación de la página",
-      0x51: "inicio del programa",
+      0x51: "puesta en marcha del programa",
     };
     const describe = (detail: string) =>
       new Error(
@@ -715,7 +793,8 @@ export class ArduinoUSBSerial extends SerialLink {
   async upload(hex: string) {
     if (!this.connected)
       throw new Error("Conecta la placa Arduino por USB primero.");
-    const data = parseIntelHex(hex, this.board === "uno" ? 32256 : 30720);
+    const profile = AVR_BOARD_PROFILES[this.board];
+    const data = parseIntelHex(hex, profile.maxFlash);
     await this.exclusive(async () => {
       // Old Nano bootloader is 57600; the lesson sketches print at 115200.
       // Keep the existing permission and restore terminal speed after uploading.
@@ -724,8 +803,7 @@ export class ArduinoUSBSerial extends SerialLink {
         let detectedBoard = this.board;
         let detectedSpeed = 115200;
         let handshakeError: unknown;
-        const speeds =
-          this.board === "nano-old" ? [57600, 115200] : [115200, 57600];
+        const speeds = profile.bootSpeeds;
         for (const speed of speeds) {
           await this.reconfigure(speed);
           this.protocol = true;
@@ -753,12 +831,12 @@ export class ArduinoUSBSerial extends SerialLink {
             // A different MCU is a conclusive result, never a reason to try
             // another baud rate or to write a partially compatible firmware.
             if (
-              signature[0] !== 0x1e ||
-              signature[1] !== 0x95 ||
-              signature[2] !== 0x0f
+              !profile.signature.every(
+                (byte, index) => signature[index] === byte,
+              )
             )
               throw new Error(
-                "La placa conectada no es ATmega328P (Uno/Nano clásico).",
+                `La placa conectada no coincide con ${profile.label} (firma ${[...signature].map((byte) => byte.toString(16).padStart(2, "0")).join(" ")}). Elige el modelo y microcontrolador correctos.`,
               );
             try {
               await this.command([0x50]);

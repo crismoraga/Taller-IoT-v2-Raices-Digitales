@@ -4,6 +4,7 @@ import sys
 import pathlib
 import types
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "firmware"))
 import time
@@ -98,6 +99,97 @@ class DriverTests(unittest.TestCase):
         row = drivers.AnalogSensor("light").read()[0]
         self.assertEqual(row["unit"], "%")
         self.assertIn("no mide lux", row["confidence"])
+
+    def test_malformed_optional_configuration_never_enables_a_floating_pin(self):
+        for config in (None, [], {"enabled": None}, {"enabled": []},
+                       {"enabled": {"soil": "true", "light": 1}},
+                       {"enabled": {"soil": True}, "calibration": None}):
+            registry = drivers.DriverRegistry(config)
+            rows = {row["sensor"]: row for row in registry.read_all()}
+            self.assertEqual(rows["light"]["status"], "DISABLED")
+            if isinstance(config, dict) and config.get("enabled") == {"soil": True}:
+                self.assertEqual(rows["soil"]["status"], "NEEDS_CALIBRATION")
+            else:
+                self.assertEqual(rows["soil"]["status"], "DISABLED")
+
+    def test_references_from_another_adc_or_invalid_numbers_are_not_applied(self):
+        for calibration in ({"dry": 100, "wet": 800, "board": "uno"},
+                            {"dry": 100, "wet": 800},
+                            {"dry": -1, "wet": 45000},
+                            {"dry": True, "wet": 45000},
+                            {"dry": float("nan"), "wet": 45000},
+                            {"dry": float("inf"), "wet": 45000},
+                            {"dry": 15000.5, "wet": 45000},
+                            [], "invalid"):
+            row = drivers.AnalogSensor("soil", calibration).read()[0]
+            self.assertEqual(row["status"], "NEEDS_CALIBRATION", calibration)
+            self.assertIsNone(row["value"])
+        ADC.raw = 450
+        self.assertEqual(drivers.AnalogSensor("soil", {"dry": 100, "wet": 800, "board": "pico"}).read()[0]["value"], 50)
+
+    def test_individual_dht_flags_override_group_defaults_and_recover_legacy_config(self):
+        registry = drivers.DriverRegistry({"enabled": {"dht11": True, "air_temperature": False, "air_humidity": False}})
+        self.assertNotIn("dht11", registry.drivers)
+        registry = drivers.DriverRegistry({"enabled": {"dht11": False, "air_temperature": True}})
+        rows = {row["sensor"]: row for row in registry.read_all()}
+        self.assertEqual(rows["air_temperature"]["status"], "NO_RESPONSE")
+        self.assertEqual(rows["air_humidity"]["status"], "DISABLED")
+
+    def test_failed_initialization_recovers_without_restarting_healthy_sensors(self):
+        class EventuallyDHT:
+            attempts = 0
+            def __init__(self):
+                EventuallyDHT.attempts += 1
+                if EventuallyDHT.attempts == 1:
+                    raise OSError("module starting")
+            def read(self):
+                return [drivers.reading("air_temperature", 22, "°C"), drivers.reading("air_humidity", 50, "%")]
+        now = [100000]
+        with patch.object(drivers, "DHTSensor", EventuallyDHT), patch.object(drivers.time, "ticks_ms", lambda: now[0]):
+            registry = drivers.DriverRegistry({"enabled": {"light": True, "dht11": True}})
+            healthy = registry.drivers["light"]
+            self.assertEqual({row["sensor"]: row for row in registry.read_all()}["air_temperature"]["status"], "NO_RESPONSE")
+            registry.start_conversion()
+            self.assertEqual(EventuallyDHT.attempts, 1)
+            now[0] += 2000
+            registry.start_conversion()
+            rows = {row["sensor"]: row for row in registry.read_all()}
+            self.assertEqual(rows["air_temperature"]["value"], 22)
+            self.assertIs(registry.drivers["light"], healthy)
+            self.assertEqual(EventuallyDHT.attempts, 2)
+
+    def test_ds18b20_waits_for_conversion_validates_rom_and_rediscovers(self):
+        class Device:
+            def __init__(self, wire):
+                self.ow = types.SimpleNamespace(crc8=lambda rom: 0 if rom[-1] == 1 else 1)
+                self.roms = [bytes([0x28, 0, 0, 0, 0, 0, 0, 1])]
+                self.conversions = 0
+            def scan(self):
+                return self.roms
+            def convert_temp(self):
+                self.conversions += 1
+            def read_temp(self, rom):
+                return 23.5
+        now = [100000]
+        with patch.dict(sys.modules, {"onewire": types.SimpleNamespace(OneWire=lambda pin: object()),
+                                      "ds18x20": types.SimpleNamespace(DS18X20=Device)}), \
+             patch.object(drivers.time, "ticks_ms", lambda: now[0]):
+            sensor = drivers.SoilTemperatureSensor()
+            sensor.start()
+            self.assertEqual(sensor.read()[0]["status"], "UNVERIFIED")
+            now[0] += 750
+            self.assertEqual(sensor.read()[0]["value"], 23.5)
+            sensor.device.roms = []
+            sensor.start()
+            self.assertEqual(sensor.read()[0]["status"], "NO_RESPONSE")
+            sensor.device.roms = [bytes([0x28, 0, 0, 0, 0, 0, 0, 0])]
+            sensor.start()
+            self.assertEqual(sensor.read()[0]["status"], "NO_RESPONSE")
+            sensor.device.roms[0] = bytes([0x28, 0, 0, 0, 0, 0, 0, 1])
+            sensor.start()
+            now[0] += 750
+            self.assertEqual(sensor.read()[0]["status"], "READING")
+            self.assertEqual(sensor.device.conversions, 2)
 
 
 if __name__ == "__main__":

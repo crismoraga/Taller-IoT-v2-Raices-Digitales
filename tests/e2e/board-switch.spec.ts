@@ -40,7 +40,7 @@ test("the controller updates in the real 3D scene and keeps the selected 2D plan
     return marker;
   });
   const images = new Map<string, Buffer>();
-  for (const selected of ["pico", "uno", "nano", "pico"]) {
+  for (const selected of ["pico", "uno", "nano", "nano-168", "pico"]) {
     await board.selectOption(selected);
     await expect(explorer.locator(".rdx-circuit")).toHaveAttribute(
       "data-board",
@@ -65,7 +65,7 @@ test("the controller updates in the real 3D scene and keeps the selected 2D plan
   expect(images.get("nano")!.equals(images.get("uno")!)).toBe(false);
   expect(images.get("nano")!.equals(images.get("pico")!)).toBe(false);
   await explorer.getByRole("radio", { name: "Plano 2D", exact: true }).click();
-  for (const selected of ["uno", "nano", "pico"]) {
+  for (const selected of ["uno", "nano", "nano-168", "pico"]) {
     await board.selectOption(selected);
     await expect(
       explorer.getByRole("radio", { name: "Plano 2D", exact: true }),
@@ -75,7 +75,7 @@ test("the controller updates in the real 3D scene and keeps the selected 2D plan
     await expect(plan).toHaveAttribute("data-board", selected);
     await expect(plan).toContainText(
       selected === "pico"
-        ? "Raspberry Pi Pico W"
+        ? "Raspberry Pi Pico"
         : selected === "uno"
           ? "Arduino Uno"
           : "Arduino Nano",

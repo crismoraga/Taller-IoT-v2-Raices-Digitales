@@ -13,6 +13,7 @@ import { configuration, type Config } from "./config.ts";
 import { Store, hash, token, type Session, type Row } from "./database.ts";
 import { Alerts, Telegram } from "./alerts.ts";
 import { ArduinoCompiler, CompileError } from "./arduino.ts";
+import { ARDUINO_BOARDS } from "../shared/boards.ts";
 import {
   sessionCreateSchema,
   sessionPatchSchema,
@@ -58,7 +59,7 @@ export async function buildApp(
     logger: config.logger,
     bodyLimit: 700000,
     requestTimeout: 65000,
-    connectionTimeout: 15000,
+    connectionTimeout: 65000,
     trustProxy: process.env.TRUST_PROXY?.split(",") || false,
   });
   const store = new Store(config);
@@ -776,7 +777,7 @@ export async function buildApp(
       const body = z
         .object({
           code: z.string().min(1).max(60000),
-          board: z.enum(["uno", "nano", "nano-old"]),
+          board: z.enum(ARDUINO_BOARDS),
         })
         .strict()
         .parse(request.body);

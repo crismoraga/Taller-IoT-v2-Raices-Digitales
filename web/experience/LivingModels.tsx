@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Board } from "../lib/context";
 import { BoardText, Tube, type V3 } from "./Primitives";
+import { LedOptic, LED_POLARITY, UsbJack } from "./HardwareModels";
 import { livingBoardProfile } from "./living-state";
 
 /** Small, locally generated models: no texture downloads or runtime asset fetches. */
@@ -457,6 +458,11 @@ function UsbSocket({
   const length = uno ? 0.28 : nano ? 0.18 : 0.145;
   const height = uno ? 0.21 : nano ? 0.095 : 0.07;
   const depth = uno ? 0.235 : nano ? 0.18 : 0.16;
+  const base = uno
+    ? [0.43, 0.27, 0.48]
+    : nano
+      ? [0.29, 0.2, 0.31]
+      : [0.28, 0.16, 0.3];
   return (
     <group
       position={[
@@ -465,42 +471,12 @@ function UsbSocket({
         uno ? -0.25 : 0,
       ]}
     >
-      <mesh castShadow>
-        <boxGeometry args={[length, height, depth]} />
-        <meshStandardMaterial
-          color="#c3cbd0"
-          metalness={0.88}
-          roughness={0.24}
+      <group scale={[length / base[0], height / base[1], depth / base[2]]}>
+        <UsbJack
+          kind={uno ? "b" : nano ? "mini" : "micro"}
+          position={[0, 0, 0]}
         />
-      </mesh>
-      <mesh position={[-length / 2 - 0.002, 0, 0]}>
-        <boxGeometry args={[0.005, height * 0.66, depth * 0.78]} />
-        <meshStandardMaterial color="#182321" roughness={0.65} />
-      </mesh>
-      <mesh position={[-length / 2 - 0.006, uno ? 0.018 : -0.006, 0]}>
-        <boxGeometry args={[0.006, height * 0.2, depth * 0.45]} />
-        <meshStandardMaterial
-          color={uno ? "#e1e3db" : "#333c37"}
-          roughness={0.6}
-        />
-      </mesh>
-      {[0, 1].map((side) => (
-        <mesh
-          key={side}
-          position={[
-            length * 0.25,
-            -height / 2 + 0.005,
-            ((side ? 1 : -1) * depth) / 2,
-          ]}
-        >
-          <boxGeometry args={[0.055, 0.014, 0.031]} />
-          <meshStandardMaterial
-            color="#b9c3c3"
-            metalness={0.85}
-            roughness={0.3}
-          />
-        </mesh>
-      ))}
+      </group>
     </group>
   );
 }
@@ -806,23 +782,10 @@ export function LivingBoard({ board }: { board: Board }) {
               pitch={(width - 0.076) / (profile.pinsPerSide - 1)}
             />
             {pico && (
-              <>
-                <mesh position={[0.395, 0.05, 0]} castShadow>
-                  <boxGeometry args={[0.26, 0.045, 0.305]} />
-                  <meshStandardMaterial
-                    color="#bcc5ba"
-                    metalness={0.78}
-                    roughness={0.35}
-                  />
-                </mesh>
-                <BoardText
-                  position={[0.395, 0.075, 0]}
-                  size={0.034}
-                  color="#58715b"
-                >
-                  Wi-Fi
-                </BoardText>
-              </>
+              <mesh position={[0.395, 0.05, 0]} castShadow>
+                <boxGeometry args={[0.067, 0.032, 0.067]} />
+                <meshStandardMaterial color="#27372b" roughness={0.56} />
+              </mesh>
             )}
             {nano && (
               <>
@@ -853,7 +816,7 @@ export function LivingBoard({ board }: { board: Board }) {
               size={pico ? 0.053 : 0.041}
               color="#e5efd6"
             >
-              {pico ? "PICO W" : "NANO"}
+              {pico ? "PICO" : "NANO"}
             </BoardText>
             <BoardText
               position={[-0.32, 0.032, -depth / 2 + 0.092]}
@@ -979,11 +942,12 @@ export function LivingSoilProbe() {
 }
 
 export function LivingLedLens({ on }: { on?: boolean }) {
+  const color = on === undefined ? "#9fa99b" : on ? "#e4f596" : "#8fa954";
   return (
     <group>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * 0.057, -0.033, 0]}>
-          <boxGeometry args={[0.015, side === 1 ? 0.31 : 0.26, 0.016]} />
+      {Object.entries(LED_POLARITY).map(([terminal, { x, leadLength }]) => (
+        <mesh key={terminal} position={[x, 0.104 - leadLength / 2, 0]}>
+          <boxGeometry args={[0.015, leadLength, 0.016]} />
           <meshStandardMaterial
             color="#b9c4b6"
             metalness={0.8}
@@ -991,34 +955,9 @@ export function LivingLedLens({ on }: { on?: boolean }) {
           />
         </mesh>
       ))}
-      <mesh position={[0, 0.108, 0]}>
-        <cylinderGeometry args={[0.119, 0.119, 0.035, 24]} />
-        <meshPhysicalMaterial
-          color={on === undefined ? "#a9b2a3" : on ? "#dfee84" : "#97ac60"}
-          roughness={0.27}
-          clearcoat={0.6}
-          clearcoatRoughness={0.2}
-        />
-      </mesh>
-      <mesh position={[0, 0.196, 0]}>
-        <capsuleGeometry args={[0.099, 0.12, 8, 24]} />
-        <meshPhysicalMaterial
-          color={on === undefined ? "#9fa99b" : on ? "#e4f596" : "#8fa954"}
-          emissive="#cce98a"
-          emissiveIntensity={on ? 1.05 : 0}
-          roughness={0.23}
-          clearcoat={0.9}
-          clearcoatRoughness={0.17}
-        />
-      </mesh>
-      <mesh position={[0.058, 0.232, 0.055]} rotation={[0.3, 0, -0.4]}>
-        <sphereGeometry args={[0.018, 8, 8]} />
-        <meshBasicMaterial
-          color="#f1f7d7"
-          transparent
-          opacity={on ? 0.68 : 0.32}
-        />
-      </mesh>
+      <group position={[0, 0.108, 0]} scale={0.79}>
+        <LedOptic color={color} lit={on === true} />
+      </group>
       {on && (
         <pointLight
           position={[0, 0.29, 0]}

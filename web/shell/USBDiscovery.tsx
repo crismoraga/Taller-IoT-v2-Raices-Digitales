@@ -1,4 +1,4 @@
-import { useApp } from "../lib/context";
+import { BOARD_NAMES, useApp } from "../lib/context";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Overlay";
 
@@ -96,7 +96,7 @@ export function USBDiscovery() {
             [
               "pico",
               "Raspberry Pi Pico",
-              "Pico / Pico W · placa verde y alargada",
+              "Pico / Pico W / Pico 2 / Pico 2 W · MicroPython",
             ],
             ["uno", "Arduino Uno", "Uno clásico · USB grande y placa ancha"],
             ["nano", "Arduino Nano", "Nano clásico · placa azul y alargada"],
@@ -120,6 +120,25 @@ export function USBDiscovery() {
           </Button>
         ))}
       </div>
+      <details className="simple-details mt-4">
+        <summary>Variantes de Arduino Nano</summary>
+        <p className="mt-2 text-sm text-ink-soft">
+          El adaptador USB no revela el procesador. Si tu placa indica
+          ATmega168, elige esa variante; los Nano ATmega328P ajustan la
+          velocidad automáticamente.
+        </p>
+        <div className="mt-3 grid gap-2">
+          {(["nano-old", "nano-168"] as const).map((variant) => (
+            <Button
+              key={variant}
+              variant="outline"
+              onClick={() => void app.chooseUSBBoard(variant)}
+            >
+              {BOARD_NAMES[variant]}
+            </Button>
+          ))}
+        </div>
+      </details>
     </Modal>
   );
 }

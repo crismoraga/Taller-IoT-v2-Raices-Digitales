@@ -4,6 +4,7 @@ import { z, ZodError } from "zod";
 import { ArduinoCompiler } from "./arduino.ts";
 import { configuration } from "./config.ts";
 import { hash } from "./database.ts";
+import { ARDUINO_BOARDS } from "../shared/boards.ts";
 
 // Separate process/container: no telemetry volume, database or teacher/Telegram secrets.
 const secret = process.env.ARDUINO_SERVICE_TOKEN;
@@ -48,7 +49,7 @@ app.post("/compile", async (request) => {
   const body = z
     .object({
       code: z.string().min(1).max(60000),
-      board: z.enum(["uno", "nano", "nano-old"]),
+      board: z.enum(ARDUINO_BOARDS),
     })
     .strict()
     .parse(request.body);

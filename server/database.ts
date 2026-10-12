@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Config } from "./config.ts";
 import { sessionPatchSchema, type Reading, type Rule } from "./validation.ts";
+import type { Board } from "../shared/boards.ts";
 
 export const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -16,13 +17,13 @@ export interface Session {
   drafts: Record<string, string>;
   calibrations: Record<
     string,
-    { dry: number; wet: number; board?: "pico" | "uno" | "nano" | "nano-old" }
+    { dry: number; wet: number; board?: Board }
   >;
   sensorEnabled: Record<string, boolean>;
   createdAt: string;
   lastRun?: {
     lessonId: string;
-    board: "pico" | "uno" | "nano" | "nano-old";
+    board: Board;
     code: string;
     at: string;
   };

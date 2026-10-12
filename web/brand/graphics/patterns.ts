@@ -9,7 +9,7 @@ import {
   type Shape,
 } from "./shapes";
 
-// Patrones de fondo de la marca: "Patrón de red", "Patrón de señal" y cielo estrellado.
+// Patrones locales del laboratorio: naturaleza y conexiones, sin competir con el texto.
 const CREAM = "#F5F0DF";
 const LEAF = "#9ED28F";
 const SOFT = "#D0EF83";
@@ -179,6 +179,69 @@ export function orbitRings({
   return shapes;
 }
 
+/** Raíces con contactos de circuito. Vive en el borde derecho y deja libre el título. */
+export function rootCircuit({
+  width,
+  height,
+  seed = 7,
+  density = 1,
+}: {
+  width: number;
+  height: number;
+  seed?: number;
+  density?: number;
+}): Shape[] {
+  const random = seededRandom(seed);
+  const count = Math.round(4 * Math.max(0.25, Math.min(2, density)));
+  const shapes: Shape[] = [];
+  const cx = width * 0.88;
+  const cy = height * 0.45;
+  shapes.push(
+    path(`M${cx} ${height * -0.08}V${cy}`, {
+      fill: "none",
+      stroke: SOFT,
+      sw: 1.3,
+      op: 0.23,
+      cap: "round",
+    }),
+    circle(cx, cy, 4, { fill: SOFT, op: 0.45 }),
+  );
+  for (let index = 0; index < count; index += 1) {
+    const side = index % 2 === 0 ? -1 : 1;
+    const bendY = cy + (index + 1) * height * 0.072;
+    const endX = cx + side * width * (0.025 + random() * 0.11);
+    const endY = Math.min(height * 1.06, bendY + height * (0.1 + random() * 0.14));
+    const color = index === count - 1 ? CREAM : index % 2 === 0 ? LEAF : SOFT;
+    shapes.push(
+      path(`M${cx} ${cy}V${bendY}H${endX}V${endY}`, {
+        fill: "none",
+        stroke: color,
+        sw: 1.4,
+        op: 0.26,
+        cap: "round",
+        join: "round",
+      }),
+      circle(endX, endY, 3.6, {
+        fill: "#0c302b",
+        stroke: color,
+        sw: 1.2,
+        op: 0.6,
+      }),
+    );
+  }
+  shapes.push(
+    path(`M${cx} ${cy - 24}c-28 0-44-16-44-42 28 0 44 16 44 42Z`, {
+      fill: LEAF,
+      op: 0.09,
+    }),
+    path(`M${cx + 3} ${cy - 35}c0-32 17-51 49-51 0 31-19 51-49 51Z`, {
+      fill: SOFT,
+      op: 0.12,
+    }),
+  );
+  return shapes;
+}
+
 export function patternPreviews(): Record<string, Drawing> {
   const background = (w: number, h: number): Shape => ({
     t: "rect",
@@ -190,6 +253,11 @@ export function patternPreviews(): Record<string, Drawing> {
     fill: "#0C302B",
   });
   return {
+    raices: {
+      w: 360,
+      h: 240,
+      shapes: [background(360, 240), ...rootCircuit({ width: 360, height: 240 })],
+    },
     estrellas: {
       w: 360,
       h: 240,

@@ -42,7 +42,7 @@ const answerText = (lesson: typeof led, index: number) =>
   lesson.checkpoint[index].options[lesson.checkpoint[index].answer];
 
 describe("Teaching content follows the selected physical board", () => {
-  for (const board of ["uno", "nano", "nano-old"] as const) {
+  for (const board of ["uno", "nano", "nano-old", "nano-168"] as const) {
     it(`${board}: LED explanations name D2/5 V and the sketch instruction`, () => {
       const result = lessonForBoard(led, board);
       expect(result.concept.facts).toContainEqual({

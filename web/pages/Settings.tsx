@@ -27,8 +27,63 @@ import { circuitForBoard } from "../circuit/boards";
 import { circuits } from "../circuit/layouts";
 import { BOARD_NAMES } from "../lib/context";
 import { UploadFeedback } from "../shell/UploadFeedback";
+import { Segmented } from "../ui/Card";
+import { readLocal, writeLocal } from "../lib/theme";
+import {
+  PICO_MODELS,
+  isPicoModel,
+  picoFirmwareUrl,
+  type PicoModel,
+} from "../lib/pico-models";
+
+function PicoModelSelect({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: PicoModel | "";
+  onChange: (model: PicoModel | "") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label>
+      Modelo de Pico
+      <select
+        aria-label="Modelo de Pico"
+        value={value}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(isPicoModel(event.target.value) ? event.target.value : "")
+        }
+      >
+        <option value="">Elige el modelo escrito en tu placa</option>
+        {Object.entries(PICO_MODELS).map(([id, model]) => (
+          <option value={id} key={id}>
+            {model.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Settings() {
   const app = useApp();
+  const [picoTransport, setPicoTransport] = useState<"usb" | "wifi">(() =>
+    readLocal<string>("raices.pico.transport", "usb") === "wifi"
+      ? "wifi"
+      : "usb",
+  );
+  const [picoModel, setPicoModel] = useState<PicoModel | "">(() => {
+    const saved = readLocal<string>("raices.pico.model", "");
+    return isPicoModel(saved) ? saved : "";
+  });
+  const selectPicoModel = (model: PicoModel | "") => {
+    setPicoModel(model);
+    writeLocal("raices.pico.model", model);
+  };
+  const wifiSelected = app.board === "pico" && picoTransport === "wifi";
+  const wifiModel = !!picoModel && PICO_MODELS[picoModel].wifi;
   const [name, setName] = useState(app.session?.name || ""),
     [group, setGroup] = useState(app.session?.groupNumber || 1),
     [ssid, setSsid] = useState(""),
@@ -91,7 +146,11 @@ export default function Settings() {
   };
   const install = async () => {
     setInstallConfirm(false);
-    await app.installStation(ssid, password, endpoint);
+    await app.installStation(
+      wifiSelected ? ssid.trim() : "",
+      wifiSelected ? password : "",
+      wifiSelected ? endpoint : `${location.origin}/api/device/ingest`,
+    );
     // La nueva identidad queda visible y puede revocarse sin recargar ni perder la configuración.
     void api<DashboardData>("/dashboard")
       .then((data) => setDevices(data.devices))
@@ -302,14 +361,13 @@ export default function Settings() {
                     app.setBoard(e.target.value as typeof app.board)
                   }
                 >
-                  <option value="pico">
-                    Raspberry Pi Pico W · MicroPython
-                  </option>
+                  <option value="pico">Raspberry Pi Pico · MicroPython</option>
                   <option value="uno">Arduino Uno · ATmega328P</option>
                   <option value="nano">Arduino Nano · ATmega328P</option>
                   <option value="nano-old">
                     Arduino Nano · bootloader antiguo
                   </option>
+                  <option value="nano-168">Arduino Nano · ATmega168</option>
                 </select>
               </label>
               {app.connected && (
@@ -522,13 +580,29 @@ export default function Settings() {
           <div className="settings-card-title">
             <Wifi size={21} />
             <h3>3. Instala tu estación</h3>
-            <Badge tone="sage">{arduino ? "PUENTE USB" : "PICO W"}</Badge>
+            <Badge tone="sage">{wifiSelected ? "WI-FI" : "PUENTE USB"}</Badge>
           </div>
           <p>
             {arduino
               ? "El navegador recibe los sensores por USB y envía sus datos al servidor. Mantén esta pestaña abierta."
-              : "La Pico W enviará sus lecturas al servidor aun si cierras el navegador. Las credenciales se escriben solo en tu placa."}
+              : wifiSelected
+                ? "Una Pico W o Pico 2 W puede enviar sus lecturas sin mantener esta pestaña abierta."
+                : "Pico, Pico W, Pico 2 y Pico 2 W envían sus lecturas por USB. Mantén esta pestaña abierta."}
           </p>
+          {!arduino && (
+            <Segmented
+              label="Camino de los datos"
+              value={picoTransport}
+              onChange={(value) => {
+                setPicoTransport(value as "usb" | "wifi");
+                writeLocal("raices.pico.transport", value);
+              }}
+              options={[
+                { value: "usb", label: "USB desde mi PC", icon: "usb" },
+                { value: "wifi", label: "Wi-Fi autónomo", icon: "wifi" },
+              ]}
+            />
+          )}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -539,11 +613,29 @@ export default function Settings() {
                 );
                 return;
               }
+              if (wifiSelected && (!wifiModel || !ssid.trim())) {
+                app.notify(
+                  "Elige Pico W o Pico 2 W y escribe el nombre de tu red para instalar por Wi-Fi.",
+                  "info",
+                );
+                return;
+              }
               setInstallConfirm(true);
             }}
           >
-            {!arduino && (
+            {wifiSelected && (
               <>
+                <PicoModelSelect
+                  value={picoModel}
+                  onChange={selectPicoModel}
+                  disabled={app.busy}
+                />
+                {!wifiModel && (
+                  <p className="text-sm text-ink-soft">
+                    El envío autónomo usa Pico W o Pico 2 W. Las cuatro Pico
+                    funcionan por USB.
+                  </p>
+                )}
                 <label>
                   Red Wi-Fi de 2,4 GHz
                   <input
@@ -593,7 +685,9 @@ export default function Settings() {
               <p>
                 {arduino
                   ? "La estación reemplaza el sketch actual de Arduino y envía sus lecturas por USB. Tu borrador del editor se conserva."
-                  : "La estación escribe main.py y su configuración en MicroPython, y envía tus lecturas por Wi-Fi y USB. Tu borrador del editor se conserva."}
+                  : wifiSelected
+                    ? "La estación escribe main.py y su configuración en MicroPython, y envía tus lecturas por Wi-Fi y USB. Tu borrador del editor se conserva."
+                    : "La estación escribe main.py y su configuración en MicroPython. Los sensores viajan por USB al navegador y al dashboard; no necesitas configurar una red."}
               </p>
             </details>
             <Button
@@ -602,7 +696,10 @@ export default function Settings() {
                 !app.connected ||
                 savingSensors ||
                 !Object.values(enabled).some(Boolean) ||
-                (!arduino && !endpoint.startsWith("https://"))
+                (wifiSelected &&
+                  (!wifiModel ||
+                    !ssid.trim() ||
+                    !endpoint.startsWith("https://")))
               }
               loading={app.busy}
             >
@@ -626,16 +723,43 @@ export default function Settings() {
             <details className="simple-details">
               <summary>¿Cómo preparo MicroPython?</summary>
               <p>
-                Mantén BOOTSEL al conectar USB, copia el firmware UF2 oficial de{" "}
+                Si tu placa ya ejecuta MicroPython, puedes instalar
+                directamente. Para elegir un UF2, usa el modelo escrito en tu
+                placa.
+              </p>
+              {!wifiSelected && (
+                <PicoModelSelect
+                  value={picoModel}
+                  onChange={selectPicoModel}
+                  disabled={app.busy}
+                />
+              )}
+              {picoModel ? (
                 <a
-                  href="https://micropython.org/download/RPI_PICO_W/"
+                  href={picoFirmwareUrl(picoModel)}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Pico W
-                </a>{" "}
-                a la unidad RPI-RP2 y vuelve a conectar desde esta web. No uses
-                la imagen de Pico sin Wi-Fi.
+                  MicroPython oficial para {PICO_MODELS[picoModel].name}
+                </a>
+              ) : (
+                <ul className="mt-2 grid gap-2">
+                  {Object.entries(PICO_MODELS).map(([id, model]) => (
+                    <li key={id}>
+                      <a
+                        href={picoFirmwareUrl(id as PicoModel)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {model.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2">
+                BOOTSEL + USB → copia el UF2 a la unidad que aparece → vuelve a
+                «Conectar USB».
               </p>
             </details>
           )}

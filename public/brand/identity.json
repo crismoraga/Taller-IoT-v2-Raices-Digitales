@@ -1,0 +1,29 @@
+{
+  "name": "Raíces Digitales",
+  "signature": "Taller IoT · Telemática USM",
+  "concept": "Hojas, raíces, contactos y señal: naturaleza y tecnología que crecen juntas.",
+  "colors": {
+    "forest": "#0c302b",
+    "lime": "#d0ef83",
+    "cream": "#f5f0df",
+    "leaf": "#9cd59a",
+    "sun": "#f3d56a",
+    "terracotta": "#dc916e"
+  },
+  "fonts": {
+    "display": "Outfit",
+    "body": "DM Sans",
+    "code": "JetBrains Mono"
+  },
+  "assets": {
+    "symbol": "raices-symbol.svg",
+    "monochrome": "raices-mark-mono.svg",
+    "onLight": "raices-wordmark.svg",
+    "onDark": "raices-wordmark-inverse.svg",
+    "pattern": "raices-pattern.svg",
+    "presentation": "raices-social.svg",
+    "socialPreview": "raices-social.png"
+  },
+  "minimumSymbolSize": 16,
+  "institutionalAffiliation": "Expresada como texto; no reproduce ni sustituye el escudo institucional."
+}

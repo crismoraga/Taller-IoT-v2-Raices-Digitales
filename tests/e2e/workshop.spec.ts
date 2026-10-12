@@ -76,7 +76,7 @@ test("living 3D home, six-step 60-minute journey, theme and narrow screens", asy
   await expect(
     page.locator(".rdx-living").getByText("LED · encendido", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Pico W", exact: true }).click();
+  await page.getByRole("button", { name: "Pico", exact: true }).click();
   await page
     .getByRole("button", { name: "Enviar una señal", exact: true })
     .click();

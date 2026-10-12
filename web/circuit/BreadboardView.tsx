@@ -386,7 +386,7 @@ const PicoLayer = memo(function PicoLayer({
         fill="#8fa0ad"
         fontFamily="var(--font-mono)"
       >
-        RP2040
+        RP2
       </text>
       <rect
         x={right - 150}
@@ -425,7 +425,7 @@ const PicoLayer = memo(function PicoLayer({
         opacity={0.9}
         fontFamily="var(--font-display)"
       >
-        Raspberry Pi Pico W
+        Raspberry Pi Pico
       </text>
       {PICO_PINS.map((pin) => {
         const x = px(BOARD.x0 + pin.column - 1);

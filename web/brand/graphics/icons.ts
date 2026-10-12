@@ -1,11 +1,48 @@
 import { circle, ellipse, path, rect, star4Path, star5Path, type Shape } from './shapes';
 
-// Iconografía SoyTEL: grilla 24×24, trazo 2, extremos redondeados (estilo de las pantallas
-// de Claude Design). Los rellenos usan currentColor para heredar el color del ícono.
+// Iconografía de Telemática y del laboratorio: grilla 24, trazo 2, extremos redondeados.
+// Los glifos botánicos y de montaje son propios de Raíces Digitales.
 const dot = (cx: number, cy: number, r = 1.15): Shape => circle(cx, cy, r, { fill: 'currentColor', stroke: 'none' });
 const solid = (d: string): Shape => path(d, { fill: 'currentColor', stroke: 'none' });
 
 export const icons = {
+  sprout: [
+    path('M12 19v-7'),
+    path('M12 13C6 13 4 9.5 4 5c5.5 0 8.5 3.3 8 8Z'),
+    path('M12.5 10c0-5 3.1-7 7.5-7 0 4.6-2.8 7-7.5 7Z'),
+    path('M12 18H6v3m6-3h6v3'),
+  ],
+  rootCircuit: [
+    path('M12 4v10m0 0H5v4m7-4h7v4m-7-4v6'),
+    circle(12, 4, 1.8), circle(5, 20, 1.5), circle(19, 20, 1.5),
+  ],
+  usb: [
+    circle(12, 20, 2),
+    path('M12 18V4m-3 2 3-3 3 3m-3 8H7a2 2 0 0 1-2-2V9m7 3h5a2 2 0 0 0 2-2V8'),
+    circle(5, 7, 1.4), rect(17.5, 4.5, 3, 3, 0.4),
+  ],
+  cable: [
+    rect(3, 3, 4, 7, 1.2), rect(17, 14, 4, 7, 1.2),
+    path('M5 10v5a4 4 0 0 0 8 0V9a4 4 0 0 1 6 0v5m-15-13v2m2-2v2m12 18v2m2-2v2'),
+  ],
+  led: [
+    path('M8 13V8a4 4 0 0 1 8 0v5m-9 0h10M9 13v8m6-8v6'),
+    path('M4 5 2.5 3.5M12 1v1m8 3 1.5-1.5'),
+  ],
+  breadboard: [
+    rect(2.5, 4, 19, 16, 2), path('M3 12h18'),
+    ...[6, 10, 14, 18].flatMap(x => [dot(x, 8, 0.85), dot(x, 16, 0.85)]),
+  ],
+  sensor: [
+    rect(6.5, 2.5, 11, 6, 1.5),
+    path('M8 8.5V18l4 4 4-4V8.5m-6-3h4m-4 6v5m4-5v5'),
+  ],
+  thermometer: [
+    path('M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0Z'),
+    path('M12 8v9m6-10h2m-2 4h2'), dot(12, 18, 1.5),
+  ],
+  drop: [path('M12 2.5S5.5 10 5.5 15a6.5 6.5 0 0 0 13 0c0-5-6.5-12.5-6.5-12.5Z'), path('M9 14c-.8 1.5-.3 3.6 1.4 4.1')],
+  rain: [path('M5.5 13h12A4.5 4.5 0 0 0 18 4a6 6 0 0 0-11.4 2A3.5 3.5 0 0 0 5.5 13Z'), path('m8 16-1 3m6-3-1 5m6-5-1 3')],
   home: [path('M3 10.5 12 3l9 7.5'), path('M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9')],
   route: [circle(6, 19, 2.2), circle(18, 5, 2.2), path('M8.2 19h8.3a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7h8.3')],
   school: [path('M2 9.5 12 5l10 4.5-10 4.5z'), path('M6 11.3V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.7'), path('M22 9.5V15')],

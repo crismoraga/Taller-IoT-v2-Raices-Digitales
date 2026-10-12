@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   mkdtemp,
   mkdir,
@@ -11,6 +12,8 @@ import {
 import { tmpdir } from "node:os";
 import { join, basename, resolve, sep } from "node:path";
 import type { Config } from "./config.ts";
+import { AVR_BOARD_PROFILES, type ArduinoBoard } from "../shared/boards.ts";
+import { CompileQueue, type CompileWorkContext } from "./compile-queue.ts";
 
 export class CompileError extends Error {
   constructor(
@@ -102,8 +105,15 @@ function run(
 }
 
 export class ArduinoCompiler {
-  private active = false;
-  constructor(private config: Config) {}
+  private queue: CompileQueue<
+    { code: string; board: ArduinoBoard },
+    { hex: string; output: string }
+  >;
+  constructor(private config: Config) {
+    this.queue = new CompileQueue((input, context) =>
+      this.compileNow(input.code, input.board, context),
+    );
+  }
   private environment(directory?: string) {
     const env: NodeJS.ProcessEnv = {};
     for (const name of [
@@ -160,7 +170,29 @@ export class ArduinoCompiler {
       return false;
     }
   }
-  async compile(code: string, board: "uno" | "nano" | "nano-old") {
+  async compile(code: string, board: ArduinoBoard) {
+    if (!AVR_BOARD_PROFILES[board])
+      throw new CompileError("La configuración de placa no es válida.", 400);
+    if (!code.trim() || code.length > 60000 || code.includes("\0"))
+      throw new CompileError("Código vacío, demasiado largo o inválido.", 400);
+    const key = createHash("sha256")
+      .update(AVR_BOARD_PROFILES[board].fqbn)
+      .update("\0")
+      .update(code)
+      .digest("hex");
+    return this.queue.run(key, { code, board });
+  }
+  private async compileNow(
+    code: string,
+    board: ArduinoBoard,
+    context: CompileWorkContext,
+  ) {
+    // Waiting consumes the same request budget: never leave a CLI process
+    // compiling long after the browser's 65-second request has expired.
+    const timeout = Math.max(
+      1,
+      Math.min(60000, 60000 - (Date.now() - context.enqueuedAt)),
+    );
     if (this.config.arduinoServiceUrl) {
       const response = await fetch(`${this.config.arduinoServiceUrl}/compile`, {
         method: "POST",
@@ -169,7 +201,7 @@ export class ArduinoCompiler {
           authorization: `Bearer ${this.config.arduinoServiceToken || ""}`,
         },
         body: JSON.stringify({ code, board }),
-        signal: AbortSignal.timeout(65000),
+        signal: AbortSignal.timeout(timeout),
       }).catch(() => {
         throw new CompileError(
           "El servicio de compilación no está disponible.",
@@ -190,11 +222,6 @@ export class ArduinoCompiler {
         throw new CompileError("El servicio devolvió firmware inválido.", 502);
       return { hex: result.hex, output: result.output || "" };
     }
-    if (this.active)
-      throw new CompileError(
-        "Otra compilación está en curso; vuelve a intentar en unos segundos.",
-        429,
-      );
     if (code.length > 60000 || code.includes("\0"))
       throw new CompileError("Código demasiado largo o inválido.", 400);
     // Arduino sketches need libraries, never arbitrary server filesystem includes.
@@ -232,7 +259,6 @@ export class ArduinoCompiler {
           400,
         );
     }
-    this.active = true;
     let directory: string | undefined;
     try {
       directory = await mkdtemp(join(tmpdir(), "rd-arduino-"));
@@ -245,10 +271,7 @@ export class ArduinoCompiler {
         await chmod(directory, 0o755);
         await chmod(output, 0o777);
       }
-      const fqbn =
-        board === "uno"
-          ? "arduino:avr:uno"
-          : `arduino:avr:nano:cpu=${board === "nano-old" ? "atmega328old" : "atmega328"}`;
+      const fqbn = AVR_BOARD_PROFILES[board].fqbn;
       const env = this.environment(directory);
       const result = this.config.arduinoSandbox
         ? await run(
@@ -285,7 +308,7 @@ export class ArduinoCompiler {
               "/work/output",
               "/work/Raices",
             ],
-            60000,
+            timeout,
             env,
           )
         : await run(
@@ -300,7 +323,7 @@ export class ArduinoCompiler {
               output,
               sketch,
             ],
-            60000,
+            timeout,
             env,
           );
       const files = await readdir(output);
@@ -328,7 +351,6 @@ export class ArduinoCompiler {
           maxRetries: 3,
           retryDelay: 100,
         });
-      this.active = false;
     }
   }
 }

@@ -79,9 +79,15 @@ export function Field({
 export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement>
->(function Input({ className, ...rest }, ref) {
+>(function Input({ className, autoFocus, ...rest }, ref) {
   return (
-    <input ref={ref} className={cx(control, "h-12", className)} {...rest} />
+    <input
+      ref={ref}
+      autoFocus={autoFocus}
+      data-dialog-autofocus={autoFocus ? "" : undefined}
+      className={cx(control, "h-12", className)}
+      {...rest}
+    />
   );
 });
 

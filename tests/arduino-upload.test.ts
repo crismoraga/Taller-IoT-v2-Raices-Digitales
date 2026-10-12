@@ -35,6 +35,32 @@ describe("USB models with a different Arduino upload protocol", () => {
     [0x0058, "Arduino Nano Every"],
     [0x0057, "Arduino Nano 33 IoT"],
     [0x8057, "Arduino Nano 33 IoT"],
+    [0x0074, "Arduino Nano R4"],
+    [0x0374, "Arduino Nano R4"],
+    [0x004d, "Arduino Zero"],
+    [0x804d, "Arduino Zero"],
+    [0x824d, "Arduino Zero"],
+    [0x024d, "Arduino Zero"],
+    [0x004e, "Arduino MKR1000"],
+    [0x804e, "Arduino MKR1000"],
+    [0x824e, "Arduino MKR1000"],
+    [0x024e, "Arduino MKR1000"],
+    [0x8054, "Arduino MKR WiFi 1010"],
+    [0x0054, "Arduino MKR WiFi 1010"],
+    [0x8050, "Arduino MKR FOX 1200"],
+    [0x0050, "Arduino MKR FOX 1200"],
+    [0x8059, "Arduino MKR WAN"],
+    [0x0059, "Arduino MKR WAN"],
+    [0x8053, "Arduino MKR WAN"],
+    [0x0053, "Arduino MKR WAN"],
+    [0x8052, "Arduino MKR GSM 1400"],
+    [0x0052, "Arduino MKR GSM 1400"],
+    [0x8055, "Arduino MKR NB 1500"],
+    [0x0055, "Arduino MKR NB 1500"],
+    [0x8056, "Arduino MKR Vidor 4000"],
+    [0x0056, "Arduino MKR Vidor 4000"],
+    [0x804f, "Arduino MKR Zero"],
+    [0x004f, "Arduino MKR Zero"],
   ])(
     "identifies PID %s as %s before opening an incompatible installer",
     (product, model) => {
@@ -187,6 +213,72 @@ function bootloader(
 }
 
 describe("Arduino upload with a real bootloader lifecycle", () => {
+  it("programs and verifies a Nano ATmega168 at 19200 without changing its MCU selection", async () => {
+    const peer = bootloader({
+      bootRate: 19200,
+      signature: [0x1e, 0x94, 0x06],
+      releaseRequired: true,
+    });
+    const transport = new ArduinoUSBSerial();
+    const detected: ArduinoBoard[] = [];
+    const progress: ArduinoUploadProgress[] = [];
+    transport.onBootloaderDetected = (board) => detected.push(board);
+    transport.onUploadProgress = (event) => progress.push(event);
+    const image = Uint8Array.from(
+      { length: 300 },
+      (_, index) => (index * 31) & 255,
+    );
+    await transport.connect("nano-168", peer.port);
+    try {
+      await transport.upload(imageHex(image));
+      expect(peer.rates).toEqual([115200, 19200, 115200]);
+      expect(peer.memory.slice(0, image.length)).toEqual(image);
+      expect(peer.packets.filter((packet) => packet[0] === 0x74)).toHaveLength(
+        3,
+      );
+      expect(progress.at(-1)).toEqual({ stage: "complete", percent: 100 });
+      expect(detected).toEqual([]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it.each([
+    ["nano-168", [0x1e, 0x95, 0x0f], "ATmega168"],
+    ["uno", [0x1e, 0x94, 0x06], "ATmega328P"],
+  ] as const)(
+    "refuses a different MCU for %s without converting the selected board",
+    async (board, signature, expected) => {
+      const peer = bootloader({ signature: [...signature] });
+      const transport = new ArduinoUSBSerial();
+      const detected: ArduinoBoard[] = [];
+      transport.onBootloaderDetected = (model) => detected.push(model);
+      await transport.connect(board, peer.port);
+      try {
+        await expect(transport.upload(HEX)).rejects.toThrow(expected);
+        expect(peer.packets.some((packet) => packet[0] === 0x64)).toBe(false);
+        expect(detected).toEqual([]);
+      } finally {
+        await transport.disconnect();
+      }
+    },
+  );
+
+  it("protects the ATmega168 bootloader before any handshake for an oversized image", async () => {
+    const peer = bootloader({ bootRate: 19200, signature: [0x1e, 0x94, 0x06] });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("nano-168", peer.port);
+    try {
+      await expect(
+        transport.upload(imageHex(new Uint8Array(14337))),
+      ).rejects.toThrow("memoria");
+      expect(peer.packets).toEqual([]);
+      expect(peer.rates).toEqual([115200]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
   it("recovers a failed preparation handshake before writing any flash page", async () => {
     const peer = bootloader({ missFirstEnter: true });
     const transport = new ArduinoUSBSerial();

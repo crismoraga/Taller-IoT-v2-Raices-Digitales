@@ -40,13 +40,13 @@ const calloutTones: Record<
     box: "bg-warning-soft text-warning-ink border-warning/60",
     dot: "bg-warning text-primary",
     icon: "alert",
-    word: "Cuidado",
+    word: "Revisemos este paso",
   },
   danger: {
     box: "bg-danger-soft text-danger-ink border-danger/50",
     dot: "bg-danger text-white",
-    icon: "bolt",
-    word: "Peligro eléctrico",
+    icon: "alert",
+    word: "No se completó",
   },
 };
 
@@ -60,7 +60,7 @@ export function Callout({
   role,
 }: {
   tone?: CalloutTone;
-  /** Si no se entrega, usa la palabra del tono («Cuidado», «Dato»…). */
+  /** Si no se entrega, usa el estado del tono («No se completó», «Dato»…). */
   title?: ReactNode;
   icon?: IconName;
   children?: ReactNode;

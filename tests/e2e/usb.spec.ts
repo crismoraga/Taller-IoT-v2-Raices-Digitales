@@ -810,6 +810,12 @@ test("station installation writes the complete bundle and fresh group credential
     page.getByRole("button", { name: "Revocado", exact: true }),
   ).toBeDisabled();
   await page.getByRole("button", { name: /^3\. Instala tu estación/ }).click();
+  await page
+    .getByRole("radio", { name: "Wi-Fi autónomo", exact: true })
+    .click();
+  await page
+    .getByLabel("Modelo de Pico", { exact: true })
+    .selectOption("pico2-w");
   await page.getByLabel("Red Wi-Fi de 2,4 GHz").fill("QA-red-2.4GHz");
   await page.getByLabel("Contraseña Wi-Fi").fill("QA-password-solo-fixture");
   await page.locator("summary", { hasText: "Dirección del servidor" }).click();
@@ -918,6 +924,104 @@ test("station installation writes the complete bundle and fresh group credential
   const renewed = await reinstall();
   expect(renewed.deviceId).not.toBe(configuration.deviceId);
   expect(renewed.token).not.toBe(configuration.token);
+});
+
+test("Pico installation defaults to USB, guards wireless-only models and never copies unused Wi-Fi credentials", async ({
+  page,
+}) => {
+  test.setTimeout(75000);
+  await groupAndConnect(page);
+  await page
+    .getByRole("button", {
+      name: "Grupo USB protocolo QA, ver estación",
+      exact: true,
+    })
+    .click();
+  await page
+    .locator(".sensor-toggle")
+    .filter({ hasText: "Humedad del suelo" })
+    .click();
+  await expect
+    .poll(
+      async () =>
+        (await (await page.request.get("/api/session")).json()).session
+          .sensorEnabled.soil,
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: /^3\. Instala tu estación/ }).click();
+  const install = page.getByRole("button", {
+    name: "Vincular e instalar estación",
+    exact: true,
+  });
+  await expect(
+    page.getByRole("radio", { name: "USB desde mi PC", exact: true }),
+  ).toBeChecked();
+  await expect(page.getByLabel("Red Wi-Fi de 2,4 GHz")).toHaveCount(0);
+  await expect(install).toBeEnabled();
+  await page
+    .getByRole("radio", { name: "Wi-Fi autónomo", exact: true })
+    .click();
+  await expect(install).toBeDisabled();
+  await page
+    .getByLabel("Modelo de Pico", { exact: true })
+    .selectOption("pico2");
+  await page.getByLabel("Red Wi-Fi de 2,4 GHz").fill("QA-unused-network");
+  await page.getByLabel("Contraseña Wi-Fi").fill("QA-unused-password");
+  await expect(install).toBeDisabled();
+  await page
+    .getByRole("radio", { name: "USB desde mi PC", exact: true })
+    .click();
+  await expect(page.getByLabel("Contraseña Wi-Fi")).toHaveCount(0);
+  await expect(install).toBeEnabled();
+  await page
+    .locator("summary", { hasText: "¿Cómo preparo MicroPython?" })
+    .click();
+  const model = page.getByLabel("Modelo de Pico", { exact: true });
+  for (const [id, name, firmware] of [
+    ["pico", "Raspberry Pi Pico", "RPI_PICO"],
+    ["pico-w", "Raspberry Pi Pico W", "RPI_PICO_W"],
+    ["pico2", "Raspberry Pi Pico 2", "RPI_PICO2"],
+    ["pico2-w", "Raspberry Pi Pico 2 W", "RPI_PICO2_W"],
+  ]) {
+    await model.selectOption(id);
+    await expect(
+      page.getByRole("link", {
+        name: `MicroPython oficial para ${name}`,
+        exact: true,
+      }),
+    ).toHaveAttribute("href", `https://micropython.org/download/${firmware}/`);
+  }
+  await model.selectOption("pico2");
+  await install.click();
+  await page
+    .getByRole("button", { name: "Instalar en mi placa", exact: true })
+    .click();
+  await expect(page.getByText(/Estación instalada/)).toBeVisible({
+    timeout: 45000,
+  });
+  const files = await page.evaluate(
+    () =>
+      (window as unknown as { __usbPeer: { files: Record<string, string> } })
+        .__usbPeer.files,
+  );
+  const configuration = JSON.parse(files["config.json"]);
+  expect(configuration.ssid).toBe("");
+  expect(configuration.password).toBe("");
+  expect(configuration.caFile).toBe("");
+  expect(configuration.endpoint).toBe(
+    `${new URL(page.url()).origin}/api/device/ingest`,
+  );
+  expect(configuration.enabled.soil).toBe(true);
+  expect(files["main.py"]).toContain("def main");
+  expect(files["drivers.py"]).toContain("class DriverRegistry");
+  const ingestion = await page.request.post("/api/device/ingest", {
+    headers: { Authorization: `Bearer ${configuration.token}` },
+    data: {
+      readings: [{ sensor: "soil", value: 42, unit: "%", status: "READING" }],
+      source: "hardware",
+    },
+  });
+  expect(ingestion.status()).toBe(200);
 });
 
 test("USB reconnect keeps saved calibration but requires a new sample for its live meter", async ({

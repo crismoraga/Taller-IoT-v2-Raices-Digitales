@@ -47,16 +47,23 @@ it.each([
   ["uno", 800, 100],
   ["nano", 800, 100],
   ["nano-old", 100, 800],
+  ["nano-168", 900, 150],
 ] as const)(
   "%s calibration keeps its board through save, process restart, export and import",
   async (board, dry, wet) => {
     const cookie = await createGroup();
     const soil = { dry, wet, board };
+    const lastRun = {
+      lessonId: "led",
+      board,
+      code: board === "pico" ? "print('LED')" : "void setup(){} void loop(){}",
+      at: "2026-10-12T12:00:00.000Z",
+    };
     const patched = await app.inject({
       method: "PATCH",
       url: "/api/session",
       headers: { origin, cookie },
-      payload: { calibrations: { soil } },
+      payload: { calibrations: { soil }, lastRun },
     });
     expect(patched.statusCode).toBe(200);
     expect(patched.json().session.calibrations.soil).toEqual(soil);
@@ -70,11 +77,13 @@ it.each([
     });
     expect(exported.statusCode).toBe(200);
     expect(exported.json().session.calibrations.soil).toEqual(soil);
+    expect(exported.json().session.lastRun).toEqual(lastRun);
 
     const importedPayload = await readSessionBackup(
       backupFile(exported.json()),
     );
     expect(importedPayload.session.calibrations.soil).toEqual(soil);
+    expect(importedPayload.session.lastRun).toEqual(lastRun);
     const imported = await app.inject({
       method: "POST",
       url: "/api/session/import",
@@ -83,6 +92,7 @@ it.each([
     });
     expect(imported.statusCode).toBe(200);
     expect(imported.json().session.calibrations.soil).toEqual(soil);
+    expect(imported.json().session.lastRun).toEqual(lastRun);
     expect(imported.json().session.id).not.toBe(exported.json().session.id);
   },
 );
