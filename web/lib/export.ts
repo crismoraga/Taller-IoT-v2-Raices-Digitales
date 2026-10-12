@@ -48,7 +48,13 @@ export async function readSessionBackup(
     !Object.values(saved.drafts).every((item) => typeof item === "string") ||
     !record(saved.calibrations) ||
     !Object.values(saved.calibrations).every(
-      (item) => record(item) && finite(item.dry) && finite(item.wet),
+      (item) =>
+        record(item) &&
+        finite(item.dry) &&
+        finite(item.wet) &&
+        (item.board === undefined ||
+          (typeof item.board === "string" &&
+            ["pico", "uno", "nano", "nano-old"].includes(item.board))),
     ) ||
     !record(saved.sensorEnabled) ||
     !Object.values(saved.sensorEnabled).every(
@@ -63,8 +69,17 @@ export async function readSessionBackup(
     drafts: { ...(saved.drafts as Record<string, string>) },
     calibrations: Object.fromEntries(
       Object.entries(saved.calibrations).map(([key, item]) => {
-        const calibration = item as { dry: number; wet: number };
-        return [key, { dry: calibration.dry, wet: calibration.wet }];
+        const calibration = item as Session["calibrations"][string];
+        return [
+          key,
+          {
+            dry: calibration.dry,
+            wet: calibration.wet,
+            ...(calibration.board !== undefined
+              ? { board: calibration.board }
+              : {}),
+          },
+        ];
       }),
     ),
     sensorEnabled: { ...(saved.sensorEnabled as Record<string, boolean>) },

@@ -76,12 +76,26 @@ export const ingestSchema = z
   .strict();
 const safeKey = z.string().regex(/^[a-zA-Z0-9_.-]{1,100}$/);
 const calibration = z
-  .object({ dry: finite.min(0).max(65535), wet: finite.min(0).max(65535) })
+  .object({
+    dry: finite.min(0).max(65535),
+    wet: finite.min(0).max(65535),
+    board: z.enum(["pico", "uno", "nano", "nano-old"]).optional(),
+  })
   .strict()
   .refine((v) => Math.abs(v.dry - v.wet) >= 8, {
     message:
       "La diferencia seco/húmedo debe ser al menos 8 unidades ADC; Pico requiere 500.",
-  });
+  })
+  .refine(
+    (v) =>
+      v.board === undefined ||
+      (Number.isInteger(v.dry) &&
+        Number.isInteger(v.wet) &&
+        (v.board === "pico"
+          ? Math.abs(v.dry - v.wet) >= 500
+          : v.dry <= 1023 && v.wet <= 1023)),
+    { message: "Las referencias deben corresponder al rango ADC de la placa." },
+  );
 export const sessionPatchSchema = z
   .object({
     name: z.string().trim().min(1).max(80).optional(),

@@ -11,6 +11,7 @@ import { Icon } from "./brand/Graphics";
 import { normalizeProgress } from "./content";
 import { api, post, type Reading, type Session } from "./lib/api";
 import { arduinoStationSketch } from "./lib/arduino";
+import { filterCalibrations } from "./lib/calibration";
 import {
   AppContext,
   type AppContextType,
@@ -122,6 +123,14 @@ export default function App() {
   );
   const toastId = useRef(0);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const resetUSBReadings = useCallback(() => {
+    stream.current = "";
+    pendingUSB.current.clear();
+    pendingDiagnostics.current = {};
+    lastForward.current = 0;
+    setLocalReadings([]);
+    setLastDiagnostics({});
+  }, []);
   useEffect(() => {
     if (!drawer) return;
     const element = drawerRef.current,
@@ -449,8 +458,7 @@ export default function App() {
     };
     const lost = (name: string) => () => {
       usbGeneration.current += 1;
-      stream.current = "";
-      pendingUSB.current.clear();
+      resetUSBReadings();
       setConnected(false);
       setRunning(false);
       notify(
@@ -472,13 +480,11 @@ export default function App() {
       ArduinoSerial.onDisconnect = () => {};
       serial.onRunEnd = () => {};
     };
-  }, [notify]);
+  }, [notify, resetUSBReadings]);
 
   useEffect(() => {
-    pendingUSB.current.clear();
-    lastForward.current = 0;
-    setLocalReadings([]);
-  }, [session?.id]);
+    resetUSBReadings();
+  }, [session?.id, resetUSBReadings]);
   useEffect(() => {
     stationCredential.current = null;
   }, [session?.id]);
@@ -519,6 +525,7 @@ export default function App() {
       }
       usbConnecting.current = true;
       setConnecting(true);
+      resetUSBReadings();
       pendingUSBPort.current = null;
       setUSBChoice(null);
       const generation = ++usbGeneration.current;
@@ -536,8 +543,6 @@ export default function App() {
           boardRef.current = current;
           setBoardState(current);
           writeLocal("raices.board", current);
-          setLocalReadings([]);
-          pendingUSB.current.clear();
         }
         stream.current = "";
         if (current === "pico") await serial.connect(port);
@@ -586,7 +591,7 @@ export default function App() {
         setConnecting(false);
       }
     },
-    [notify],
+    [notify, resetUSBReadings],
   );
   const chooseUSBBoard = useCallback(
     async (chosen: Board) => {
@@ -651,8 +656,8 @@ export default function App() {
     pendingUSBPort.current = null;
     setUSBChoice(null);
     usbGeneration.current += 1;
+    resetUSBReadings();
     try {
-      pendingUSB.current.clear();
       if (boardRef.current === "pico") await serial.disconnect();
       else await ArduinoSerial.disconnect();
     } catch (problem) {
@@ -664,7 +669,7 @@ export default function App() {
       setConnected(false);
       setRunning(false);
     }
-  }, [notify]);
+  }, [notify, resetUSBReadings]);
   const setBoard = useCallback(
     (value: Board) => {
       if (connected || usbConnecting.current || usbBusy.current) {
@@ -677,9 +682,9 @@ export default function App() {
       usbGeneration.current += 1;
       setBoardState(value);
       writeLocal("raices.board", value);
-      setLocalReadings([]);
+      resetUSBReadings();
     },
-    [connected, notify],
+    [connected, notify, resetUSBReadings],
   );
   const compileAndUpload = useCallback(async (code: string, target: Board) => {
     const generation = usbGeneration.current;
@@ -774,12 +779,13 @@ export default function App() {
         const current = boardRef.current;
         const active = sessionRef.current;
         if (!connected) throw new Error("Conecta tu placa por USB.");
+        const calibrations = filterCalibrations(
+          active?.calibrations ?? {},
+          current,
+        );
         if (current !== "pico") {
           await compileAndUpload(
-            arduinoStationSketch(
-              active?.calibrations ?? {},
-              active?.sensorEnabled ?? {},
-            ),
+            arduinoStationSketch(calibrations, active?.sensorEnabled ?? {}),
             current,
           );
           notify(
@@ -811,7 +817,7 @@ export default function App() {
           caFile,
           deviceId: device.deviceId,
           token: device.token,
-          calibrations: active?.calibrations ?? {},
+          calibrations,
           enabled: active?.sensorEnabled ?? {},
           rtc: [
             now.getUTCFullYear(),

@@ -21,6 +21,13 @@ import * as THREE from "three";
 import { BOARD_NAMES, type Board } from "../lib/context";
 import { MovingSignal, Tube, type V3 } from "./Primitives";
 import {
+  LivingBoard,
+  LivingLeaf,
+  LivingLedLens,
+  LivingPot,
+  LivingSoilProbe,
+} from "./LivingModels";
+import {
   SafeCanvas,
   SceneHtml as Html,
   SceneCamera,
@@ -28,6 +35,7 @@ import {
   useSceneActive,
   type CameraAction,
 } from "./SceneSupport";
+import { normalizedLivingReadings, type LivingReadings } from "./living-state";
 import "./experience.css";
 
 type ElementId = "plant" | "sensor" | "pico" | "led" | "network";
@@ -77,10 +85,10 @@ const ELEMENTS: {
 
 const FOCUS: Record<ElementId, { target: V3; position: V3 }> = {
   plant: { target: [0, 2, 0], position: [4, 4.5, 5.5] },
-  sensor: { target: [0.68, 1.7, 0.29], position: [3.9, 3.2, 4.1] },
-  pico: { target: [-2, 0.4, 0.7], position: [1.2, 3.5, 4.2] },
-  led: { target: [-1.05, 0.55, 1.15], position: [2.5, 3.8, 4.4] },
-  network: { target: [2.1, 2.2, -0.5], position: [5.7, 4.2, 3.7] },
+  sensor: { target: [0.68, 1.7, 0.29], position: [2.5, 3.2, 3] },
+  pico: { target: [-2, 0.4, 0.7], position: [-0.8, 2.7, 3.5] },
+  led: { target: [-1.05, 0.55, 1.15], position: [0.65, 2.25, 3.15] },
+  network: { target: [2.1, 2.2, -0.5], position: [4.2, 3.35, 1.3] },
 };
 
 function sceneCursor(
@@ -90,71 +98,6 @@ function sceneCursor(
   const target = event.nativeEvent.target;
   if (target instanceof HTMLElement)
     target.style.cursor = hover ? "pointer" : "grab";
-}
-
-function LeafBlade({
-  position,
-  rotation,
-  length,
-  width,
-  color,
-}: {
-  position: V3;
-  rotation: V3;
-  length: number;
-  width: number;
-  color: string;
-}) {
-  const geometry = useMemo(() => {
-    const vertices: number[] = [],
-      indexes: number[] = [];
-    const sections = 14;
-    for (let i = 0; i <= sections; i++) {
-      const t = i / sections;
-      const spread = Math.pow(Math.sin(t * Math.PI), 0.7) * width;
-      for (const edge of [-1, 0, 1])
-        vertices.push(
-          edge * spread,
-          t * length,
-          Math.sin(t * Math.PI) * length * 0.18 -
-            Math.abs(edge) * spread * 0.15,
-        );
-    }
-    for (let i = 0; i < sections; i++)
-      for (let side = 0; side < 2; side++) {
-        const a = i * 3 + side,
-          b = a + 1,
-          c = a + 3,
-          d = a + 4;
-        indexes.push(a, b, d, a, d, c);
-      }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-    geo.setIndex(indexes);
-    geo.computeVertexNormals();
-    return geo;
-  }, [length, width]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  const vein = useMemo<V3[]>(
-    () =>
-      Array.from({ length: 9 }, (_, index) => {
-        const t = index / 8;
-        return [0, t * length, Math.sin(t * Math.PI) * length * 0.18 + 0.008];
-      }),
-    [length],
-  );
-  return (
-    <group position={position} rotation={rotation}>
-      <mesh geometry={geometry}>
-        <meshStandardMaterial
-          color={color}
-          side={THREE.DoubleSide}
-          roughness={0.64}
-        />
-      </mesh>
-      <Tube points={vein} radius={0.013} color="#b2d77b" />
-    </group>
-  );
 }
 
 function Plant({
@@ -167,14 +110,17 @@ function Plant({
 }: {
   animate: boolean;
   roots: boolean;
-  soil: number;
-  light: number;
+  soil?: number;
+  light?: number;
   selected: boolean;
   onSelect: (id: ElementId) => void;
 }) {
   const canopy = useRef<THREE.Group>(null);
   const elapsed = useRef(0);
-  const vitality = Math.min(1, (soil / 100 + light / 100) / 1.2);
+  const vitality =
+    soil === undefined || light === undefined
+      ? 1
+      : Math.min(1, (soil / 100 + light / 100) / 1.2);
   useEffect(() => {
     if (canopy.current) {
       canopy.current.rotation.z = (1 - vitality) * 0.16;
@@ -237,34 +183,7 @@ function Plant({
         onSelect("plant");
       }}
     >
-      <mesh position={[0, 0.8, 0]}>
-        <cylinderGeometry args={[1.1, 0.78, 1.55, 56, 1, true]} />
-        <meshStandardMaterial
-          color="#c68058"
-          transparent={roots}
-          opacity={roots ? 0.19 : 1}
-          depthWrite={!roots}
-          roughness={0.65}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.82, 0.78, 0.13, 48]} />
-        <meshStandardMaterial color="#a76448" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 1.56, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[1.06, 0.085, 12, 56]} />
-        <meshStandardMaterial color="#e7a47a" roughness={0.62} />
-      </mesh>
-      <mesh position={[0, 1.51, 0]}>
-        <cylinderGeometry args={[1.01, 1.01, 0.11, 48]} />
-        <meshStandardMaterial
-          color={soil > 50 ? "#292720" : "#675442"}
-          transparent={roots}
-          opacity={roots ? 0.48 : 1}
-          roughness={1}
-        />
-      </mesh>
+      <LivingPot roots={roots} soil={soil} />
       {rootPaths.map((points, index) => (
         <group key={index}>
           <Tube
@@ -296,49 +215,49 @@ function Plant({
             color="#4e7e44"
           />
         ))}
-        <LeafBlade
+        <LivingLeaf
           position={[0.02, 2.25, 0]}
           rotation={[0.35, 0.3, -0.96]}
           length={1.38}
           width={0.37}
           color="#65ad68"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[-0.02, 2.65, 0.01]}
           rotation={[-0.2, 2.4, 0.92]}
           length={1.5}
           width={0.44}
           color="#96ce79"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[0, 3.22, 0.02]}
           rotation={[0.45, -0.5, -0.89]}
           length={1.36}
           width={0.34}
           color="#76ba69"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[0, 3.57, 0]}
           rotation={[0.3, 2.6, 0.65]}
           length={1.2}
           width={0.31}
           color="#aedb83"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[-0.04, 4.02, 0.02]}
           rotation={[0.12, -0.3, -0.28]}
           length={0.76}
           width={0.24}
           color="#c4e997"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[-0.38, 2.9, -0.12]}
           rotation={[0.4, 1.6, 0.9]}
           length={1.13}
           width={0.3}
           color="#5ba865"
         />
-        <LeafBlade
+        <LivingLeaf
           position={[0.47, 2.76, 0.1]}
           rotation={[0.3, -0.7, -0.88]}
           length={1.15}
@@ -364,8 +283,6 @@ function HeroPico({
   board: Board;
   selected: boolean;
 }) {
-  const arduino = board !== "pico";
-  const uno = board === "uno";
   return (
     <group
       position={[-2.03, 0.18, 0.7]}
@@ -377,62 +294,7 @@ function HeroPico({
         onSelect("pico");
       }}
     >
-      <mesh>
-        <boxGeometry args={[1.55, 0.17, 1.08]} />
-        <meshStandardMaterial color="#f6f0d8" roughness={0.58} />
-      </mesh>
-      {Array.from({ length: 11 }, (_, x) =>
-        Array.from({ length: 5 }, (_, z) => (
-          <mesh
-            key={`${x}-${z}`}
-            position={[-0.68 + x * 0.13, 0.093, -0.4 + z * 0.19]}
-          >
-            <boxGeometry args={[0.039, 0.016, 0.04]} />
-            <meshStandardMaterial color="#7d8475" />
-          </mesh>
-        )),
-      )}
-      <mesh position={[-0.22, 0.18, -0.08]}>
-        <boxGeometry args={[uno ? 1.18 : 0.92, 0.08, uno ? 0.76 : 0.48]} />
-        <meshStandardMaterial
-          color={arduino ? "#208a98" : "#227b57"}
-          metalness={0.13}
-          roughness={0.48}
-        />
-      </mesh>
-      <mesh position={[-0.24, 0.24, -0.08]}>
-        <boxGeometry args={[uno ? 0.54 : 0.25, 0.07, uno ? 0.15 : 0.24]} />
-        <meshStandardMaterial color="#1c2524" />
-      </mesh>
-      <mesh position={[-0.64, 0.24, -0.08]}>
-        <boxGeometry
-          args={[uno ? 0.27 : 0.19, uno ? 0.23 : 0.12, uno ? 0.28 : 0.23]}
-        />
-        <meshStandardMaterial
-          color="#b9c6bd"
-          metalness={0.7}
-          roughness={0.22}
-        />
-      </mesh>
-      {[-1, 1].flatMap((side) =>
-        Array.from({ length: 10 }, (_, index) => (
-          <mesh
-            key={`${side}-${index}`}
-            position={[
-              -0.59 + index * 0.075,
-              0.23,
-              -0.08 + side * (uno ? 0.34 : 0.2),
-            ]}
-          >
-            <boxGeometry args={[0.036, 0.09, 0.045]} />
-            <meshStandardMaterial
-              color={uno ? "#293b39" : "#d9ba64"}
-              metalness={0.65}
-              roughness={0.25}
-            />
-          </mesh>
-        )),
-      )}
+      <LivingBoard board={board} />
       {selected && (
         <Html center position={[0, 0.08, 0.78]}>
           <span className="rdx-world-tag">
@@ -462,8 +324,8 @@ function Network({
   const paths = useMemo<V3[][]>(
     () => [
       [
-        [0.65, 1.78, 0.3],
-        [0.2, 1.72, 1],
+        [0.73, 2.13, 0.33],
+        [0.2, 2.03, 1],
         [-1.2, 0.62, 1.1],
         [-1.95, 0.43, 0.75],
       ],
@@ -577,10 +439,12 @@ function StationLed({
   on,
   onSelect,
   selected,
+  canToggle,
 }: {
-  on: boolean;
+  on?: boolean;
   onSelect: (id: ElementId) => void;
   selected: boolean;
+  canToggle: boolean;
 }) {
   return (
     <group
@@ -592,33 +456,18 @@ function StationLed({
         onSelect("led");
       }}
     >
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * 0.058, -0.04, 0]}>
-          <cylinderGeometry args={[0.014, 0.014, 0.3, 6]} />
-          <meshStandardMaterial color="#c9d2bb" metalness={0.7} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.16, 0]}>
-        <capsuleGeometry args={[0.11, 0.16, 4, 12]} />
-        <meshStandardMaterial
-          color={on ? "#e7fb73" : "#859547"}
-          emissive="#d6f96c"
-          emissiveIntensity={on ? 2 : 0}
-          roughness={0.3}
-        />
-      </mesh>
-      {on && (
-        <pointLight
-          position={[0, 0.3, 0]}
-          color="#d6f96c"
-          intensity={1.4}
-          distance={2.5}
-        />
-      )}
+      <LivingLedLens on={on} />
       {selected && (
         <Html center position={[0, 0.62, 0]}>
           <span className={`rdx-world-tag ${on ? "rdx-world-tag--on" : ""}`}>
-            LED · {on ? "encendido" : "tócame"}
+            LED ·{" "}
+            {on === undefined
+              ? "sin dato"
+              : on
+                ? "encendido"
+                : canToggle
+                  ? "tócame"
+                  : "apagado"}
           </span>
         </Html>
       )}
@@ -674,29 +523,43 @@ function LivingWorld({
   led,
   pulse,
   board,
+  canToggleLed,
 }: {
   animate: boolean;
   roots: boolean;
   onSelect: (id: ElementId) => void;
   action: CameraAction;
   selected: ElementId;
-  soil: number;
-  light: number;
-  led: boolean;
+  soil?: number;
+  light?: number;
+  led?: boolean;
   pulse: number;
   board: Board;
+  canToggleLed: boolean;
 }) {
   return (
     <>
-      <ambientLight intensity={1.4} />
-      <hemisphereLight args={["#e4f5da", "#173b33", 1.7]} />
+      <ambientLight intensity={0.7} />
+      <hemisphereLight args={["#e4f5da", "#173b33", 1]} />
       <directionalLight
         position={[-4, 8, 5]}
-        intensity={1.1 + light / 32}
-        color="#fff0cc"
+        intensity={1.5 + (light ?? 50) / 65}
+        color="#fff1d8"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-left={-4}
+        shadow-camera-right={4}
+        shadow-camera-top={5}
+        shadow-camera-bottom={-4}
+        shadow-camera-near={0.5}
+        shadow-camera-far={18}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.025}
+        shadow-intensity={0.45}
       />
-      <directionalLight position={[4, 4, -4]} intensity={2.8} color="#73d9d0" />
-      <mesh position={[0, -0.08, 0]}>
+      <directionalLight position={[4, 4, -4]} intensity={1.4} color="#c3e8dc" />
+      <mesh position={[0, -0.08, 0]} receiveShadow>
         <cylinderGeometry args={[3.45, 3.7, 0.17, 80]} />
         <meshStandardMaterial
           color="#1e493d"
@@ -722,7 +585,7 @@ function LivingWorld({
         selected={selected === "plant"}
         onSelect={onSelect}
       />
-      <SolarSeeds animate={animate} light={light} />
+      <SolarSeeds animate={animate} light={light ?? 50} />
       <group
         position={[0.68, 1.59, 0.29]}
         rotation={[0, -0.5, -0.1]}
@@ -733,14 +596,7 @@ function LivingWorld({
           onSelect("sensor");
         }}
       >
-        <mesh>
-          <boxGeometry args={[0.16, 1.05, 0.04]} />
-          <meshStandardMaterial color="#2f7850" roughness={0.4} />
-        </mesh>
-        <mesh position={[0, 0.39, 0.025]}>
-          <boxGeometry args={[0.21, 0.31, 0.04]} />
-          <meshStandardMaterial color="#254336" roughness={0.5} />
-        </mesh>
+        <LivingSoilProbe />
         {selected === "sensor" && (
           <Html center position={[0.36, 0.4, 0.2]}>
             <span className="rdx-world-tag">Sensor</span>
@@ -752,7 +608,12 @@ function LivingWorld({
         board={board}
         selected={selected === "pico"}
       />
-      <StationLed on={led} onSelect={onSelect} selected={selected === "led"} />
+      <StationLed
+        on={led}
+        onSelect={onSelect}
+        selected={selected === "led"}
+        canToggle={canToggleLed}
+      />
       <Network
         animate={animate}
         onSelect={onSelect}
@@ -794,12 +655,7 @@ export interface LivingStationProps {
   mode?: "hero" | "explore";
   board?: Board;
   /** Soil and light are percentages; omitted values remain unreported. */
-  readings?: {
-    soil?: number;
-    light?: number;
-    led?: boolean;
-    source: "hardware" | "simulation";
-  };
+  readings?: LivingReadings;
 }
 
 export function LivingStation({
@@ -830,13 +686,10 @@ export function LivingStation({
     selected === "pico"
       ? `${BOARD_NAMES[board]} · aquí vive tu código`
       : selection.title;
-  const clamp = (value: number | undefined, fallback: number) =>
-    value !== undefined && Number.isFinite(value)
-      ? Math.max(0, Math.min(100, value))
-      : fallback;
-  const soilValue = readings ? clamp(readings.soil, 50) : soil;
-  const lightValue = readings ? clamp(readings.light, 50) : light;
-  const ledValue = readings ? readings.led === true : led;
+  const reported = readings ? normalizedLivingReadings(readings) : undefined;
+  const soilValue = readings ? reported?.soil : soil;
+  const lightValue = readings ? reported?.light : light;
+  const ledValue = readings ? reported?.led : led;
   const sourceLabel = readings
     ? readings.source === "hardware"
       ? "Lecturas de tu estación"
@@ -884,6 +737,7 @@ export function LivingStation({
       <div className="rdx-living-canvas">
         <SafeCanvas
           dpr={[1, 1.6]}
+          shadows
           frameloop={animate ? "always" : "demand"}
           camera={{ position: [6, 4.7, 7.2], fov: 41 }}
           gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
@@ -898,7 +752,9 @@ export function LivingStation({
                 <Sprout
                   className="rdx-flat-plant"
                   size={100}
-                  style={{ transform: `rotate(${(50 - soilValue) / 10}deg)` }}
+                  style={{
+                    transform: `rotate(${soilValue === undefined ? 0 : (50 - soilValue) / 10}deg)`,
+                  }}
                 />
                 <span
                   className={`rdx-flat-led ${ledValue ? "rdx-flat-led--on" : ""}`}
@@ -926,6 +782,7 @@ export function LivingStation({
               led={ledValue}
               pulse={pulse}
               board={board}
+              canToggleLed={!readings}
             />
           </Suspense>
         </SafeCanvas>
@@ -1018,12 +875,12 @@ export function LivingStation({
           <p>
             {readings
               ? selected === "sensor" || selected === "plant"
-                ? readings.soil !== undefined
-                  ? `Humedad de tu estación: ${Math.round(readings.soil)}%.`
+                ? reported?.soil !== undefined
+                  ? `Humedad de tu estación: ${Math.round(reported.soil)}%.`
                   : "El próximo dato de humedad aparecerá aquí."
                 : selected === "led"
-                  ? readings.led !== undefined
-                    ? `LED de tu estación: ${readings.led ? "encendido" : "apagado"}.`
+                  ? reported?.led !== undefined
+                    ? `LED de tu estación: ${reported.led ? "encendido" : "apagado"}.`
                     : "Explora la luz que controlarás desde tu código."
                   : selection.text
               : selection.text}

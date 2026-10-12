@@ -25,6 +25,7 @@ import {
   COLUMNS,
   LETTERS,
   RAIL_COLUMNS,
+  RAIL_SPLIT_AFTER,
   describePoint,
   isPoint,
   pointXY,
@@ -63,6 +64,15 @@ import {
   type V3,
 } from "./Primitives";
 import {
+  HardwareBody,
+  HardwareStudio,
+  UsbJack,
+  socketRimGeometry,
+  inspectedTerminals,
+  highlightedTerminals,
+  hardwareWireCurve,
+} from "./HardwareModels";
+import {
   SafeCanvas,
   SceneHtml as Html,
   SceneCamera,
@@ -83,7 +93,13 @@ const atHole = (hole: string, height = 0.13) => position(pointXY(hole), height);
 const atEndpoint = (circuit: Circuit, endpoint: string, height = 0.15) =>
   position(
     endpointXY(circuit, endpoint),
-    endpoint.startsWith("controller.") ? 0.49 : height,
+    endpoint.startsWith("controller.")
+      ? circuit.board === "uno"
+        ? 0.49
+        : 0.425
+      : isPoint(endpoint)
+        ? height
+        : 0.36,
   );
 interface Selection {
   title: string;
@@ -102,6 +118,9 @@ function Breadboard({
   activateEndpoint: (end: string) => boolean;
 }) {
   const holes = useRef<THREE.InstancedMesh>(null);
+  const rims = useRef<THREE.InstancedMesh>(null);
+  const rimGeometry = useMemo(socketRimGeometry, []);
+  useEffect(() => () => rimGeometry.dispose(), [rimGeometry]);
   const points = useMemo(
     () => [
       ...Array.from({ length: COLUMNS }, (_, index) =>
@@ -117,22 +136,46 @@ function Breadboard({
     if (!holes.current) return;
     const object = new THREE.Object3D();
     points.forEach((point, index) => {
-      object.position.set(...atHole(point, 0.115));
+      object.position.set(...atHole(point, 0.104));
       object.updateMatrix();
       holes.current!.setMatrixAt(index, object.matrix);
+      object.position.set(...atHole(point, 0.116));
+      object.updateMatrix();
+      rims.current?.setMatrixAt(index, object.matrix);
     });
     holes.current.instanceMatrix.needsUpdate = true;
+    if (rims.current) rims.current.instanceMatrix.needsUpdate = true;
   }, [points]);
   return (
     <group>
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[BOARD.width * U, 0.2, 19.5 * U]} />
-        <meshStandardMaterial color="#f4ecda" roughness={0.72} />
-      </mesh>
-      <mesh position={[0, 0.105, 0]}>
-        <boxGeometry args={[64 * U, 0.009, 2 * U]} />
-        <meshStandardMaterial color="#d4cbbb" roughness={0.85} />
-      </mesh>
+      <HardwareBody
+        position={[0, 0, 0]}
+        size={[BOARD.width * U, 0.2, 19.5 * U]}
+        color="#f0eadb"
+        radius={0.09}
+        bevel={0.014}
+        roughness={0.74}
+      />
+      <HardwareBody
+        position={[0, 0.103, 0]}
+        size={[64 * U, 0.009, 2 * U]}
+        color="#cfc8b7"
+        radius={0.014}
+        bevel={0.001}
+        roughness={0.86}
+      />
+      {/* Socket walls use one geometry and one draw call, not 830 separate meshes. */}
+      <instancedMesh
+        ref={rims}
+        args={[rimGeometry, undefined, points.length]}
+        raycast={() => null}
+      >
+        <meshStandardMaterial
+          color="#d4d2bf"
+          roughness={0.77}
+          side={THREE.DoubleSide}
+        />
+      </instancedMesh>
       <instancedMesh
         ref={holes}
         args={[undefined, undefined, points.length]}
@@ -160,17 +203,39 @@ function Breadboard({
         }}
       >
         <boxGeometry args={[0.049, 0.012, 0.049]} />
-        <meshStandardMaterial color="#546057" roughness={0.6} />
+        <meshStandardMaterial color="#3f493e" roughness={0.84} />
       </instancedMesh>
       {[
         { y: -0.47, color: "#d64545" },
         { y: 1.47, color: "#3e8fd0" },
         { y: 15.45, color: "#d64545" },
         { y: 17.48, color: "#3e8fd0" },
-      ].map((rail) => (
-        <mesh key={rail.y} position={position({ x: 33, y: rail.y }, 0.118)}>
-          <boxGeometry args={[62 * U, 0.004, 0.019]} />
-          <meshBasicMaterial color={rail.color} />
+      ].flatMap((rail) =>
+        [
+          { from: BOARD.x0, to: BOARD.x0 + RAIL_SPLIT_AFTER - 1 },
+          { from: BOARD.x0 + RAIL_SPLIT_AFTER + 1, to: BOARD.x0 + COLUMNS - 1 },
+        ].map((segment, index) => (
+          <mesh
+            key={`${rail.y}-${index}`}
+            position={position(
+              { x: (segment.from + segment.to) / 2, y: rail.y },
+              0.118,
+            )}
+          >
+            <boxGeometry
+              args={[(segment.to - segment.from) * U, 0.004, 0.019]}
+            />
+            <meshBasicMaterial color={rail.color} />
+          </mesh>
+        )),
+      )}
+      {[-0.42, 16.42].map((y) => (
+        <mesh
+          key={y}
+          position={position({ x: BOARD.x0 + RAIL_SPLIT_AFTER, y }, 0.112)}
+        >
+          <boxGeometry args={[0.016, 0.004, 2.3 * U]} />
+          <meshStandardMaterial color="#cdc6b6" roughness={0.85} />
         </mesh>
       ))}
       {Array.from({ length: COLUMNS }, (_, index) => index + 1)
@@ -216,42 +281,62 @@ function Breadboard({
 
 function Pico({ select }: { select: (selection: Selection) => void }) {
   return (
-    <group>
-      <mesh
+    <group
+      onClick={(event) => {
+        event.stopPropagation();
+        select({
+          title: "Raspberry Pi Pico W",
+          text: "El USB mira hacia el número 1, a la izquierda. Las dos filas de pines van en c y h, cruzando el canal central.",
+          detail:
+            "Un pin GP lleva una señal de 0 o 3,3 V. El número GP y el número físico de la pata son cosas distintas.",
+        });
+      }}
+    >
+      <HardwareBody
         position={position({ x: 11.5, y: 8.5 }, 0.22)}
-        onClick={(event) => {
-          event.stopPropagation();
-          select({
-            title: "Raspberry Pi Pico W",
-            text: "El USB mira hacia el número 1, a la izquierda. Las dos filas de pines van en c y h, cruzando el canal central.",
-            detail:
-              "Un pin GP lleva una señal de 0 o 3,3 V. El número GP y el número físico de la pata son cosas distintas.",
-          });
-        }}
+        size={[20.3 * U, 0.12, 6.5 * U]}
+        color="#247858"
+        radius={0.045}
+        roughness={0.53}
+      />
+      <HardwareBody
+        position={position({ x: 11, y: 8.5 }, 0.305)}
+        size={[0.45, 0.08, 0.4]}
+        color="#202b27"
+        radius={0.022}
+        bevel={0.004}
+        roughness={0.69}
+      />
+      <BoardText
+        position={position({ x: 11, y: 8.5 }, 0.35)}
+        size={0.052}
+        color="#9bab9e"
       >
-        <boxGeometry args={[20.3 * U, 0.12, 6.5 * U]} />
-        <meshStandardMaterial color="#247858" roughness={0.55} />
-      </mesh>
-      <mesh position={position({ x: 11, y: 8.5 }, 0.305)}>
-        <boxGeometry args={[0.45, 0.08, 0.4]} />
-        <meshStandardMaterial color="#222c2a" roughness={0.62} />
-      </mesh>
-      <mesh position={position({ x: 16.4, y: 8.5 }, 0.31)}>
-        <boxGeometry args={[0.49, 0.085, 0.47]} />
-        <meshStandardMaterial
-          color="#a5b6ab"
-          metalness={0.6}
-          roughness={0.35}
-        />
-      </mesh>
-      <mesh position={position({ x: 1.9, y: 8.5 }, 0.33)}>
-        <boxGeometry args={[0.28, 0.16, 0.3]} />
-        <meshStandardMaterial
-          color="#b8c8c2"
-          metalness={0.8}
-          roughness={0.25}
-        />
-      </mesh>
+        RP2040
+      </BoardText>
+      <HardwareBody
+        position={position({ x: 16.4, y: 8.5 }, 0.31)}
+        size={[0.49, 0.085, 0.47]}
+        color="#a7b5ab"
+        radius={0.025}
+        bevel={0.009}
+        metalness={0.78}
+        roughness={0.32}
+      />
+      <UsbJack kind="micro" position={position({ x: 1.9, y: 8.5 }, 0.33)} />
+      {Array.from({ length: 6 }, (_, index) => (
+        <mesh
+          key={`smd-${index}`}
+          position={position({ x: 8.5 + index * 0.8, y: 6.6 }, 0.3)}
+        >
+          <boxGeometry args={[0.038, 0.034, 0.055]} />
+          <meshStandardMaterial
+            color={index % 2 ? "#9b9475" : "#667061"}
+            roughness={0.7}
+            metalness={0.12}
+          />
+        </mesh>
+      ))}
       <BoardText
         position={position({ x: 6.6, y: 8.5 }, 0.296)}
         size={0.13}
@@ -269,6 +354,18 @@ function Pico({ select }: { select: (selection: Selection) => void }) {
       </BoardText>
       {PICO_PINS.map((pin) => (
         <group key={pin.physical}>
+          <mesh
+            position={atHole(pin.hole, 0.284)}
+            rotation={[-Math.PI / 2, 0, 0]}
+            raycast={() => null}
+          >
+            <ringGeometry args={[0.036, 0.052, 12]} />
+            <meshStandardMaterial
+              color="#b79e52"
+              metalness={0.68}
+              roughness={0.39}
+            />
+          </mesh>
           <mesh
             position={atHole(pin.hole, 0.235)}
             onClick={(event) => {
@@ -306,41 +403,124 @@ function ArduinoController({
   const box = controllerBox(board);
   const center = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
   return (
-    <group aria-label={board === "uno" ? "Arduino Uno" : "Arduino Nano"}>
-      <mesh
+    <group
+      aria-label={board === "uno" ? "Arduino Uno" : "Arduino Nano"}
+      onClick={(event) => {
+        event.stopPropagation();
+        select({
+          title: board === "uno" ? "Arduino Uno" : "Arduino Nano",
+          text: "La placa queda junto a la protoboard, con el USB hacia la izquierda. Busca el nombre impreso junto al conector.",
+          detail:
+            "Los pines D envían o reciben señales digitales; los A miden un voltaje.",
+        });
+      }}
+    >
+      <HardwareBody
         position={position(center, 0.22)}
-        onClick={(event) => {
-          event.stopPropagation();
-          select({
-            title: board === "uno" ? "Arduino Uno" : "Arduino Nano",
-            text: "La placa queda junto a la protoboard, con el USB hacia la izquierda. Busca el nombre impreso junto al conector.",
-            detail:
-              "Los pines D envían o reciben señales digitales; los A miden un voltaje.",
-          });
-        }}
+        size={[box.w * U, 0.13, box.h * U]}
+        color="#087a64"
+        radius={board === "uno" ? 0.1 : 0.036}
+        roughness={0.49}
+      />
+      <UsbJack
+        kind={board === "uno" ? "b" : "mini"}
+        position={position({ x: box.x + 0.9, y: center.y }, 0.38)}
+      />
+      <HardwareBody
+        position={position({ x: center.x + 1.5, y: center.y }, 0.34)}
+        size={[board === "uno" ? 0.9 : 0.45, 0.13, 0.4]}
+        color="#1a2926"
+        radius={0.022}
+        bevel={0.005}
+        roughness={0.68}
+      />
+      <BoardText
+        position={position({ x: center.x + 1.5, y: center.y }, 0.41)}
+        size={board === "uno" ? 0.066 : 0.048}
+        color="#a5b6a7"
       >
-        <boxGeometry args={[box.w * U, 0.13, box.h * U]} />
-        <meshStandardMaterial
-          color="#087a64"
-          roughness={0.42}
-          metalness={0.12}
-        />
-      </mesh>
-      <mesh position={position({ x: box.x + 0.9, y: center.y }, 0.38)}>
-        <boxGeometry args={[0.43, 0.27, 0.48]} />
-        <meshStandardMaterial
-          color="#b8c8c2"
-          metalness={0.8}
-          roughness={0.22}
-        />
-      </mesh>
-      <mesh position={position({ x: center.x + 1.5, y: center.y }, 0.34)}>
-        <boxGeometry args={[board === "uno" ? 0.9 : 0.45, 0.13, 0.4]} />
-        <meshStandardMaterial color="#1a2926" />
-      </mesh>
+        ATmega328P
+      </BoardText>
+      {[-1, 1].flatMap((side) =>
+        Array.from({ length: board === "uno" ? 14 : 8 }, (_, index) => (
+          <mesh
+            key={`chip-${side}-${index}`}
+            position={position(
+              {
+                x:
+                  center.x +
+                  1.5 +
+                  (index - (board === "uno" ? 6.5 : 3.5)) *
+                    (board === "uno" ? 0.49 : 0.34),
+                y: center.y + side * 1.66,
+              },
+              0.3,
+            )}
+          >
+            <boxGeometry
+              args={[board === "uno" ? 0.035 : 0.025, 0.025, 0.095]}
+            />
+            <meshStandardMaterial
+              color="#a7b3a7"
+              metalness={0.72}
+              roughness={0.33}
+            />
+          </mesh>
+        )),
+      )}
+      {board === "uno" && (
+        <>
+          <HardwareBody
+            position={position({ x: box.x + 4, y: center.y - 5 }, 0.4)}
+            size={[0.42, 0.23, 0.35]}
+            color="#23322b"
+            radius={0.045}
+            roughness={0.62}
+          />
+          <mesh
+            position={position({ x: box.x + 2.43, y: center.y - 5 }, 0.405)}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry args={[0.074, 0.074, 0.008, 16]} />
+            <meshStandardMaterial color="#06110b" roughness={0.88} />
+          </mesh>
+          <BoardText
+            position={position({ x: box.x + 4, y: center.y - 3 }, 0.296)}
+            size={0.064}
+            color="#d4ecd6"
+          >
+            POWER
+          </BoardText>
+        </>
+      )}
+      {board !== "uno" &&
+        [-1, 1].flatMap((side) =>
+          Array.from({ length: 8 }, (_, index) => (
+            <mesh
+              key={`chip-side-${side}-${index}`}
+              position={position(
+                {
+                  x: center.x + 1.5 + side * 1.82,
+                  y: center.y + (index - 3.5) * 0.32,
+                },
+                0.3,
+              )}
+            >
+              <boxGeometry args={[0.075, 0.025, 0.025]} />
+              <meshStandardMaterial
+                color="#a7b3a7"
+                metalness={0.72}
+                roughness={0.33}
+              />
+            </mesh>
+          )),
+        )}
       <BoardText
         position={position(
-          { x: center.x, y: center.y + (board === "uno" ? 3.2 : 1.5) },
+          {
+            x: center.x - (board === "uno" ? 0 : 3.6),
+            y: center.y + (board === "uno" ? 3.2 : 0.5),
+          },
           0.301,
         )}
         size={board === "uno" ? 0.18 : 0.13}
@@ -391,6 +571,20 @@ function ArduinoController({
                 <meshBasicMaterial color="#030d09" />
               </mesh>
             </>
+          )}
+          {board !== "uno" && (
+            <mesh
+              position={position(pin, 0.293)}
+              rotation={[-Math.PI / 2, 0, 0]}
+              raycast={() => null}
+            >
+              <ringGeometry args={[0.026, 0.044, 12]} />
+              <meshStandardMaterial
+                color="#b69d50"
+                metalness={0.72}
+                roughness={0.35}
+              />
+            </mesh>
           )}
           <BoardText
             position={position(
@@ -448,15 +642,15 @@ function ConnectedTube({
     if (progress.current < 1) invalidate();
   });
   return (
-    <mesh geometry={geometry}>
+    <mesh geometry={geometry} castShadow>
       <meshStandardMaterial
         color={color}
         roughness={0.32}
-        metalness={0.18}
+        metalness={0.02}
         transparent={preview || !active}
         opacity={preview ? 0.2 : active ? 1 : 0.38}
         emissive={active ? color : "#000000"}
-        emissiveIntensity={preview ? 0 : 0.12}
+        emissiveIntensity={preview ? 0 : 0.045}
       />
     </mesh>
   );
@@ -544,6 +738,12 @@ function SensorBody({
     : { x: box.x + box.w / 2, y: box.y + box.h / 2 };
   const pos = position(center, 0.31);
   const color = dim ? "#a7b5a0" : "#2f8463";
+  const ledColor =
+    part.props?.color === "azul"
+      ? "#4291d2"
+      : part.props?.color === "amarillo"
+        ? "#e7c239"
+        : "#e25842";
   if (part.type === "resistor") return <Resistor part={part} dim={dim} />;
   return (
     <>
@@ -561,41 +761,35 @@ function SensorBody({
           <>
             <mesh position={[0, 0.05, 0]}>
               <cylinderGeometry args={[0.125, 0.125, 0.19, 24]} />
-              <meshStandardMaterial
-                color={
-                  part.props?.color === "azul"
-                    ? "#4291d2"
-                    : part.props?.color === "amarillo"
-                      ? "#e7c239"
-                      : "#e25842"
-                }
-                emissive={flow ? "#e84724" : "#000"}
-                emissiveIntensity={flow ? 0.7 : 0}
-                roughness={0.24}
+              <meshPhysicalMaterial
+                color={ledColor}
+                emissive={flow ? ledColor : "#000"}
+                emissiveIntensity={flow ? 0.5 : 0}
+                roughness={0.26}
+                clearcoat={0.82}
+                clearcoatRoughness={0.21}
                 transparent
-                opacity={dim ? 0.5 : 0.88}
+                opacity={dim ? 0.63 : 0.88}
               />
             </mesh>
             <mesh position={[0, 0.145, 0]}>
               <sphereGeometry
                 args={[0.125, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
               />
-              <meshStandardMaterial
-                color={
-                  part.props?.color === "azul"
-                    ? "#4291d2"
-                    : part.props?.color === "amarillo"
-                      ? "#e7c239"
-                      : "#e25842"
-                }
-                emissive={flow ? "#e84724" : "#000"}
-                emissiveIntensity={flow ? 0.8 : 0}
-                roughness={0.25}
+              <meshPhysicalMaterial
+                color={ledColor}
+                emissive={flow ? ledColor : "#000"}
+                emissiveIntensity={flow ? 0.54 : 0}
+                roughness={0.26}
+                clearcoat={0.82}
+                clearcoatRoughness={0.21}
+                transparent
+                opacity={dim ? 0.63 : 0.9}
               />
             </mesh>
             <mesh position={[0, -0.055, 0]}>
               <cylinderGeometry args={[0.145, 0.145, 0.025, 24]} />
-              <meshStandardMaterial color="#e59c8f" />
+              <meshStandardMaterial color={ledColor} roughness={0.41} />
             </mesh>
           </>
         ) : part.type === "ldr" ? (
@@ -615,10 +809,13 @@ function SensorBody({
           </>
         ) : part.type === "button" ? (
           <>
-            <mesh>
-              <boxGeometry args={[0.54, 0.17, 0.54]} />
-              <meshStandardMaterial color="#727c74" metalness={0.4} />
-            </mesh>
+            <HardwareBody
+              size={[0.54, 0.17, 0.54]}
+              color="#727c74"
+              radius={0.04}
+              metalness={0.48}
+              roughness={0.41}
+            />
             <mesh position={[0, 0.13, 0]}>
               <cylinderGeometry args={[0.1, 0.1, 0.13, 16]} />
               <meshStandardMaterial color="#243d32" />
@@ -640,10 +837,12 @@ function SensorBody({
           </>
         ) : part.type === "potentiometer" ? (
           <>
-            <mesh>
-              <boxGeometry args={[0.39, 0.16, 0.32]} />
-              <meshStandardMaterial color="#336d95" />
-            </mesh>
+            <HardwareBody
+              size={[0.39, 0.16, 0.32]}
+              color="#336d95"
+              radius={0.026}
+              roughness={0.56}
+            />
             <mesh position={[0, 0.18, 0]}>
               <cylinderGeometry args={[0.1, 0.1, 0.26, 16]} />
               <meshStandardMaterial
@@ -659,10 +858,13 @@ function SensorBody({
           </>
         ) : part.type === "hcsr04" ? (
           <>
-            <mesh position={[0, 0.05, center.y > 8.5 ? 0.26 : -0.26]}>
-              <boxGeometry args={[2.15, 0.12, 0.6]} />
-              <meshStandardMaterial color="#267b8b" roughness={0.48} />
-            </mesh>
+            <HardwareBody
+              position={[0, 0.05, center.y > 8.5 ? 0.26 : -0.26]}
+              size={[2.15, 0.12, 0.6]}
+              color="#267b8b"
+              radius={0.045}
+              roughness={0.53}
+            />
             {[-0.66, 0.66].map((x) => (
               <group key={x} position={[x, 0.26, center.y > 8.5 ? 0.4 : -0.4]}>
                 <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -689,13 +891,14 @@ function SensorBody({
           </>
         ) : part.type === "dht11" ? (
           <>
-            <mesh position={[0, 0.2, center.y > 8.5 ? 0.2 : -0.2]}>
-              <boxGeometry args={[0.68, 0.58, 0.34]} />
-              <meshStandardMaterial
-                color={dim ? "#829ea6" : "#4295b5"}
-                roughness={0.7}
-              />
-            </mesh>
+            <HardwareBody
+              position={[0, 0.2, center.y > 8.5 ? 0.2 : -0.2]}
+              size={[0.68, 0.58, 0.34]}
+              color={dim ? "#829ea6" : "#4295b5"}
+              radius={0.035}
+              bevel={0.01}
+              roughness={0.67}
+            />
             {Array.from({ length: 6 }, (_, index) => (
               <mesh
                 key={index}
@@ -720,10 +923,12 @@ function SensorBody({
           </mesh>
         ) : (
           <>
-            <mesh>
-              <boxGeometry args={[box.w * U, 0.09, box.h * U]} />
-              <meshStandardMaterial color={color} roughness={0.52} />
-            </mesh>
+            <HardwareBody
+              size={[box.w * U, 0.09, box.h * U]}
+              color={color}
+              radius={0.035}
+              roughness={0.55}
+            />
             {part.type === "pir" ? (
               <mesh position={[0, 0.2, 0]}>
                 <sphereGeometry
@@ -821,15 +1026,7 @@ function Connection({
   const points = useMemo<V3[]>(() => {
     const a = atEndpoint(circuit, wire.from),
       b = atEndpoint(circuit, wire.to);
-    const distance = Math.hypot(a[0] - b[0], a[2] - b[2]);
-    const height = Math.min(1.05, 0.32 + distance * 0.13);
-    return [
-      a,
-      [a[0], height * 0.8, a[2]],
-      [(a[0] + b[0]) / 2, height, (a[2] + b[2]) / 2],
-      [b[0], height * 0.8, b[2]],
-      b,
-    ];
+    return hardwareWireCurve(a, b);
   }, [circuit, wire]);
   if (active && (connectionState === "take" || connectionState === "a"))
     return null;
@@ -894,6 +1091,7 @@ function TerminalMarker({
       <mesh
         position={pos}
         rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={20}
         onClick={(event) => {
           event.stopPropagation();
           activate?.();
@@ -906,6 +1104,7 @@ function TerminalMarker({
           color={selected ? "#e3fb79" : "#42d49b"}
           side={THREE.DoubleSide}
           depthTest={false}
+          depthWrite={false}
         />
       </mesh>
     </group>
@@ -1185,14 +1384,47 @@ function CircuitWorld({
   };
   return (
     <>
-      <ambientLight intensity={1.75} />
-      <hemisphereLight args={["#fff9e7", "#8d9e8c", 1.6]} />
-      <directionalLight position={[3, 9, 4]} intensity={2.8} color="#fff5dc" />
+      <HardwareStudio />
+      <ambientLight intensity={1.15} />
+      <hemisphereLight args={["#fff9e7", "#8d9e8c", 1.35]} />
+      <directionalLight
+        position={[3, 9, 4]}
+        intensity={2.6}
+        color="#fff5dc"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-14}
+        shadow-camera-right={14}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+        shadow-camera-near={0.5}
+        shadow-camera-far={28}
+        shadow-bias={-0.0005}
+        shadow-normalBias={0.012}
+      />
       <directionalLight
         position={[-5, 5, -4]}
         intensity={1.2}
         color="#b0eadc"
       />
+      <mesh
+        position={[
+          (bounds.min[0] + bounds.max[0]) / 2,
+          -0.112,
+          (bounds.min[2] + bounds.max[2]) / 2,
+        ]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        raycast={() => null}
+      >
+        <planeGeometry
+          args={[
+            Math.max(12, bounds.max[0] - bounds.min[0] + 2),
+            Math.max(7, bounds.max[2] - bounds.min[2] + 2),
+          ]}
+        />
+        <shadowMaterial opacity={0.16} transparent />
+      </mesh>
       <Breadboard
         circuit={circuit}
         select={select}
@@ -1217,9 +1449,7 @@ function CircuitWorld({
               title: part.label,
               text: definition.about,
               detail: definition.orientation,
-              terminals: Object.entries(part.holes ?? {}).map(
-                ([pin, hole]) => `${pin} → ${hole}`,
-              ),
+              terminals: inspectedTerminals(part),
             });
           }}
         >
@@ -1267,18 +1497,14 @@ function CircuitWorld({
           activate={currentWire ? activateEndpoint : undefined}
         />
       )}
-      {selection?.terminals
-        ?.filter(
-          (terminal) => isPoint(terminal) || terminal.startsWith("controller."),
-        )
-        .map((terminal) => (
-          <TerminalMarker
-            key={`inspect-${terminal}`}
-            endpoint={terminal}
-            circuit={circuit}
-            selected
-          />
-        ))}
+      {highlightedTerminals(circuit, selection?.terminals).map((terminal) => (
+        <TerminalMarker
+          key={`inspect-${terminal}`}
+          endpoint={terminal}
+          circuit={circuit}
+          selected
+        />
+      ))}
       <SceneCamera
         action={action}
         target={target}
@@ -1325,7 +1551,7 @@ export function CircuitExperience({
     type: "reset",
     sequence: 0,
   });
-  // -1 is the preparation screen: neither view has placed any component yet.
+  // -1 is the unassembled explorer: neither view has placed a component yet.
   const stepIndex = Math.max(
     -1,
     Math.min(circuit.steps.length - 1, activeStep),
@@ -1525,7 +1751,7 @@ export function CircuitExperience({
         <span>
           <Box size={15} /> Montaje 3D
         </span>
-        <small>Arrastra para girar · pellizca para acercar</small>
+        <small>Arrastra para girar · rueda para acercar</small>
       </div>
       <div className="rdx-circuit-canvas">
         <SafeCanvas
@@ -1539,6 +1765,7 @@ export function CircuitExperience({
           }
           camera={{ position: home, fov: 40 }}
           gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
+          shadows="soft"
           fallback={<Activate2DFallback activate={activateFallback} />}
         >
           <ResumeScene active={active} />
@@ -1676,9 +1903,7 @@ export function CircuitExperience({
                   title: part.label,
                   text: definition.about,
                   detail: definition.orientation,
-                  terminals: Object.entries(part.holes ?? {}).map(
-                    ([pin, hole]) => `${pin} → ${hole}`,
-                  ),
+                  terminals: inspectedTerminals(part),
                 });
               }
               const wire = visibleWires.find(
@@ -1712,14 +1937,14 @@ export function CircuitExperience({
             <strong>
               {selection?.title ??
                 (mode === "step"
-                  ? (step?.title ?? "Antes de cablear")
+                  ? (step?.title ?? "Descubre el montaje")
                   : circuit.title)}
             </strong>
             <p>
               {selection?.text ??
                 (mode === "step"
                   ? (step?.detail ??
-                    "Desconecta USB y otras fuentes. Prepara las piezas y sigue el primer paso antes de conectar.")
+                    "Toca la placa, sus pines y los agujeros. El primer paso te mostrará exactamente dónde va cada conexión.")
                   : "Gira el montaje y selecciona cualquier pieza. Todas las conexiones provienen del mismo plano que la vista 2D.")}
             </p>
             {selection?.detail && <p>{selection.detail}</p>}

@@ -611,7 +611,7 @@ test("sensor setup, DHT toggle and calibrated soil persist", async ({
   expect(
     (await (await page.request.get("/api/session")).json()).session.calibrations
       .soil,
-  ).toEqual({ dry: 50000, wet: 20000 });
+  ).toEqual({ dry: 50000, wet: 20000, board: "pico" });
   await page.screenshot({
     path: "test-results/settings-desktop.png",
     fullPage: true,

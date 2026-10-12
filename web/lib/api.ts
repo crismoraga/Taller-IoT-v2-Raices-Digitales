@@ -1,3 +1,5 @@
+import type { Calibration } from "./calibration";
+
 export type Reading = {
   sensor: string;
   value: number | null;
@@ -16,7 +18,7 @@ export type Session = {
   groupNumber: number;
   progress: string[];
   drafts: Record<string, string>;
-  calibrations: Record<string, { dry: number; wet: number }>;
+  calibrations: Record<string, Calibration>;
   sensorEnabled: Record<string, boolean>;
   createdAt: string;
   lastRun?: {
@@ -59,7 +61,10 @@ export type DashboardData = {
   alerts: Alert[];
 };
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -80,11 +85,16 @@ export async function api<T = Record<string, unknown>>(
   const data = await response.json().catch(() => null);
   if (!response.ok)
     throw new ApiError(
-      data?.message || data?.error || `El servidor respondió con error ${response.status}.`,
+      data?.message ||
+        data?.error ||
+        `El servidor respondió con error ${response.status}.`,
       response.status,
     );
   if (data === null)
-    throw new ApiError("El servidor no respondió correctamente. Vuelve a intentar.", 502);
+    throw new ApiError(
+      "El servidor no respondió correctamente. Vuelve a intentar.",
+      502,
+    );
   return data as T;
 }
 export const post = <T = Record<string, unknown>>(

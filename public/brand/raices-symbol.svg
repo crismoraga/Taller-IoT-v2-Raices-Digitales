@@ -1,1 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="forest" x2="1" y2="1"><stop stop-color="#25543a"/><stop offset="1" stop-color="#0b2b24"/></linearGradient><linearGradient id="leaf" x2="1" y2="1"><stop stop-color="#f1e98b"/><stop offset="1" stop-color="#92d59b"/></linearGradient></defs><rect x="1" y="1" width="62" height="62" rx="18" fill="url(#forest)" stroke="#b6d785" stroke-opacity=".35"/><circle cx="45" cy="17" r="9" fill="#f3d56a" fill-opacity=".15"/><path d="M32 44V29" fill="none" stroke="#d0ef83" stroke-width="3.2" stroke-linecap="round"/><path d="M32 33C20 33 16 25 16 17c12 0 17 7 16 16Z" fill="#90c992"/><path d="M33 27c0-10 6-15 16-15 0 10-6 15-16 15Z" fill="url(#leaf)"/><path d="m21 23 9 8m13-13-8 7" fill="none" stroke="#25553a" stroke-width="1.2" stroke-opacity=".45" stroke-linecap="round"/><path d="M32 43H21v8m11-8h11v8" fill="none" stroke="#d0ef83" stroke-width="2.8" stroke-linejoin="round"/><circle cx="21" cy="51" r="3.3" fill="#94d798"/><circle cx="43" cy="51" r="3.3" fill="#f3d56a"/><circle cx="32" cy="43" r="2.8" fill="#f5f0df"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="rd-forest" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#215840"/><stop offset="1" stop-color="#0c302b"/></linearGradient>
+    <linearGradient id="rd-leaf" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e1f4a0"/><stop offset="1" stop-color="#b5dc7d"/></linearGradient>
+    <linearGradient id="rd-sprout" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#aadba4"/><stop offset="1" stop-color="#79b990"/></linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="18" fill="url(#rd-forest)"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="17.5" fill="none" stroke="#d0ef83" stroke-opacity=".28"/>
+  <path d="M19 4h26a15 15 0 0 1 15 15" fill="none" stroke="#f5f0df" stroke-opacity=".12" stroke-linecap="round"/>
+  <circle cx="45" cy="18" r="10" fill="#f3d56a" fill-opacity=".1"/>
+  <path d="M32 44V29" fill="none" stroke="#d0ef83" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M32 33C20 33 16 25 16 17c12 0 17 7 16 16Z" fill="url(#rd-sprout)"/>
+  <path d="M33 28c0-11 6-16 16-16 0 10-6 16-16 16Z" fill="url(#rd-leaf)"/>
+  <path d="m21 23 9 8m13-13-8 8" fill="none" stroke="#25553a" stroke-width="1.3" stroke-opacity=".4" stroke-linecap="round"/>
+  <path d="M32 44H21v7m11-7h11v7" fill="none" stroke="#d0ef83" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="21" cy="51" r="3.5" fill="#aadba4"/>
+  <circle cx="43" cy="51" r="3.5" fill="#f3d56a"/>
+  <circle cx="32" cy="44" r="3" fill="#f5f0df"/>
+</svg>

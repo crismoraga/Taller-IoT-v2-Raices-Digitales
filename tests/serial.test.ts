@@ -419,7 +419,10 @@ describe("real AVR protocol peer", () => {
   });
   it("generates disabled defaults, enables independent DHT values and rejects Pico-scale calibration", () => {
     const code = arduinoStationSketch(
-      { soil: { dry: 45000, wet: 12000 }, water_level: { dry: 100, wet: 800 } },
+      {
+        soil: { dry: 45000, wet: 12000 },
+        water_level: { dry: 100, wet: 800, board: "uno" },
+      },
       { soil: true, air_temperature: true },
     );
     expect(code).toContain("const int SOIL_DRY = -1;");

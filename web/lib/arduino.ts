@@ -1,8 +1,9 @@
 import sketch from "../../firmware/arduino/station.ino?raw";
+import { compatibleCalibration, type Calibration } from "./calibration";
 
 /** Generates a fully compilable AVR station using only the installed kit. */
 export function arduinoStationSketch(
-  calibrations: Record<string, { dry: number; wet: number }> = {},
+  calibrations: Record<string, Calibration> = {},
   enabled: Record<string, boolean> = {},
 ): string {
   const isEnabled = (key: string) => enabled[key] === true;
@@ -31,15 +32,7 @@ export function arduinoStationSketch(
     ["water_level", "WATER"],
   ]) {
     const calibration = calibrations[key];
-    const valid =
-      calibration &&
-      Number.isInteger(calibration.dry) &&
-      Number.isInteger(calibration.wet) &&
-      calibration.dry >= 0 &&
-      calibration.wet >= 0 &&
-      calibration.dry <= 1023 &&
-      calibration.wet <= 1023 &&
-      Math.abs(calibration.dry - calibration.wet) >= 8;
+    const valid = compatibleCalibration(calibration, "uno");
     constants.push(`const int ${name}_DRY = ${valid ? calibration.dry : -1};`);
     constants.push(`const int ${name}_WET = ${valid ? calibration.wet : -1};`);
   }

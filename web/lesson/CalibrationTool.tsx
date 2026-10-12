@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../brand/Graphics";
+import { compatibleCalibration, latestHardwareRaw } from "../lib/calibration";
 import { useApp } from "../lib/context";
 import { Button } from "../ui/Button";
 import { Segmented, Tag } from "../ui/Card";
@@ -48,12 +49,16 @@ export function CalibrationTool() {
   const app = useApp();
   const [target, setTarget] = useState<Target>("soil");
   const info = TARGETS[target];
-  const stored = app.session?.calibrations[target];
+  const previous = app.session?.calibrations[target];
+  const stored = compatibleCalibration(previous, app.board)
+    ? previous
+    : undefined;
   const [low, setLow] = useState(stored ? String(stored.dry) : "");
   const [high, setHigh] = useState(stored ? String(stored.wet) : "");
   const [phase, setPhase] = useState<1 | 2 | 3>(stored ? 3 : 1);
   const [capturing, setCapturing] = useState<"low" | "high" | null>(null);
   const [saving, setSaving] = useState(false);
+  const [now, setNow] = useState(Date.now);
   const pico = app.board === "pico";
   const max = pico ? 65535 : 1023;
   const minimumGap = pico ? 500 : 8;
@@ -61,29 +66,36 @@ export function CalibrationTool() {
   useEffect(() => {
     const saved = app.session?.calibrations[target];
     // Changing the group or MCU must not retain another board's ADC draft.
-    setLow(saved && saved.dry <= max ? String(saved.dry) : "");
-    setHigh(saved && saved.wet <= max ? String(saved.wet) : "");
-    setPhase(saved && saved.dry <= max && saved.wet <= max ? 3 : 1);
+    const compatible = compatibleCalibration(saved, app.board);
+    setLow(compatible ? String(saved.dry) : "");
+    setHigh(compatible ? String(saved.wet) : "");
+    setPhase(compatible ? 3 : 1);
   }, [app.session?.id, app.board]);
+
+  useEffect(() => {
+    if (!app.connected) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [app.connected]);
 
   const pick = (next: Target) => {
     if (capturing || app.busy || saving) return;
     setTarget(next);
     const saved = app.session?.calibrations[next];
-    setLow(saved && saved.dry <= max ? String(saved.dry) : "");
-    setHigh(saved && saved.wet <= max ? String(saved.wet) : "");
+    const compatible = compatibleCalibration(saved, app.board);
+    setLow(compatible ? String(saved.dry) : "");
+    setHigh(compatible ? String(saved.wet) : "");
     setPhase(1);
   };
 
-  const latestRaw = app.localReadings
-    .filter(
-      (reading) => reading.sensor === target && reading.source === "hardware",
-    )
-    .sort(
-      (a, b) =>
-        new Date(b.timestamp || 0).getTime() -
-        new Date(a.timestamp || 0).getTime(),
-    )[0];
+  const latestRaw = latestHardwareRaw(
+    app.localReadings,
+    target,
+    app.board,
+    app.connected,
+    Math.max(now, Date.now()),
+  );
   const live = latestRaw?.raw;
 
   const capture = async (which: "low" | "high") => {
@@ -102,18 +114,17 @@ export function CalibrationTool() {
           );
         raw = Number(match[1]);
       } else {
-        const capturedAt = Date.parse(latestRaw?.timestamp || "");
-        if (
-          typeof live !== "number" ||
-          !Number.isFinite(capturedAt) ||
-          Date.now() - capturedAt > 20000 ||
-          capturedAt - Date.now() > 1000 ||
-          ["DISABLED", "ERROR", "NO_RESPONSE"].includes(latestRaw.status)
-        )
+        const current = latestHardwareRaw(
+          app.localReadings,
+          target,
+          app.board,
+          app.connected,
+        );
+        if (current?.raw === undefined)
           throw new Error(
             "Ejecuta la estación Arduino para recibir un RAW USB reciente de este sensor. También puedes escribir una lectura real de la terminal.",
           );
-        raw = live;
+        raw = current.raw;
       }
       if (!Number.isInteger(raw) || raw < 0 || raw > max)
         throw new Error(
@@ -175,7 +186,7 @@ export function CalibrationTool() {
       await app.updateSession({
         calibrations: {
           ...app.session.calibrations,
-          [target]: { dry: lowNumber, wet: highNumber },
+          [target]: { dry: lowNumber, wet: highNumber, board: app.board },
         },
       });
       app.notify(
@@ -260,7 +271,9 @@ export function CalibrationTool() {
             onClick={() => setPhase(which === "low" ? 2 : 3)}
           >
             {which === "low"
-              ? "Continuar a la referencia húmeda"
+              ? target === "soil"
+                ? "Continuar a la referencia húmeda"
+                : "Continuar al nivel máximo"
               : "Ver mi escala"}
           </Button>
         </div>
@@ -297,6 +310,12 @@ export function CalibrationTool() {
           ]}
         />
       </div>
+      {previous && !stored && (
+        <Callout tone="info" compact title="Una escala para esta placa">
+          Tu referencia anterior sigue guardada. Toma dos referencias con esta
+          placa para usar su propia escala ADC.
+        </Callout>
+      )}
       <nav className="grid grid-cols-3 gap-2" aria-label="Pasos de calibración">
         {([1, 2, 3] as const).map((step) => (
           <button

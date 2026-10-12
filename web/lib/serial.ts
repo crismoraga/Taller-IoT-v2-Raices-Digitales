@@ -575,7 +575,7 @@ export function parseIntelHex(hex: string, maxSize = 32256): Uint8Array {
         image[at] = data[i];
         highest = Math.max(highest, at);
       }
-    } else if (type === 1 && count === 0) ended = true;
+    } else if (type === 1 && count === 0 && address === 0) ended = true;
     else if (type === 4 && count === 2 && address === 0)
       upper = ((data[0] << 8) | data[1]) * 65536;
     else if (type === 2 && count === 2 && address === 0)

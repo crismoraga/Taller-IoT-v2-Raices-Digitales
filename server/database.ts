@@ -14,7 +14,10 @@ export interface Session {
   groupNumber: number;
   progress: string[];
   drafts: Record<string, string>;
-  calibrations: Record<string, { dry: number; wet: number }>;
+  calibrations: Record<
+    string,
+    { dry: number; wet: number; board?: "pico" | "uno" | "nano" | "nano-old" }
+  >;
   sensorEnabled: Record<string, boolean>;
   createdAt: string;
   lastRun?: {

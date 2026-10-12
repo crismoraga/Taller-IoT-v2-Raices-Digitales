@@ -777,3 +777,77 @@ test("station installation writes the complete bundle and fresh group credential
   expect(renewed.deviceId).not.toBe(configuration.deviceId);
   expect(renewed.token).not.toBe(configuration.token);
 });
+
+test("USB reconnect keeps saved calibration but requires a new sample for its live meter", async ({
+  page,
+}) => {
+  await groupAndConnect(page);
+  await page
+    .getByRole("button", {
+      name: "Grupo USB protocolo QA, ver estación",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", { name: "Calibrar suelo y agua", exact: true })
+    .click();
+  await page.getByLabel("Lectura cruda «seco»", { exact: true }).fill("50000");
+  await page
+    .getByRole("button", {
+      name: "Continuar a la referencia húmeda",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByLabel("Lectura cruda «húmedo»", { exact: true })
+    .fill("20000");
+  await page
+    .getByRole("button", { name: "Ver mi escala", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Guardar calibración", exact: true })
+    .click();
+  await expect(
+    page.getByText("Guardada: seco 50000 · húmedo 20000", { exact: true }),
+  ).toBeVisible();
+  const sample = async (raw: number) =>
+    page.evaluate((value) => {
+      (
+        window as unknown as { __usbPeer: { emit: (line: string) => void } }
+      ).__usbPeer.emit(
+        JSON.stringify({
+          sensor: "soil",
+          value: 50,
+          raw: value,
+          status: "READING",
+          unit: "%",
+        }) + "\n",
+      );
+    }, raw);
+  await sample(35000);
+  const meter = page.getByRole("meter", {
+    name: "Lectura relativa del sensor",
+  });
+  await expect(meter).toHaveAttribute("aria-valuenow", "50");
+  await page.evaluate(() =>
+    (
+      window as unknown as { __usbPeer: { unplug: () => void } }
+    ).__usbPeer.unplug(),
+  );
+  await expect(
+    page.getByRole("button", { name: "Conectar placa", exact: true }),
+  ).toBeVisible();
+  await expect(meter).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .click();
+  await expect(
+    page.getByText("Placa conectada", { exact: true }),
+  ).toBeVisible();
+  await expect(meter).toHaveCount(0);
+  await expect(
+    page.getByText("Guardada: seco 50000 · húmedo 20000", { exact: true }),
+  ).toBeVisible();
+  await sample(20000);
+  await expect(meter).toHaveAttribute("aria-valuenow", "100");
+});
