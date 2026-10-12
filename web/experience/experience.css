@@ -3,13 +3,13 @@
   isolation: isolate;
   width: 100%;
   height: 100%;
-  min-height: 620px;
+  min-height: 640px;
   overflow: hidden;
   color: #f5f0df;
   background:
-    radial-gradient(ellipse at 22% 12%, #f3d56a12, transparent 42%),
-    radial-gradient(ellipse at 67% 29%, #50946a40, transparent 56%),
-    linear-gradient(160deg, #113d2b, #0b2924 78%);
+    radial-gradient(ellipse at 24% 7%, #f3d56a16, transparent 44%),
+    radial-gradient(ellipse at 72% 31%, #67a57740, transparent 57%),
+    linear-gradient(160deg, #174730, #0b2924 80%);
   font-family: inherit;
   display: flex;
   flex-direction: column;
@@ -17,9 +17,9 @@
 .rdx-living-canvas {
   position: relative;
   width: 100%;
-  height: 350px;
-  min-height: 350px;
-  flex: 1 0 350px;
+  height: 390px;
+  min-height: 390px;
+  flex: 1 0 390px;
 }
 .rdx-living canvas,
 .rdx-circuit canvas {
@@ -86,8 +86,8 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-width: 40px;
-  height: 40px;
+  min-width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -102,7 +102,10 @@
   font-weight: 700;
   padding-right: 2px;
 }
-.rdx-scene-tools button:hover,
+.rdx-scene-tools button:hover:not(:disabled) {
+  background: #70967c38;
+  color: #f5f0df;
+}
 .rdx-scene-tools button[aria-pressed="true"] {
   background: #d0ef83;
   color: #153b2c;
@@ -114,11 +117,11 @@
 .rdx-living-info {
   position: relative;
   z-index: 3;
-  margin: 0 22px 17px;
-  padding: 13px 15px;
+  margin: 0 20px 16px;
+  padding: 12px 14px;
   border: 1px solid #7bbd7833;
-  border-radius: 18px;
-  background: #0b2d27e8;
+  border-radius: 16px;
+  background: #0b2d27f2;
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 40px #061b1840;
 }
@@ -136,7 +139,8 @@
   border-radius: 30px;
   background: #163f34c9;
   color: #d6e8d9;
-  padding: 7px 12px;
+  min-height: 36px;
+  padding: 7px 11px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -144,8 +148,9 @@
     background 0.18s ease,
     border-color 0.18s ease;
 }
-.rdx-element-tabs button:hover {
+.rdx-element-tabs button:hover:not([aria-pressed="true"]) {
   border-color: #d0ef83;
+  background: #28563d;
 }
 .rdx-element-tabs button[aria-pressed="true"] {
   background: #d0ef83;
@@ -153,7 +158,7 @@
   color: #17382a;
 }
 .rdx-selection {
-  min-height: 65px;
+  min-height: 52px;
   padding: 0;
 }
 .rdx-selection strong {
@@ -165,8 +170,8 @@
 }
 .rdx-selection p {
   max-width: 520px;
-  margin: 4px 0 9px;
-  color: #c7dccb;
+  margin: 4px 0 7px;
+  color: #d2e4d5;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -343,7 +348,49 @@
 .rdx-circuit-canvas {
   height: clamp(440px, 40vw, 560px);
   position: relative;
-  background: radial-gradient(ellipse at center, #e7eddb85, transparent 75%);
+  background:
+    radial-gradient(
+      ellipse at 52% 47%,
+      color-mix(in srgb, var(--highlight, #e7eddb) 65%, transparent),
+      transparent 74%
+    ),
+    linear-gradient(
+      150deg,
+      color-mix(
+        in srgb,
+        var(--surface-alt, #e9ede3) 38%,
+        var(--surface, #fffef8)
+      ),
+      var(--surface, #fffef8)
+    );
+}
+.rdx-circuit-canvas canvas {
+  cursor: grab;
+}
+.rdx-circuit-canvas canvas:active {
+  cursor: grabbing;
+}
+.rdx-circuit-heading .rdx-circuit-orientation {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid var(--border, #d3dacd);
+  border-radius: 999px;
+  background: var(--surface-alt, #e9ede3);
+  color: var(--ink-accent, #266448);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+/* El explorador comparte su marco: un solo contenedor alrededor del modelo. */
+.rd-lesson-preview {
+  border: 0;
+  border-radius: 0;
 }
 .rdx-terminal-overlay {
   position: absolute;
@@ -376,7 +423,7 @@
   min-height: 44px;
   padding: 7px 9px;
   border: 1px solid var(--border, #cbd4c1);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface, #fffcf3);
   color: var(--ink, #3a5945);
   font-size: 12px;
@@ -386,10 +433,21 @@
     background 0.18s ease,
     border-color 0.18s ease;
 }
-.rdx-circuit-controls button:hover,
-.rdx-circuit-controls button[aria-pressed="true"] {
+.rdx-circuit-controls button:hover:not(:disabled) {
   background: var(--surface-alt, #e0edbc);
-  border-color: var(--ink-soft, #9cae7a);
+  border-color: var(--border-strong, #9cae7a);
+}
+.rdx-circuit-controls button[aria-pressed="true"] {
+  color: var(--action-ink, #f5f0df);
+  background: var(--action, #153f32);
+  border-color: var(--action, #153f32);
+  box-shadow: 0 2px 6px #0b312618;
+}
+.rdx-circuit-controls button[aria-pressed="true"]:hover:not(:disabled) {
+  color: var(--action-ink, #f5f0df);
+  background: var(--action, #153f32);
+  border-color: var(--action, #153f32);
+  filter: brightness(1.08);
 }
 .rdx-circuit-controls button:disabled {
   opacity: 0.55;
@@ -416,11 +474,11 @@
   display: grid;
   grid-template-columns: minmax(180px, 240px) 1fr;
   grid-template-rows: auto 1fr;
-  column-gap: 20px;
+  column-gap: 18px;
   row-gap: 6px;
   border-top: 1px solid var(--border, #dbe2ce);
   background: var(--surface, #ffffffb3);
-  padding: 16px 18px;
+  padding: 14px 18px;
 }
 .rdx-circuit-inspector > label {
   font-size: 12px;
@@ -454,7 +512,7 @@
   margin: 4px 0;
   color: var(--ink-soft, #52664e);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.55;
 }
 .rdx-terminal-list {
   display: flex;
@@ -482,11 +540,16 @@
   background: var(--surface-alt, #f3f5e9);
 }
 .rdx-living button:focus-visible,
-.rdx-living input:focus-visible,
+.rdx-living input:focus-visible {
+  outline: 2px solid #f5f0df;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px #285b40;
+}
 .rdx-circuit button:focus-visible,
 .rdx-circuit select:focus-visible {
-  outline: 3px solid #f3d56a;
+  outline: 2px solid var(--action, #153f32);
   outline-offset: 3px;
+  box-shadow: 0 0 0 5px var(--surface, #fffef8);
 }
 @media (max-width: 640px) {
   .rdx-living {
@@ -509,8 +572,8 @@
     padding: 3px;
   }
   .rdx-scene-tools button {
-    min-width: 36px;
-    height: 36px;
+    min-width: 44px;
+    height: 44px;
   }
   .rdx-scene-tools button span {
     display: none;
@@ -588,12 +651,36 @@
   border-top: 1px solid var(--border, #d9dfd2);
 }
 .rdx-circuit-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 18px;
   min-height: 44px;
   font-size: 13px;
   font-weight: 750;
   cursor: pointer;
   color: var(--ink-soft, #526657);
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.rdx-circuit-details > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+.rdx-circuit-details[open] > summary::after {
+  transform: rotate(225deg);
+}
+.rdx-circuit-details > summary:hover {
+  color: var(--ink, #143c32);
+  background: var(--surface-alt, #e9ede3);
 }
 .rdx-circuit-details > summary:focus-visible {
   outline: 3px solid var(--action, #1673a5);
@@ -607,6 +694,11 @@
   background: #dcf0ab;
   border-color: #397853;
   box-shadow: inset 0 0 0 1px #397853;
+}
+.rdx-circuit-controls .rdx-endpoint-actions[aria-pressed="true"]:hover {
+  color: #163b2a;
+  background: #e4f5bf;
+  border-color: #397853;
 }
 .rdx-terminal-overlay g[role="button"]:focus-visible {
   outline: none;
@@ -661,6 +753,11 @@
     padding-inline: 7px;
   }
   .rdx-circuit-heading {
+    flex-wrap: wrap;
     align-items: flex-start;
+  }
+  .rdx-circuit-heading small {
+    max-width: 100%;
+    text-align: left;
   }
 }

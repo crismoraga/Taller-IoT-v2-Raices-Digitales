@@ -13,15 +13,15 @@ import "monaco-editor/esm/vs/editor/contrib/find/browser/findController";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import { Icon } from "../brand/Graphics";
 import { download } from "../lib/api";
-import { useApp } from "../lib/context";
+import { BOARD_NAMES, useApp } from "../lib/context";
 import { offline } from "../lib/offline";
 import { resolveTheme, watchSystemTheme } from "../lib/theme";
 import { ConnectButton } from "../shell/ConnectButton";
+import { UploadFeedback } from "../shell/UploadFeedback";
 import { Button, IconButton } from "../ui/Button";
 import { Tag } from "../ui/Card";
 import { Callout } from "../ui/Feedback";
 import { ConfirmDialog } from "../ui/Overlay";
-import { ProgressBar } from "../ui/Progress";
 import { cx } from "../ui/cx";
 
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
@@ -273,17 +273,6 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     const noCompiler =
       arduino && app.health !== null && !app.health.arduinoAvailable;
     const canRun = app.connected && Boolean(value.trim()) && !unavailable;
-    const upload = arduino ? app.uploadStatus : null;
-    const uploadLabel = upload
-      ? {
-          compile: "1 de 3 · Compilando tu programa",
-          sync: "2 de 3 · Conectando con tu Arduino",
-          write: "3 de 3 · Grabando y verificando",
-          verify: "3 de 3 · Grabando y verificando",
-          complete: "Programa grabado y verificado",
-          error: "La carga no se completó",
-        }[upload.stage]
-      : "";
     const run = (text: string) => void app.runCode(text, lessonId);
     latest.current = { value, run };
 
@@ -320,7 +309,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
         <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-2">
           <Icon name="fileCode" size={18} className="text-ink-accent" />
           <span className="t-mono truncate font-bold text-ink">{fileName}</span>
-          <Tag tone="sky">{arduino ? "Arduino C++" : "MicroPython"}</Tag>
+          <Tag tone="sky">{BOARD_NAMES[app.board]}</Tag>
           <span className="ml-auto hidden truncate text-xs font-semibold text-ink-soft sm:block">
             {status}
           </span>
@@ -424,88 +413,65 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
-            <IconButton
-              icon="save"
-              label={
-                arduino
-                  ? "Cargar en la placa"
-                  : "Guardar en la Pico como main.py"
-              }
-              tone="ghost"
-              size="sm"
-              disabled={!app.connected || app.busy || unavailable}
-              onClick={() =>
-                arduino ? void app.saveCode(value) : setConfirmSave(true)
-              }
-            />
-            <IconButton
-              icon="undo"
-              label="Restaurar el código original"
-              tone="ghost"
-              size="sm"
-              disabled={!changed}
-              onClick={() => setConfirmRestore(true)}
-            />
-            <IconButton
-              icon="copy"
-              label="Copiar el código"
-              tone="ghost"
-              size="sm"
-              onClick={() =>
-                void navigator.clipboard
-                  .writeText(value)
-                  .then(() => app.notify("Código copiado."))
-                  .catch(() =>
-                    app.notify("No se pudo copiar. Usa Descargar.", "error"),
-                  )
-              }
-            />
-            <IconButton
-              icon="download"
-              label={`Descargar ${fileName}`}
-              tone="ghost"
-              size="sm"
-              onClick={() => download(fileName, value)}
-            />
+            {!arduino && (
+              <IconButton
+                icon="save"
+                label="Guardar en la Pico como main.py"
+                tone="ghost"
+                size="sm"
+                disabled={!app.connected || app.busy || unavailable}
+                onClick={() => setConfirmSave(true)}
+              />
+            )}
+            <details className="rounded-md border border-border bg-surface-alt p-1.5">
+              <summary className="focus-ring flex min-h-9 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-xs font-bold text-ink-accent">
+                Opciones del editor
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Button
+                  icon="undo"
+                  aria-label="Restaurar el código original"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!changed}
+                  onClick={() => setConfirmRestore(true)}
+                >
+                  Restaurar original
+                </Button>
+                <Button
+                  icon="copy"
+                  aria-label="Copiar el código"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(value)
+                      .then(() => app.notify("Código copiado."))
+                      .catch(() =>
+                        app.notify(
+                          "No se pudo copiar. Usa Descargar.",
+                          "error",
+                        ),
+                      )
+                  }
+                >
+                  Copiar
+                </Button>
+                <Button
+                  icon="download"
+                  aria-label={`Descargar ${fileName}`}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => download(fileName, value)}
+                >
+                  Descargar
+                </Button>
+              </div>
+            </details>
           </div>
         </div>
 
-        {upload && (
-          <div
-            role="status"
-            aria-live="polite"
-            aria-label="Estado de carga del programa"
-            className="flex flex-col gap-2 border-t border-border bg-highlight px-3.5 py-3 text-sm text-ink"
-          >
-            <span className="inline-flex items-center gap-2 font-bold">
-              <Icon
-                name={
-                  upload.stage === "complete"
-                    ? "check"
-                    : upload.stage === "error"
-                      ? "alert"
-                      : "usb"
-                }
-                size={17}
-              />
-              {uploadLabel}
-            </span>
-            {upload.percent !== undefined &&
-              upload.stage !== "complete" &&
-              upload.stage !== "error" && (
-                <ProgressBar
-                  value={upload.percent}
-                  label="Avance de grabación y verificación"
-                />
-              )}
-            {upload.stage === "error" && (
-              <p className="text-xs leading-5 text-ink-soft">
-                El detalle quedó en la terminal. Puedes corregirlo y volver a
-                pulsar «Compilar y cargar».
-              </p>
-            )}
-          </div>
-        )}
+        <UploadFeedback />
 
         {!app.connected && !unavailable && (
           <div className="flex flex-wrap items-center gap-3 border-t border-border bg-highlight px-3.5 py-3">
@@ -517,26 +483,17 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             <p className="min-w-0 flex-1 text-sm font-semibold leading-5 text-ink">
               {app.serialSupported ? (
                 <>
-                  <strong className="font-extrabold">
-                    Conecta tu placa para ejecutar.
-                  </strong>{" "}
-                  El código corre en tu {arduino ? "Arduino" : "Pico"} de
-                  verdad, por el cable USB.
+                  Conecta tu {BOARD_NAMES[app.board]} por USB para enviarle el
+                  programa.
                 </>
               ) : (
-                <>
-                  <strong className="font-extrabold">
-                    Este navegador no puede usar el USB.
-                  </strong>{" "}
-                  Abre el taller en Chrome o Edge de escritorio, o descarga el
-                  archivo y ejecútalo con {arduino ? "Arduino IDE" : "Thonny"}.
-                </>
+                <>{app.usbHint}</>
               )}
             </p>
             {app.serialSupported && <ConnectButton />}
           </div>
         )}
-        {noCompiler && (
+        {noCompiler && !app.busy && (
           <div className="border-t border-border p-3">
             <Callout
               tone="info"

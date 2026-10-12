@@ -33,7 +33,9 @@ export function WiringGuide({ circuit: source, storageKey, onDone }: Props) {
   const app = useApp();
   // Switching hardware starts that board's own journey, while retaining the
   // participant's chosen view of the same workbench.
-  const [dimension, setDimension] = useState<"3d" | "2d">("3d");
+  const [dimension, setDimension] = useState<"3d" | "2d">(() =>
+    readLocal<string>("raices.wiring.view", "3d") === "2d" ? "2d" : "3d",
+  );
   const [view, setView] = useState<"step" | "all">("step");
   const circuit = useMemo(() => normalizeCircuitSteps(source), [source]);
   const signature = useMemo(
@@ -48,7 +50,10 @@ export function WiringGuide({ circuit: source, storageKey, onDone }: Props) {
       signature={signature}
       onDone={onDone}
       dimension={dimension}
-      onDimensionChange={setDimension}
+      onDimensionChange={(value) => {
+        setDimension(value);
+        writeLocal("raices.wiring.view", value);
+      }}
       view={view}
       onViewChange={setView}
     />
@@ -72,6 +77,10 @@ function WiringSession({
   onViewChange: (value: "step" | "all") => void;
 }) {
   const total = circuit.steps.length;
+  const partAt = (candidate?: WiringStep) =>
+    circuit.parts.find((part) => part.id === candidate?.parts?.[0]);
+  const initialAction = (candidate?: WiringStep) =>
+    firstAssemblyAction(candidate, partAt(candidate));
   const [progress, setProgress] = useState(() =>
     restoreAssemblyProgress(
       readLocal<unknown>(storageKey, null),
@@ -81,6 +90,7 @@ function WiringSession({
   );
   const position = Math.max(0, progress.position);
   const step = position < total ? circuit.steps[position] : undefined;
+  const placed = partAt(step);
   const [actionState, setActionState] = useState(() => ({
     stepId: step?.id,
     action: step
@@ -88,6 +98,7 @@ function WiringSession({
           readLocal<unknown>(storageKey, null),
           signature,
           step,
+          placed,
         )
       : ("done" as AssemblyAction),
   }));
@@ -95,7 +106,7 @@ function WiringSession({
     actionState.stepId === step?.id
       ? actionState.action
       : step
-        ? firstAssemblyAction(step)
+        ? initialAction(step)
         : "done";
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint>();
   const [requestFocusEndpoint, setRequestFocusEndpoint] = useState<{
@@ -111,9 +122,10 @@ function WiringSession({
   const wire = circuit.wires.find(
     (candidate) => candidate.id === step?.wires?.[0],
   );
-  const placed = circuit.parts.find(
-    (candidate) => candidate.id === step?.parts?.[0],
-  );
+  const [lastConfirmation, setLastConfirmation] = useState<{
+    position: number;
+    label: string;
+  }>();
   const partPins = placed ? assemblyPartPins(placed) : [];
   const [pinState, setPinState] = useState(() => ({
     stepId: step?.id,
@@ -151,7 +163,9 @@ function WiringSession({
     position >= total ? "Montaje completo" : `Paso ${position + 1} de ${total}`;
   const actionTitle = wire
     ? action === "take"
-      ? `Toma un cable ${wire.color}`
+      ? wireItem?.ownLead
+        ? `Sigue el hilo ${wire.color} del sensor`
+        : `Toma un cable ${wire.color}`
       : action === "a"
         ? wireItem?.a === "hilo del sensor"
           ? `Encuentra el hilo ${wire.color}: ${endpointInfo(circuit, wire.from).label}`
@@ -165,7 +179,7 @@ function WiringSession({
         : action === "place"
           ? activePin
             ? `Alinea ${activePin.label} con ${endpointInfo(circuit, activePin.hole).label}`
-            : `Ubica ${placed.label}`
+            : (step?.title ?? `Ubica ${placed.label}`)
           : action === "insert"
             ? `Inserta ${placed.label}`
             : "¡Pieza en su lugar!"
@@ -225,19 +239,38 @@ function WiringSession({
         token: (current?.token ?? 0) + 1,
       }));
   };
-  const go = (next: number) => {
+  const go = (next: number, lastPhysicalAction = false) => {
     if (frontier >= 0 && next > frontier) return;
-    setRequestFocusEndpoint(undefined);
+    setLastConfirmation(undefined);
     setRequestFocusPartPin(undefined);
     scrollAfterNavigation.current = next !== position;
     const target = Math.max(0, Math.min(total, next));
+    const targetStep = circuit.steps[target];
+    const targetPins = partAt(targetStep)
+      ? assemblyPartPins(partAt(targetStep)!)
+      : [];
+    if (lastPhysicalAction && targetStep?.wires?.length)
+      setRequestFocusEndpoint((current) => ({
+        endpoint: "b",
+        token: (current?.token ?? 0) + 1,
+      }));
+    else setRequestFocusEndpoint(undefined);
     setActionState({
-      stepId: circuit.steps[target]?.id,
-      action: circuit.steps[target]
-        ? firstAssemblyAction(circuit.steps[target])
+      stepId: targetStep?.id,
+      action: targetStep
+        ? lastPhysicalAction
+          ? targetStep.wires?.length
+            ? "b"
+            : targetPins.length
+              ? "insert"
+              : "place"
+          : initialAction(targetStep)
         : "done",
     });
-    setPinState({ stepId: circuit.steps[target]?.id, index: 0 });
+    setPinState({
+      stepId: targetStep?.id,
+      index: lastPhysicalAction ? Math.max(0, targetPins.length - 1) : 0,
+    });
     setProgress((current) => ({ ...current, position: target }));
   };
   const advance = () => {
@@ -246,7 +279,7 @@ function WiringSession({
       return;
     }
     if (action === "take") {
-      changeAction(wire ? "a" : "place");
+      changeAction(wire ? (wireItem?.ownLead ? "b" : "a") : "place");
       return;
     }
     if (action === "a") {
@@ -259,17 +292,15 @@ function WiringSession({
       else changeAction("insert");
       return;
     }
-    if (action === "b" || action === "place" || action === "insert") {
-      changeAction("done");
-      return;
-    }
+    // The physical confirmation also advances the guide. A separate success
+    // screen must never ask for a second approval of the very same connection.
     scrollAfterNavigation.current = true;
     setRequestFocusEndpoint(undefined);
     setRequestFocusPartPin(undefined);
     const next = circuit.steps[position + 1];
     setActionState({
       stepId: next?.id,
-      action: next ? firstAssemblyAction(next) : "done",
+      action: next ? initialAction(next) : "done",
     });
     setPinState({ stepId: next?.id, index: 0 });
     setProgress((current) => ({
@@ -278,6 +309,16 @@ function WiringSession({
       completed: { ...current.completed, [step.id]: true },
       verified: { ...current.verified, [step.id]: true },
     }));
+    setLastConfirmation({
+      position,
+      label: wire
+        ? `Cable ${wire.color} conectado`
+        : placed?.type === "soil"
+          ? "Conector de la sonda listo"
+          : placed?.type === "rain"
+            ? "Placa de lluvia conectada"
+            : `${placed?.label ?? step.title} listo`,
+    });
   };
   const primaryLabel = !step
     ? "Montaje listo, continuar"
@@ -295,7 +336,11 @@ function WiringSession({
                 ? pinIndex < partPins.length - 1
                   ? "Ubicar siguiente pata"
                   : "Patas alineadas"
-                : "Ya lo coloqué"
+                : placed.type === "soil"
+                  ? "Conector listo"
+                  : placed.type === "rain"
+                    ? "Placa conectada"
+                    : "Módulo ubicado"
               : "Entendido"
             : action === "insert"
               ? "Ya lo coloqué"
@@ -303,25 +348,30 @@ function WiringSession({
                 ? "Conectado, siguiente"
                 : "Listo, siguiente";
   const microSteps: { action: AssemblyAction; label: string }[] = wire
-    ? [
-        { action: "take", label: "Toma" },
-        { action: "a", label: "Extremo A" },
-        { action: "b", label: "Extremo B" },
-        { action: "done", label: "Listo" },
-      ]
-    : [
-        { action: "take", label: "Toma" },
-        {
-          action: "place",
-          label: partPins.length
-            ? `Pata ${pinIndex + 1}/${partPins.length}`
-            : "Ubica",
-        },
-        ...(partPins.length
-          ? [{ action: "insert" as const, label: "Inserta" }]
-          : []),
-        { action: "done", label: "Listo" },
-      ];
+    ? wireItem?.ownLead
+      ? [
+          { action: "take", label: "Identifica el hilo" },
+          { action: "b", label: "Punta libre" },
+        ]
+      : [
+          { action: "take", label: "Toma" },
+          { action: "a", label: "Extremo A" },
+          { action: "b", label: "Extremo B" },
+        ]
+    : placed && !partPins.length
+      ? [{ action: "place", label: "Conecta el módulo" }]
+      : [
+          { action: "take", label: "Toma" },
+          {
+            action: "place",
+            label: partPins.length
+              ? `Pata ${pinIndex + 1}/${partPins.length}`
+              : "Ubica",
+          },
+          ...(partPins.length
+            ? [{ action: "insert" as const, label: "Inserta" }]
+            : []),
+        ];
   const diagramProps = {
     circuit,
     activeEndpoint,
@@ -415,7 +465,7 @@ function WiringSession({
       <div className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-24">
         <section
           aria-label="Instrucción de montaje"
-          className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5"
+          className="rd-guided-step flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5"
         >
           <div>
             <p className="t-overline text-ink-accent">{stageLabel}</p>
@@ -436,45 +486,47 @@ function WiringSession({
           </div>
           {step ? (
             <>
-              <ol
-                className="flex gap-1.5"
-                aria-label="Acciones de esta conexión"
-              >
-                {microSteps.map((item, index) => (
-                  <li
-                    key={item.action}
-                    aria-current={item.action === action ? "step" : undefined}
-                    className={cx(
-                      "flex min-w-0 flex-1 flex-col items-center gap-1 text-center text-xs font-bold",
-                      item.action === action
-                        ? "text-ink-accent"
-                        : "text-ink-soft",
-                    )}
-                  >
-                    <span
+              {microSteps.length > 1 && (
+                <ol
+                  className="flex gap-1.5"
+                  aria-label="Acciones de esta conexión"
+                >
+                  {microSteps.map((item, index) => (
+                    <li
+                      key={item.action}
+                      aria-current={item.action === action ? "step" : undefined}
                       className={cx(
-                        "grid size-7 place-items-center rounded-full",
+                        "flex min-w-0 flex-1 flex-col items-center gap-1 text-center text-xs font-bold",
                         item.action === action
-                          ? "bg-accent text-primary ring-4 ring-accent-soft"
-                          : microSteps.findIndex(
-                                (candidate) => candidate.action === action,
-                              ) > index
-                            ? "bg-success text-white"
-                            : "bg-surface-alt",
+                          ? "text-ink-accent"
+                          : "text-ink-soft",
                       )}
                     >
-                      {microSteps.findIndex(
-                        (candidate) => candidate.action === action,
-                      ) > index ? (
-                        <Icon name="check" size={15} />
-                      ) : (
-                        index + 1
-                      )}
-                    </span>
-                    <span>{item.label}</span>
-                  </li>
-                ))}
-              </ol>
+                      <span
+                        className={cx(
+                          "grid size-7 place-items-center rounded-full",
+                          item.action === action
+                            ? "bg-accent text-primary ring-4 ring-accent-soft"
+                            : microSteps.findIndex(
+                                  (candidate) => candidate.action === action,
+                                ) > index
+                              ? "bg-success text-white"
+                              : "bg-surface-alt",
+                        )}
+                      >
+                        {microSteps.findIndex(
+                          (candidate) => candidate.action === action,
+                        ) > index ? (
+                          <Icon name="check" size={15} />
+                        ) : (
+                          index + 1
+                        )}
+                      </span>
+                      <span>{item.label}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
               <h3 className="t-heading text-ink" aria-live="polite">
                 {actionTitle}
               </h3>
@@ -517,14 +569,6 @@ function WiringSession({
                           ? "Inserta la punta libre del hilo del sensor en el agujero marcado B."
                           : "Ahora inserta el otro extremo, macho, en el agujero marcado B."}
                   </p>
-                  <p
-                    className="text-xs leading-5 text-ink-soft"
-                    aria-live="polite"
-                  >
-                    {selectedEndpoint === activeEndpoint
-                      ? `Encontraste ${activeInfo.label} en el modelo. Cuando lo conectes en tu placa, continúa abajo.`
-                      : "Puedes tocar la marca del modelo o esta tarjeta para acercarte."}
-                  </p>
                 </>
               )}
               {placed && action === "take" && (
@@ -562,7 +606,7 @@ function WiringSession({
                           : placed.type === "resistor"
                             ? pinIndex === 0
                               ? "Dobla las patas en forma de U. Cualquiera de sus extremos sirve como pata 1."
-                              : "Conserva la primera pata en su lugar y lleva la otra a este agujero."
+                              : "Mantén la primera pata alineada y lleva la otra a este agujero."
                             : `Identifica ${activePin.label} en la pieza.`}{" "}
                         Sostén la pieza sobre la protoboard y alinea esta pata
                         con <strong>{activePin.hole}</strong>.
@@ -581,11 +625,9 @@ function WiringSession({
                     </>
                   ) : (
                     <div className="space-y-2 rounded-md bg-surface-alt p-3 text-sm leading-6 text-ink">
-                      <p className="font-semibold">{step.title}</p>
                       <p>{step.detail}</p>
                       <p className="text-ink-soft">
-                        Deja el módulo junto a la protoboard con sus marcas a la
-                        vista. Seguiremos cada conexión en los próximos pasos.
+                        {identifyAssemblyPart(placed)}
                       </p>
                     </div>
                   )}
@@ -699,20 +741,42 @@ function WiringSession({
               </Disclosure>
             </>
           )}
+          {lastConfirmation && (
+            <div className="rd-guided-confirmation flex items-center gap-2 rounded-md bg-success-soft px-3 text-success-ink">
+              <Icon name="check" size={16} className="shrink-0" />
+              <p
+                className="min-w-0 flex-1 text-xs font-semibold leading-5"
+                role="status"
+              >
+                {lastConfirmation.label}
+              </p>
+              <button
+                type="button"
+                className="focus-ring min-h-11 shrink-0 rounded-sm px-2 text-xs font-bold underline underline-offset-4"
+                onClick={() => go(lastConfirmation.position, true)}
+              >
+                Revisar
+              </button>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button
               variant="outline"
               icon="arrowLeft"
-              disabled={position <= 0 && action === firstAssemblyAction(step)}
+              disabled={position <= 0 && action === initialAction(step)}
               onClick={() => {
                 const index = microSteps.findIndex(
                   (item) => item.action === action,
                 );
-                if (step && action === "place" && pinIndex > 0)
+                if (step && action === "done")
+                  changeAction(
+                    wire ? "b" : partPins.length ? "insert" : "place",
+                  );
+                else if (step && action === "place" && pinIndex > 0)
                   setPinState({ stepId: step.id, index: pinIndex - 1 });
                 else if (step && index > 0)
                   changeAction(microSteps[index - 1].action);
-                else go(position - 1);
+                else go(position - 1, true);
               }}
               aria-label="Acción anterior"
             >
@@ -727,17 +791,6 @@ function WiringSession({
               {primaryLabel}
             </Button>
           </div>
-          {activePin && (
-            <p className="text-xs leading-5 text-ink-soft">
-              Ahora ubicamos {activePin.label} sobre {activePin.hole}.
-              Insertaremos la pieza completa al terminar de alinear sus patas.
-            </p>
-          )}
-          {step && (
-            <p className="text-xs leading-5 text-ink-soft">
-              El modelo te guía; tú confirmas cada conexión de tu montaje.
-            </p>
-          )}
         </section>
         <Disclosure title={`Explorar los ${total} pasos`} icon="steps">
           <ol className="scrollbar-thin flex max-h-[260px] flex-col overflow-y-auto">

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useApp } from "../lib/context";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Overlay";
@@ -82,66 +81,44 @@ function BoardThumbnail({ model }: { model: "pico" | "uno" | "nano" }) {
 /** Only adapters with an ambiguous identity need this small choice. */
 export function USBDiscovery() {
   const app = useApp();
-  const [arduino, setArduino] = useState(false);
-  useEffect(() => {
-    if (!app.usbChoice) setArduino(false);
-  }, [app.usbChoice]);
   return (
     <Modal
       open={Boolean(app.usbChoice)}
       onClose={app.cancelUSBChoice}
-      title={arduino ? "¿Tu Arduino es Uno o Nano?" : "Reconozcamos tu placa"}
-      description={
-        arduino
-          ? "Elige tu Uno o Nano clásico con ATmega328P."
-          : "El puerto ya está elegido. ¿Qué placa estás conectando?"
-      }
+      title="Reconozcamos tu placa"
+      description="El puerto ya está elegido. Toca la placa que tienes conectada."
       icon="usb"
       size="sm"
     >
       <div className="grid gap-3">
-        {arduino ? (
-          <>
-            <Button
-              size="lg"
-              aria-label="Arduino Uno"
-              onClick={() => void app.chooseUSBBoard("uno")}
-            >
-              <BoardThumbnail model="uno" />
-              Arduino Uno
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              aria-label="Arduino Nano"
-              onClick={() => void app.chooseUSBBoard("nano")}
-            >
-              <BoardThumbnail model="nano" />
-              Arduino Nano
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setArduino(false)}>
-              Volver
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              size="lg"
-              aria-label="Raspberry Pi Pico"
-              onClick={() => void app.chooseUSBBoard("pico")}
-            >
-              <BoardThumbnail model="pico" /> Raspberry Pi Pico
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              aria-label="Arduino Uno / Nano"
-              onClick={() => setArduino(true)}
-            >
-              <BoardThumbnail model="uno" /> Arduino Uno / Nano
-            </Button>
-          </>
-        )}
+        {(
+          [
+            [
+              "pico",
+              "Raspberry Pi Pico",
+              "Pico / Pico W · placa verde y alargada",
+            ],
+            ["uno", "Arduino Uno", "Uno clásico · USB grande y placa ancha"],
+            ["nano", "Arduino Nano", "Nano clásico · placa azul y alargada"],
+          ] as const
+        ).map(([model, label, description]) => (
+          <Button
+            key={model}
+            size="lg"
+            variant="outline"
+            className="justify-start border-border bg-surface-alt text-left hover:border-ink-accent"
+            aria-label={label}
+            onClick={() => void app.chooseUSBBoard(model)}
+          >
+            <BoardThumbnail model={model} />
+            <span className="min-w-0 text-left">
+              <span className="block">{label}</span>
+              <span className="mt-1 block font-body text-xs font-semibold leading-5 text-ink-soft">
+                {description}
+              </span>
+            </span>
+          </Button>
+        ))}
       </div>
     </Modal>
   );

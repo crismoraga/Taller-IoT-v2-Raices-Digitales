@@ -7,6 +7,41 @@ import { partDef } from "../circuit/parts";
 import { controllerPins } from "../circuit/boards";
 import type { V3 } from "./Primitives";
 
+/** Socketed Uno headers and breadboard holes accept a metal pin; exposed
+ * Nano/module headers need a female sleeve. This follows the actual terminal,
+ * rather than applying one connector shape to both ends of every cable. */
+export function terminalConnector(circuit: Circuit, endpoint: string) {
+  if (isPoint(endpoint)) return "macho" as const;
+  if (endpoint.startsWith("controller."))
+    return circuit.board === "uno" ? ("macho" as const) : ("hembra" as const);
+  const part = circuit.parts.find(
+    (entry) => entry.id === endpoint.split(".")[0],
+  );
+  if (part?.type === "soil" || part?.type === "ds18b20")
+    return "integrado" as const;
+  return "hembra" as const;
+}
+
+/** Low-cost local geometry for the characteristic flat edge beside a LED's
+ * cathode. The flat faces +X; the component rotates it towards its cathode. */
+export function ledFlangeGeometry(radius = 0.145, height = 0.025) {
+  const angle = Math.acos(0.9);
+  const outline = new THREE.Shape();
+  outline.moveTo(radius * Math.cos(angle), radius * Math.sin(angle));
+  outline.absarc(0, 0, radius, angle, Math.PI * 2 - angle, false);
+  outline.closePath();
+  const result = new THREE.ExtrudeGeometry(outline, {
+    depth: height,
+    steps: 1,
+    curveSegments: 12,
+    bevelEnabled: false,
+  });
+  result.rotateX(-Math.PI / 2);
+  result.translate(0, -height / 2, 0);
+  result.computeVertexNormals();
+  return result;
+}
+
 /** Leads leave a tall connector upwards before arching towards the other endpoint. */
 export function hardwareWireCurve(a: V3, b: V3): V3[] {
   const distance = Math.hypot(a[0] - b[0], a[2] - b[2]);

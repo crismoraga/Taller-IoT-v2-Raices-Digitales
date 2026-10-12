@@ -228,12 +228,7 @@ export default function Lesson() {
         >
           <p className="t-overline text-accent">Tu misión</p>
           <h2 className="t-title text-cream">{lesson.concept.title}</h2>
-          <p className="text-[15px] leading-6 text-cream">
-            {lesson.concept.body[0]}
-          </p>
-          <p className="rounded-lg bg-primary-soft/70 p-3 text-sm font-semibold leading-6 text-accent-soft">
-            {lesson.objective}
-          </p>
+          <p className="text-[15px] leading-6 text-cream">{lesson.objective}</p>
           <Button
             variant="cream"
             size="lg"
@@ -262,10 +257,10 @@ export default function Lesson() {
             <ConnectButton size="lg" />
           </Card>
         )}
-        {lesson.concept.body.length > 1 && (
+        {lesson.concept.body.length > 0 && (
           <Disclosure title="La idea detrás del experimento" icon="lightbulb">
             <div className="prose-rd">
-              {lesson.concept.body.slice(1).map((paragraph) => (
+              {lesson.concept.body.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
             </div>
@@ -801,7 +796,7 @@ export default function Lesson() {
             ? `USB conectado · ${BOARD_NAMES[app.board]}`
             : app.serialSupported
               ? "Conecta tu placa para ver el experimento en el mundo real."
-              : "Para programar la placa, usa Chrome o Edge de escritorio."}
+              : app.usbHint}
         </p>
         {flow.previous && (
           <Button

@@ -101,6 +101,7 @@ function PinSession({
         )
       : ("done" as AssemblyAction),
   }));
+  const [lastConfirmation, setLastConfirmation] = useState<number>();
   const isolated = row?.to === "Sin conectar";
   const action =
     actionState.stepId === steps[position]?.id
@@ -135,15 +136,11 @@ function PinSession({
       resistorValue[0],
     );
   const actions: { action: AssemblyAction; label: string }[] = isolated
-    ? [
-        { action: "place", label: "Observa" },
-        { action: "done", label: "Listo" },
-      ]
+    ? [{ action: "place", label: "Observa" }]
     : [
         { action: "take", label: "Toma" },
         { action: "a", label: "Extremo A" },
         { action: "b", label: "Extremo B" },
-        { action: "done", label: "Listo" },
       ];
   useEffect(
     () =>
@@ -161,7 +158,7 @@ function PinSession({
   const next = () => {
     if (!row) return;
     const index = actions.findIndex((item) => item.action === action);
-    if (index < actions.length - 1) {
+    if (action !== "done" && index >= 0 && index < actions.length - 1) {
       changeAction(actions[index + 1].action);
       return;
     }
@@ -176,6 +173,7 @@ function PinSession({
       completed: { ...current.completed, [String(position)]: true },
       verified: { ...current.verified, [String(position)]: true },
     }));
+    setLastConfirmation(position);
   };
   const heading = !row
     ? "¡Todas las conexiones listas!"
@@ -195,7 +193,7 @@ function PinSession({
 
   return (
     <section
-      className="mx-auto flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5"
+      className="rd-guided-step mx-auto flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5"
       aria-label="Montaje por pines"
     >
       <div>
@@ -219,7 +217,7 @@ function PinSession({
           {count} {count === 1 ? "conexión lista" : "conexiones listas"}
         </p>
       </div>
-      {row && (
+      {row && actions.length > 1 && (
         <ol className="flex gap-2" aria-label="Acciones de esta conexión">
           {actions.map((item, index) => (
             <li
@@ -336,20 +334,51 @@ function PinSession({
           </ul>
         </Disclosure>
       )}
+      {lastConfirmation !== undefined && (
+        <div className="rd-guided-confirmation flex items-center gap-2 rounded-md bg-success-soft px-3 text-success-ink">
+          <Icon name="check" size={16} className="shrink-0" />
+          <p
+            className="min-w-0 flex-1 text-xs font-semibold leading-5"
+            role="status"
+          >
+            Conexión {lastConfirmation + 1} lista
+          </p>
+          <button
+            type="button"
+            className="focus-ring min-h-11 shrink-0 rounded-sm px-2 text-xs font-bold underline underline-offset-4"
+            onClick={() => {
+              setActionState({
+                stepId: String(lastConfirmation),
+                action:
+                  rows[lastConfirmation]?.to === "Sin conectar" ? "place" : "b",
+              });
+              setProgress((current) => ({
+                ...current,
+                position: lastConfirmation,
+              }));
+              setLastConfirmation(undefined);
+            }}
+          >
+            Revisar
+          </button>
+        </div>
+      )}
       <div className="flex gap-2">
         <Button
           variant="outline"
           icon="arrowLeft"
           disabled={position <= 0 && action === actions[0].action}
           onClick={() => {
+            setLastConfirmation(undefined);
             const index = actions.findIndex((item) => item.action === action);
-            if (row && index > 0) changeAction(actions[index - 1].action);
+            if (row && action === "done")
+              changeAction(isolated ? "place" : "b");
+            else if (row && index > 0) changeAction(actions[index - 1].action);
             else {
               const previous = Math.max(0, position - 1);
               setActionState({
                 stepId: String(previous),
-                action:
-                  rows[previous]?.to === "Sin conectar" ? "place" : "take",
+                action: rows[previous]?.to === "Sin conectar" ? "place" : "b",
               });
               setProgress((current) => ({ ...current, position: previous }));
             }
@@ -375,11 +404,6 @@ function PinSession({
           </Button>
         )}
       </div>
-      {row && (
-        <p className="text-xs leading-5 text-ink-soft">
-          Tú confirmas cada conexión mientras sigues el modelo.
-        </p>
-      )}
     </section>
   );
 }

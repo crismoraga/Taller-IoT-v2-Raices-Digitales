@@ -54,6 +54,8 @@ export type AppContextType = {
   setBoard: (board: Board) => void;
   /** El navegador tiene Web Serial (Chrome o Edge de escritorio, en HTTPS o localhost). */
   serialSupported: boolean;
+  /** The next useful action when this browser context cannot access USB. */
+  usbHint: string | null;
   connected: boolean;
   connecting: boolean;
   /** Hay una operación USB en curso (subir, guardar, instalar). */

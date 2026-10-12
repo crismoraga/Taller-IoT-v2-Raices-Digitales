@@ -44,17 +44,24 @@ export function identifyUSBBoard(
   if (vendor === 0x2341 || vendor === 0x2a03) {
     if ([0x0043, 0x0001, 0x0243, 0x006a].includes(product ?? -1))
       return { board: "uno", label: "Arduino Uno" };
-    // Published USB IDs from Arduino's AVR and Renesas board definitions.
+    // Published USB IDs from Arduino's AVR, megaAVR, SAMD and Renesas cores.
     // These models must not be offered an ATmega328P/STK500v1 upload.
-    const unsupported = [0x0069, 0x0369, 0x006d, 0x1002].includes(product ?? -1)
-      ? "Arduino Uno R4"
-      : [0x0010, 0x0042, 0x0210, 0x0242, 0x003f, 0x0044].includes(product ?? -1)
-        ? "Arduino Mega"
-        : [0x0036, 0x8036].includes(product ?? -1)
-          ? "Arduino Leonardo"
-          : [0x0037, 0x8037, 0x0237, 0x8237].includes(product ?? -1)
-            ? "Arduino Micro"
-            : undefined;
+    const unsupported =
+      product === 0x0058
+        ? "Arduino Nano Every"
+        : [0x0057, 0x8057].includes(product ?? -1)
+          ? "Arduino Nano 33 IoT"
+          : [0x0069, 0x0369, 0x006d, 0x1002].includes(product ?? -1)
+            ? "Arduino Uno R4"
+            : [0x0010, 0x0042, 0x0210, 0x0242, 0x003f, 0x0044].includes(
+                  product ?? -1,
+                )
+              ? "Arduino Mega"
+              : [0x0036, 0x8036].includes(product ?? -1)
+                ? "Arduino Leonardo"
+                : [0x0037, 0x8037, 0x0237, 0x8237].includes(product ?? -1)
+                  ? "Arduino Micro"
+                  : undefined;
     if (unsupported) return { label: unsupported, unsupported };
   }
   if (vendor === 0x1a86 && [0x7523, 0x5523, 0x55d4].includes(product ?? -1))
@@ -615,15 +622,62 @@ export class ArduinoUSBSerial extends SerialLink {
   private async command(
     command: number[],
     size = 0,
-    timeout = 1200,
+    timeout = 1500,
   ): Promise<Uint8Array> {
+    const phase: Record<number, string> = {
+      0x75: "identificación de la placa",
+      0x50: "preparación de la memoria",
+      0x55: "selección de la dirección de memoria",
+      0x64: "grabación de la página",
+      0x74: "verificación de la página",
+      0x51: "inicio del programa",
+    };
+    const describe = (detail: string) =>
+      new Error(
+        `Arduino no confirmó la ${phase[command[0]] ?? "operación"}. ${detail} (STK500v1 · ${this.board} · ${this.baudRate} baudios).`,
+      );
+    // The previous command's complete response has already been consumed.
+    // Remaining bytes are stale adapter input, never the next command's payload.
+    this.inbox = [];
     await this.send([...command, 0x20]);
-    const response = await this.bytes(size + 2, timeout);
-    if (response[0] !== 0x14 || response[response.length - 1] !== 0x10)
-      throw new Error("El bootloader STK500v1 respondió con error.");
-    return response.slice(1, -1);
+    const deadline = Date.now() + timeout;
+    const receive = (count: number) =>
+      this.bytes(count, Math.max(1, deadline - Date.now()));
+    try {
+      for (let discarded = 0; discarded < 512; discarded++) {
+        const prefix = (await receive(1))[0];
+        if ([0x11, 0x12, 0x13, 0x15].includes(prefix))
+          throw describe(
+            `La placa respondió 0x${prefix.toString(16).padStart(2, "0")}`,
+          );
+        if (prefix !== 0x14) continue;
+        const payload = new Uint8Array(size);
+        if (size) {
+          const first = (await receive(1))[0];
+          // READ_SIGN cannot start with OK: a late empty GET_SYNC reply is a
+          // separate frame, not the manufacturer byte of an AVR signature.
+          if (command[0] === 0x75 && first === 0x10) continue;
+          payload[0] = first;
+          if (size > 1) payload.set(await receive(size - 1), 1);
+        }
+        const status = (await receive(1))[0];
+        if (status !== 0x10)
+          throw describe(
+            `Confirmación recibida: 0x${status.toString(16).padStart(2, "0")}`,
+          );
+        return payload;
+      }
+      throw describe("La respuesta USB no contiene un marco válido");
+    } catch (problem) {
+      if (!this.connected) throw problem;
+      if (problem instanceof Error && problem.message.includes("STK500v1"))
+        throw problem;
+      throw describe(
+        problem instanceof Error ? problem.message : String(problem),
+      );
+    }
   }
-  private async resetForUpload() {
+  private async resetForUpload(settleTime = 250) {
     const port = this.port;
     const stillConnected = () => {
       if (!port || this.port !== port || !this.connected)
@@ -633,7 +687,7 @@ export class ArduinoUSBSerial extends SerialLink {
     };
     stillConnected();
     await port!.setSignals({ dataTerminalReady: false, requestToSend: false });
-    await delay(250);
+    await delay(settleTime);
     stillConnected();
     await port!.setSignals({ dataTerminalReady: true, requestToSend: true });
     await delay(1);
@@ -668,12 +722,10 @@ export class ArduinoUSBSerial extends SerialLink {
       try {
         let synchronized = false;
         let detectedBoard = this.board;
+        let detectedSpeed = 115200;
+        let handshakeError: unknown;
         const speeds =
-          this.board === "nano-old"
-            ? [57600]
-            : this.board === "nano"
-              ? [115200, 57600]
-              : [115200];
+          this.board === "nano-old" ? [57600, 115200] : [115200, 57600];
         for (const speed of speeds) {
           await this.reconfigure(speed);
           this.protocol = true;
@@ -681,40 +733,64 @@ export class ArduinoUSBSerial extends SerialLink {
           this.onUploadProgress({ stage: "sync", percent: 0 });
           await this.resetForUpload();
           for (let attempt = 0; attempt < 10 && !synchronized; attempt++) {
+            // A missed Optiboot window cannot be recovered by talking to the
+            // running sketch. Reopen the bootloader on every sync retry, before
+            // any flash command; the initial reset already discharged the cap.
+            if (attempt > 0) await this.resetForUpload(20);
             this.inbox = [];
+            let signature: Uint8Array;
             try {
               await this.synchronize(180);
-              synchronized = true;
-            } catch {
+              signature = await this.command([0x75], 3);
+            } catch (problem) {
+              handshakeError = problem;
               if (!this.connected)
                 throw new Error(
                   "La placa se desconectó. Conéctala de nuevo para instalar.",
                 );
-              await delay(40);
+              continue;
             }
+            // A different MCU is a conclusive result, never a reason to try
+            // another baud rate or to write a partially compatible firmware.
+            if (
+              signature[0] !== 0x1e ||
+              signature[1] !== 0x95 ||
+              signature[2] !== 0x0f
+            )
+              throw new Error(
+                "La placa conectada no es ATmega328P (Uno/Nano clásico).",
+              );
+            try {
+              await this.command([0x50]);
+            } catch (problem) {
+              handshakeError = problem;
+              if (!this.connected) throw problem;
+              continue;
+            }
+            synchronized = true;
+            detectedSpeed = speed;
           }
           if (synchronized) {
             if (speed === 57600 && this.board === "nano") {
               detectedBoard = "nano-old";
             }
+            if (speed === 115200 && this.board === "nano-old")
+              detectedBoard = "nano";
             break;
           }
-          if (speed === 115200 && this.board === "nano")
-            this.onOutput("\nReconociendo el bootloader de tu Nano…\n");
+          if (speed === speeds[0])
+            this.onOutput("\nReconociendo la velocidad del bootloader…\n");
         }
         if (!synchronized)
           throw new Error(
-            "Arduino no respondió al instalador. Pulsa RESET y vuelve a intentar instalar.",
+            `Arduino no respondió al instalador. ${handshakeError instanceof Error ? handshakeError.message : "No se recibió la identificación de la placa."}`,
           );
-        const signature = await this.command([0x75], 3);
-        if (
-          signature[0] !== 0x1e ||
-          signature[1] !== 0x95 ||
-          signature[2] !== 0x0f
-        )
+        if (detectedSpeed === 57600 && data.length > 30720)
           throw new Error(
-            "La placa conectada no es ATmega328P (Uno/Nano clásico).",
+            "Este bootloader admite programas de hasta 30720 bytes; el programa compilado supera ese tamaño.",
           );
+        if (this.board === "uno" && detectedSpeed === 57600)
+          this.onOutput("\nBootloader de Uno reconocido a 57600 baudios.\n");
         if (detectedBoard !== this.board) {
           this.board = detectedBoard;
           this.onBootloaderDetected(detectedBoard);
@@ -722,7 +798,6 @@ export class ArduinoUSBSerial extends SerialLink {
             "\nNano reconocido: velocidad del bootloader ajustada automáticamente.\n",
           );
         }
-        await this.command([0x50]);
         const pageSize = 128;
         for (let offset = 0; offset < data.length; offset += pageSize) {
           const page = new Uint8Array(pageSize).fill(255);
@@ -751,8 +826,6 @@ export class ArduinoUSBSerial extends SerialLink {
           );
         }
         await this.command([0x51]);
-        this.onUploadProgress({ stage: "complete", percent: 100 });
-        this.onOutput("\nPrograma Arduino grabado y verificado.\n");
       } finally {
         this.protocol = false;
         if (this.inbox.length)
@@ -761,6 +834,12 @@ export class ArduinoUSBSerial extends SerialLink {
           );
         if (this.connected) await this.reconfigure(115200);
       }
+      if (!this.connected)
+        throw new Error(
+          "La placa se desconectó. Conéctala de nuevo para instalar.",
+        );
+      this.onUploadProgress({ stage: "complete", percent: 100 });
+      this.onOutput("\nPrograma Arduino grabado y verificado.\n");
     });
   }
 }

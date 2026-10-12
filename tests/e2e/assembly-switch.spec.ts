@@ -53,12 +53,68 @@ async function cable(panel: Locator, a?: string, b?: string) {
     .getByRole("button", { name: "Ya conecté B", exact: true })
     .click();
   await expect(
-    panel.getByRole("heading", { name: "¡Cable conectado!", exact: true }),
-  ).toBeVisible();
-  await panel
-    .getByRole("button", { name: "Conectado, siguiente", exact: true })
-    .click();
+    panel.getByRole("button", { name: "Conectado, siguiente", exact: true }),
+  ).toHaveCount(0);
 }
+
+test("physical confirmation advances immediately and review returns to the last physical action without counting a connection twice", async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await group(page, "uno");
+  await page.goto("/taller/led");
+  await phase(page, "Conecta");
+  await page.getByRole("radio", { name: "Plano 2D", exact: true }).click();
+  const panel = instruction(page);
+  const progress = page.getByRole("progressbar", {
+    name: "Avance del montaje",
+  });
+
+  await cable(panel, "GND", "− · 3");
+  await expect(progress).toHaveAttribute("aria-valuenow", "1");
+  await expect(panel.getByRole("heading")).toHaveText("Toma LED rojo");
+  await expect(panel.getByRole("status")).toHaveText("Cable negro conectado");
+  await panel.getByRole("button", { name: "Revisar", exact: true }).click();
+  await expect(panel.getByRole("heading")).toHaveText("Conecta B en − · 3");
+  await expect(progress).toHaveAttribute("aria-valuenow", "1");
+  await panel
+    .getByRole("button", { name: "Ya conecté B", exact: true })
+    .click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "1");
+  await expect(panel.getByRole("heading")).toHaveText("Toma LED rojo");
+
+  await panel.getByRole("button", { name: "Lo tengo", exact: true }).click();
+  await panel
+    .getByRole("button", { name: "Ubicar siguiente pata", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "Patas alineadas", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "Ya lo coloqué", exact: true })
+    .click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "2");
+  await expect(panel.getByRole("heading")).toContainText("220");
+  await expect(
+    panel.getByRole("button", { name: "Listo, siguiente", exact: true }),
+  ).toHaveCount(0);
+  await panel.getByRole("button", { name: "Revisar", exact: true }).click();
+  await expect(panel.getByRole("heading")).toHaveText("Inserta LED rojo");
+  await expect(panel.getByLabel("Colocar la pieza completa")).toContainText(
+    "d26",
+  );
+  await expect(panel.getByLabel("Colocar la pieza completa")).toContainText(
+    "d27",
+  );
+  await page.reload();
+  await expect(panel.getByRole("heading")).toHaveText("Inserta LED rojo");
+  await expect(progress).toHaveAttribute("aria-valuenow", "2");
+  await panel
+    .getByRole("button", { name: "Ya lo coloqué", exact: true })
+    .click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "2");
+  await expect(panel.getByRole("heading")).toContainText("220");
+});
 
 test("the visible Pico, Uno and Nano wiring follows board selection without reload and resumes each pending cable", async ({
   page,
@@ -240,6 +296,18 @@ test("LED leg alignment targets one hole at a time, persists the pending leg and
   await expect(panel.getByRole("heading")).toHaveText(
     "Alinea pata corta (−) con d27",
   );
+  await expect(
+    page.getByRole("radio", { name: "Plano 2D", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("img", {
+      name: "Alinea pata corta (−) con d27",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("radio", { name: "3D interactivo", exact: true })
+    .click();
   await expect(page.locator(".rdx-terminal-overlay")).toContainText("d27");
   await expect(progress).toHaveAttribute("aria-valuenow", "1");
   await panel
@@ -250,10 +318,6 @@ test("LED leg alignment targets one hole at a time, persists the pending leg and
   );
   await panel
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
-    .click();
-  await expect(progress).toHaveAttribute("aria-valuenow", "1");
-  await panel
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
     .click();
   await expect(progress).toHaveAttribute("aria-valuenow", "2");
   await expect(panel).toContainText("Bandas: rojo, rojo, café y dorado");
@@ -268,9 +332,6 @@ test("LED leg alignment targets one hole at a time, persists the pending leg and
     .click();
   await panel
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
-    .click();
-  await panel
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
     .click();
   await cable(panel);
   await cable(panel);

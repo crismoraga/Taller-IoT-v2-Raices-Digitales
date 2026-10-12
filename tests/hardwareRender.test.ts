@@ -6,9 +6,33 @@ import {
   highlightedTerminals,
   inspectedTerminals,
   hardwareWireCurve,
+  terminalConnector,
+  ledFlangeGeometry,
 } from "../web/experience/HardwareModels";
 
 describe("physical terminal highlighting in the 3D inspector", () => {
+  it("uses plugs that fit the actual breadboard and each controller header", () => {
+    expect(terminalConnector(circuits.led, "a3")).toBe("macho");
+    expect(terminalConnector(circuits.soil, "soil.VCC")).toBe("integrado");
+    expect(terminalConnector(circuits.ds18b20, "ds.DATA")).toBe("integrado");
+    for (const board of ["uno", "nano", "nano-old"] as const) {
+      const circuit = circuitForBoard(circuits.led, board);
+      expect(terminalConnector(circuit, "controller.D2")).toBe(
+        board === "uno" ? "macho" : "hembra",
+      );
+      expect(terminalConnector(circuit, "bn:3")).toBe("macho");
+    }
+  });
+
+  it("gives the LED rim a flat cathode edge without reversing the round anode side", () => {
+    const flange = ledFlangeGeometry();
+    flange.computeBoundingBox();
+    expect(flange.boundingBox!.max.x).toBeLessThan(-flange.boundingBox!.min.x);
+    expect(flange.boundingBox!.max.y).toBeCloseTo(-flange.boundingBox!.min.y);
+    expect(flange.boundingBox!.max.z).toBeCloseTo(-flange.boundingBox!.min.z);
+    flange.dispose();
+  });
+
   it("takes a short cable upwards out of a tall header instead of through its casing", () => {
     const a: [number, number, number] = [0, 0.49, 0];
     const b: [number, number, number] = [0.1, 0.15, 0.1];

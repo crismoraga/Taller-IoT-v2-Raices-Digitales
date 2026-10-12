@@ -291,6 +291,59 @@ test("USB identity corrects a selected Arduino to Pico without a second selector
   expect(stats.opens).toBe(1);
 });
 
+test("a real browser policy that blocks Serial disables USB and explains how to keep using the workshop", async ({
+  page,
+}) => {
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() !== "document") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      headers: { ...response.headers(), "permissions-policy": "serial=()" },
+    });
+  });
+  await openUsbLesson(page);
+  expect(
+    await page.evaluate(() => {
+      const policy = document as Document & {
+        permissionsPolicy?: { allowsFeature: (name: string) => boolean };
+        featurePolicy?: { allowsFeature: (name: string) => boolean };
+      };
+      return (policy.permissionsPolicy ?? policy.featurePolicy)?.allowsFeature(
+        "serial",
+      );
+    }),
+  ).toBe(false);
+  const connect = page
+    .getByRole("button", { name: "Conectar placa", exact: true })
+    .first();
+  await expect(connect).toBeDisabled();
+  await expect(connect).toHaveAttribute("title", /pestaña propia/);
+  await expect(
+    page
+      .getByText(
+        "Abre el taller en una pestaña propia para conectar tu placa por USB.",
+        { exact: true },
+      )
+      .first(),
+  ).toBeVisible();
+  await expect(page.locator(".monaco-editor").first()).toContainText(
+    "from machine",
+  );
+  expect(
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          __usbPeer: { stats: () => { requests: number; opens: number } };
+        }
+      ).__usbPeer.stats(),
+    ),
+  ).toMatchObject({ requests: 0, opens: 0 });
+});
+
 test("an ambiguous USB adapter asks the board before opening the port", async ({
   page,
 }) => {
@@ -308,6 +361,13 @@ test("an ambiguous USB adapter asks the board before opening the port", async ({
     .click();
   const chooser = page.getByRole("dialog", { name: "Reconozcamos tu placa" });
   await expect(chooser).toBeVisible();
+  for (const name of ["Raspberry Pi Pico", "Arduino Uno", "Arduino Nano"])
+    await expect(
+      chooser.getByRole("button", { name, exact: true }),
+    ).toBeVisible();
+  await expect(
+    chooser.getByRole("button", { name: "Arduino Uno / Nano", exact: true }),
+  ).toHaveCount(0);
   expect(
     await page.evaluate(
       () =>

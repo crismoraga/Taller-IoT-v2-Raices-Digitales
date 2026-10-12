@@ -26,6 +26,7 @@ import { BoardDiscovery } from "../lesson/BoardDiscovery";
 import { circuitForBoard } from "../circuit/boards";
 import { circuits } from "../circuit/layouts";
 import { BOARD_NAMES } from "../lib/context";
+import { UploadFeedback } from "../shell/UploadFeedback";
 export default function Settings() {
   const app = useApp();
   const [name, setName] = useState(app.session?.name || ""),
@@ -323,8 +324,7 @@ export default function Settings() {
             </details>
             {!app.serialSupported && (
               <Notice tone="warning">
-                Para conectar por USB, abre este taller en Chrome o Edge de
-                escritorio. Puedes explorar y simular desde este navegador.
+                {app.usbHint} Puedes explorar y simular desde este navegador.
               </Notice>
             )}
             <p>
@@ -612,6 +612,10 @@ export default function Settings() {
                 : "Vincular e instalar estación"}
             </Button>
           </form>
+          <UploadFeedback
+            retryLabel="Compilar e instalar estación USB"
+            className="mt-3 rounded-lg border"
+          />
           {!app.connected && (
             <p>Conecta tu placa en el paso 1 para instalar.</p>
           )}

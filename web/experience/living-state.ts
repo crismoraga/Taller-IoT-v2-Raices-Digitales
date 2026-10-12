@@ -13,7 +13,29 @@ export interface LivingBoardProfile {
   description: string;
   focus: { target: Point; position: Point };
   signalPoint: Point;
+  sensorPin: "GP26" | "A0";
 }
+
+/** Board placement shared by the model, focus ring and signal attachment. */
+export const LIVING_BOARD_POSITION: Point = [-2.03, 0.1, 0.7];
+export const LIVING_BOARD_ROTATION = -0.22;
+
+function placedContact(point: Point, uno = false): Point {
+  const [x, y, z] = point;
+  return [
+    LIVING_BOARD_POSITION[0] +
+      Math.cos(LIVING_BOARD_ROTATION) * x +
+      Math.sin(LIVING_BOARD_ROTATION) * z,
+    (uno ? 0.035 : LIVING_BOARD_POSITION[1]) + y,
+    LIVING_BOARD_POSITION[2] -
+      Math.sin(LIVING_BOARD_ROTATION) * x +
+      Math.cos(LIVING_BOARD_ROTATION) * z,
+  ];
+}
+
+const picoSignal = placedContact([-0.02826, 0.186, -0.2155]);
+const nanoSignal = placedContact([-0.26828, 0.186, 0.181]);
+const unoSignal = placedContact([0.13, 0.174, 0.525], true);
 
 const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
   pico: {
@@ -24,9 +46,10 @@ const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
     color: "#277653",
     usb: "Micro USB",
     description:
-      "Tu Raspberry Pi Pico W ejecuta MicroPython. Reconoce el Micro USB, las dos filas de 20 pines y la antena del extremo opuesto: aquí llegará la señal del sensor.",
+      "MicroPython, Micro USB y 40 pines. GP26 recibe la humedad; GP2 controla tu LED.",
     focus: { target: [-2.03, 0.35, 0.7], position: [-1.12, 2.6, 3.12] },
-    signalPoint: [-1.55, 0.41, 0.95],
+    signalPoint: picoSignal,
+    sensorPin: "GP26",
   },
   uno: {
     shortName: "Arduino Uno",
@@ -36,9 +59,10 @@ const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
     color: "#277d87",
     usb: "USB tipo B",
     description:
-      "Tu Arduino Uno ejecuta C++. Reconoce el USB tipo B cuadrado y los conectores negros: los cables se insertan en sus agujeros. A0 recibe el sensor y D2 puede encender tu LED.",
+      "C++ y USB tipo B. Inserta los cables en sus conectores negros: A0 recibe la humedad y D2 controla tu LED.",
     focus: { target: [-2.03, 0.27, 0.7], position: [-0.85, 3.0, 3.3] },
-    signalPoint: [-1.56, 0.39, 1.16],
+    signalPoint: unoSignal,
+    sensorPin: "A0",
   },
   nano: {
     shortName: "Arduino Nano",
@@ -48,9 +72,10 @@ const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
     color: "#287b87",
     usb: "Mini USB",
     description:
-      "Tu Arduino Nano ejecuta C++. Su Mini USB y sus dos filas de 15 pines lo distinguen de la Pico. A0 recibe el sensor y D2 puede encender tu LED.",
+      "C++, Mini USB y 30 pines. A0 recibe la humedad; D2 controla tu LED.",
     focus: { target: [-2.03, 0.35, 0.7], position: [-1.15, 2.4, 3.02] },
-    signalPoint: [-1.64, 0.4, 0.93],
+    signalPoint: nanoSignal,
+    sensorPin: "A0",
   },
   "nano-old": {
     shortName: "Arduino Nano",
@@ -60,9 +85,10 @@ const BOARD_PROFILES: Record<Board, LivingBoardProfile> = {
     color: "#287b87",
     usb: "Mini USB",
     description:
-      "Tu Arduino Nano ejecuta C++. Conserva los mismos 30 pines y el Mini USB; esta variante usa el bootloader antiguo al cargar el programa. A0 recibe el sensor y D2 puede encender tu LED.",
+      "El mismo Nano de 30 pines y Mini USB, con bootloader antiguo. A0 recibe la humedad; D2 controla tu LED.",
     focus: { target: [-2.03, 0.35, 0.7], position: [-1.15, 2.4, 3.02] },
-    signalPoint: [-1.64, 0.4, 0.93],
+    signalPoint: nanoSignal,
+    sensorPin: "A0",
   },
 };
 
@@ -89,4 +115,29 @@ export function normalizedLivingReadings(readings: LivingReadings) {
     led: typeof readings.led === "boolean" ? readings.led : undefined,
     source: readings.source,
   };
+}
+
+/** Copy follows available measurements, including zero and an explicitly off LED. */
+export function livingReadingText(
+  readings: LivingReadings,
+  part: "plant" | "sensor" | "led",
+): string {
+  const values = normalizedLivingReadings(readings);
+  if (part === "led")
+    return values.led === undefined
+      ? "El estado del LED aparecerá con tu próxima lectura."
+      : `LED de tu estación: ${values.led ? "encendido" : "apagado"}.`;
+  const measurements = [
+    values.soil === undefined
+      ? undefined
+      : `Humedad ${Math.round(values.soil)}%`,
+    part === "plant" && values.light !== undefined
+      ? `Luz ${Math.round(values.light)}%`
+      : undefined,
+  ].filter(Boolean);
+  return measurements.length
+    ? `${measurements.join(" · ")}.`
+    : part === "plant"
+      ? "Tus próximas lecturas de humedad y luz aparecerán aquí."
+      : "Tu próxima lectura de humedad aparecerá aquí.";
 }

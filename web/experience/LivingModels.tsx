@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Board } from "../lib/context";
 import { BoardText, Tube, type V3 } from "./Primitives";
 import { livingBoardProfile } from "./living-state";
@@ -32,10 +33,11 @@ export function LivingLeaf({
       const spread = outline * width;
       const curl = Math.sin(t * Math.PI) * length * 0.16;
       return [
-        across * spread,
+        across * spread + Math.sin(t * Math.PI) * width * 0.035,
         t * length,
         curl -
-          Math.abs(across) ** 1.3 * spread * 0.28 +
+          Math.abs(across) ** 1.3 * spread * 0.3 +
+          across * Math.sin(t * Math.PI * 0.8) * width * 0.05 +
           Math.sin(t * Math.PI * 3) * Math.abs(across) * width * 0.028,
       ];
     };
@@ -85,9 +87,29 @@ export function LivingLeaf({
         );
       }
     }
-    return { geometry, mainVein, veins };
+    const veinSections = [mainVein, ...veins].map(
+      (points, index) =>
+        new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3(
+            points.map((p) => new THREE.Vector3(...p)),
+          ),
+          index ? 12 : 24,
+          index ? 0.0034 : 0.008,
+          5,
+          false,
+        ),
+    );
+    const veinGeometry = mergeGeometries(veinSections)!;
+    veinSections.forEach((section) => section.dispose());
+    return { geometry, veinGeometry };
   }, [length, width, color]);
-  useEffect(() => () => model.geometry.dispose(), [model]);
+  useEffect(
+    () => () => {
+      model.geometry.dispose();
+      model.veinGeometry.dispose();
+    },
+    [model],
+  );
   return (
     <group position={position} rotation={rotation}>
       <mesh geometry={model.geometry} castShadow>
@@ -102,10 +124,9 @@ export function LivingLeaf({
           sheenRoughness={0.8}
         />
       </mesh>
-      <Tube points={model.mainVein} radius={0.008} color="#b1cc8b" />
-      {model.veins.map((points, index) => (
-        <Tube key={index} points={points} radius={0.0034} color="#8cb774" />
-      ))}
+      <mesh geometry={model.veinGeometry}>
+        <meshStandardMaterial color="#a6c990" roughness={0.77} />
+      </mesh>
     </group>
   );
 }
@@ -183,13 +204,23 @@ export function LivingPot({ roots, soil }: { roots: boolean; soil?: number }) {
       <mesh geometry={geometry} castShadow={!roots} receiveShadow>
         <meshPhysicalMaterial
           color="#c9845f"
-          roughness={0.48}
-          clearcoat={0.12}
-          clearcoatRoughness={0.5}
+          roughness={0.62}
+          clearcoat={0.16}
+          clearcoatRoughness={0.65}
           transparent={roots}
           opacity={roots ? 0.13 : 1}
           depthWrite={!roots}
           side={THREE.DoubleSide}
+        />
+      </mesh>
+      <mesh position={[0, 1.555, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.078, 0.018, 8, 64]} />
+        <meshStandardMaterial
+          color="#e2ac86"
+          roughness={0.63}
+          transparent={roots}
+          opacity={roots ? 0.13 : 1}
+          depthWrite={!roots}
         />
       </mesh>
       <mesh position={[0, 0.048, 0]} receiveShadow>
@@ -239,24 +270,43 @@ export function LivingPot({ roots, soil }: { roots: boolean; soil?: number }) {
   );
 }
 
-function BreadboardHoles() {
+function BreadboardHoles({ board }: { board: Board }) {
   const reference = useRef<THREE.InstancedMesh>(null);
+  const { width, depth, pinsPerSide } = livingBoardProfile(board);
+  const count = (pinsPerSide + 4) * 14;
   useEffect(() => {
     if (!reference.current) return;
     const dummy = new THREE.Object3D();
+    const pitch = (width - 0.076) / (pinsPerSide - 1);
     let index = 0;
-    for (let x = 0; x < 11; x++) {
-      for (let z = 0; z < 6; z++) {
-        dummy.position.set(-0.66 + x * 0.13, 0.0858, -0.41 + z * 0.165);
-        dummy.updateMatrix();
-        reference.current.setMatrixAt(index++, dummy.matrix);
+    for (let x = 0; x < pinsPerSide + 4; x++) {
+      for (const side of [-1, 1]) {
+        for (let row = 0; row < 5; row++) {
+          dummy.position.set(
+            -width / 2 + 0.038 + (x - 2) * pitch,
+            0.0858,
+            side * (depth / 2 - 0.022 + (row - 2) * 0.07),
+          );
+          dummy.updateMatrix();
+          reference.current.setMatrixAt(index++, dummy.matrix);
+        }
+        for (const rail of [0.445, 0.487]) {
+          dummy.position.set(
+            -width / 2 + 0.038 + (x - 2) * pitch,
+            0.0858,
+            side * rail,
+          );
+          dummy.updateMatrix();
+          reference.current.setMatrixAt(index++, dummy.matrix);
+        }
       }
     }
     reference.current.instanceMatrix.needsUpdate = true;
-  }, []);
+    reference.current.computeBoundingSphere();
+  }, [width, depth, pinsPerSide]);
   return (
-    <instancedMesh ref={reference} args={[undefined, undefined, 66]}>
-      <boxGeometry args={[0.036, 0.0012, 0.04]} />
+    <instancedMesh ref={reference} args={[undefined, undefined, count]}>
+      <boxGeometry args={[0.023, 0.0012, 0.029]} />
       <meshStandardMaterial color="#4e5649" roughness={0.92} />
     </instancedMesh>
   );
@@ -275,35 +325,123 @@ function Header({
 }) {
   return (
     <group position={position}>
-      <mesh position={[((count - 1) * pitch) / 2, female ? 0.039 : 0.025, 0]}>
+      <mesh position={[((count - 1) * pitch) / 2, female ? 0.039 : -0.042, 0]}>
         <boxGeometry args={[count * pitch, female ? 0.078 : 0.029, 0.063]} />
         <meshStandardMaterial color="#172826" roughness={0.64} />
       </mesh>
-      {Array.from({ length: count }, (_, i) => (
-        <group key={i} position={[i * pitch, 0, 0]}>
-          <mesh position={[0, female ? 0.079 : -0.016, 0]}>
-            <boxGeometry
-              args={[female ? 0.023 : 0.018, female ? 0.004 : 0.12, 0.023]}
-            />
-            <meshStandardMaterial
-              color={female ? "#111d1b" : "#dbc079"}
-              metalness={female ? 0.1 : 0.8}
-              roughness={0.32}
-            />
-          </mesh>
-          {female && (
-            <mesh position={[0, 0.0796, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.011, 0.016, 8]} />
-              <meshStandardMaterial
-                color="#8f9277"
-                metalness={0.72}
-                roughness={0.35}
-              />
-            </mesh>
-          )}
-        </group>
-      ))}
+      <HeaderContacts
+        key={`${count}:${female}:${pitch}`}
+        count={count}
+        female={female}
+        pitch={pitch}
+      />
     </group>
+  );
+}
+
+function HeaderContacts({
+  count,
+  female,
+  pitch,
+}: {
+  count: number;
+  female: boolean;
+  pitch: number;
+}) {
+  const contacts = useRef<THREE.InstancedMesh>(null);
+  const collars = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    if (!contacts.current) return;
+    const dummy = new THREE.Object3D();
+    for (let index = 0; index < count; index++) {
+      dummy.position.set(index * pitch, female ? 0.079 : -0.016, 0);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      contacts.current.setMatrixAt(index, dummy.matrix);
+      if (collars.current) {
+        dummy.position.y = 0.0796;
+        dummy.rotation.x = -Math.PI / 2;
+        dummy.updateMatrix();
+        collars.current.setMatrixAt(index, dummy.matrix);
+      }
+    }
+    for (const mesh of [contacts.current, collars.current]) {
+      if (!mesh) continue;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    }
+  }, [count, female, pitch]);
+  return (
+    <>
+      <instancedMesh ref={contacts} args={[undefined, undefined, count]}>
+        <boxGeometry
+          args={[female ? 0.023 : 0.018, female ? 0.004 : 0.12, 0.023]}
+        />
+        <meshStandardMaterial
+          color={female ? "#111d1b" : "#dbc079"}
+          metalness={female ? 0.1 : 0.8}
+          roughness={0.32}
+        />
+      </instancedMesh>
+      {female && (
+        <instancedMesh ref={collars} args={[undefined, undefined, count]}>
+          <ringGeometry args={[0.011, 0.016, 8]} />
+          <meshStandardMaterial
+            color="#8f9277"
+            metalness={0.72}
+            roughness={0.35}
+          />
+        </instancedMesh>
+      )}
+    </>
+  );
+}
+
+function ChipContacts({
+  perSide,
+  pitch,
+  width,
+  dip,
+}: {
+  perSide: number;
+  pitch: number;
+  width: number;
+  dip: boolean;
+}) {
+  const reference = useRef<THREE.InstancedMesh>(null);
+  const count = perSide * (dip ? 2 : 4);
+  useEffect(() => {
+    if (!reference.current) return;
+    const dummy = new THREE.Object3D();
+    const start = ((perSide - 1) * pitch) / 2;
+    let index = 0;
+    for (const side of [-1, 1]) {
+      for (let pin = 0; pin < perSide; pin++) {
+        dummy.position.set(
+          -start + pin * pitch,
+          0.049,
+          side * (dip ? 0.105 : 0.12),
+        );
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        reference.current.setMatrixAt(index++, dummy.matrix);
+      }
+      if (dip) continue;
+      for (let pin = 0; pin < perSide; pin++) {
+        dummy.position.set(side * 0.12, 0.049, -start + pin * pitch);
+        dummy.rotation.set(0, Math.PI / 2, 0);
+        dummy.updateMatrix();
+        reference.current.setMatrixAt(index++, dummy.matrix);
+      }
+    }
+    reference.current.instanceMatrix.needsUpdate = true;
+    reference.current.computeBoundingSphere();
+  }, [perSide, pitch, dip]);
+  return (
+    <instancedMesh ref={reference} args={[undefined, undefined, count]}>
+      <boxGeometry args={[width, 0.018, 0.045]} />
+      <meshStandardMaterial color="#acb6af" metalness={0.83} roughness={0.29} />
+    </instancedMesh>
   );
 }
 
@@ -384,10 +522,12 @@ export function LivingBoard({ board }: { board: Board }) {
             [-width / 2 + 0.19, 0, depth / 2 - 0.095],
           ]
         : [
-            [-width / 2 + 0.21, 0, -depth / 2 + 0.075],
+            [-width / 2 + (pico ? 0.15 : 0.028), 0, -depth / 2 + 0.075],
+            [-width / 2 + (pico ? 0.15 : 0.028), 0, depth / 2 - 0.075],
+            [width / 2 - 0.075, 0, -depth / 2 + 0.075],
             [width / 2 - 0.075, 0, depth / 2 - 0.075],
           ],
-    [uno, width, depth],
+    [uno, pico, width, depth],
   );
   const pcb = useMemo(() => {
     const shape = new THREE.Shape();
@@ -419,8 +559,10 @@ export function LivingBoard({ board }: { board: Board }) {
     });
   }, [width, depth, mounting]);
   useEffect(() => () => pcb.dispose(), [pcb]);
-  const chipX = uno ? 0.15 : pico ? 0.045 : 0.07;
+  const chipX = uno ? 0.15 : pico ? 0.045 : -0.075;
   const chipZ = uno ? 0.2 : 0;
+  const chipContacts = uno || pico ? 14 : 8;
+  const chipPitch = uno ? 0.04 : pico ? 0.0145 : 0.025;
   return (
     <group name={`living-controller-${board}`}>
       {!uno && (
@@ -433,17 +575,34 @@ export function LivingBoard({ board }: { board: Board }) {
             <boxGeometry args={[1.43, 0.008, 0.036]} />
             <meshStandardMaterial color="#c1c7b4" roughness={0.93} />
           </mesh>
-          <BreadboardHoles />
-          <BoardText position={[0.62, 0.101, 0.37]} size={0.06} color="#7c8571">
-            +
-          </BoardText>
-          <BoardText
-            position={[-0.65, 0.101, 0.37]}
-            size={0.06}
-            color="#7c8571"
-          >
-            −
-          </BoardText>
+          <BreadboardHoles key={board} board={board} />
+          {[-1, 1].map((side) => (
+            <group key={side}>
+              {[0.422, 0.514].map((z, index) => (
+                <mesh key={z} position={[0, 0.087, side * z]}>
+                  <boxGeometry args={[1.4, 0.002, 0.004]} />
+                  <meshStandardMaterial
+                    color={index ? "#79968e" : "#b78069"}
+                    roughness={0.92}
+                  />
+                </mesh>
+              ))}
+              <BoardText
+                position={[-0.726, 0.1, side * 0.446]}
+                size={0.041}
+                color="#a76758"
+              >
+                +
+              </BoardText>
+              <BoardText
+                position={[-0.726, 0.1, side * 0.49]}
+                size={0.041}
+                color="#557772"
+              >
+                −
+              </BoardText>
+            </group>
+          ))}
         </group>
       )}
       <group position={[0, uno ? 0.065 : 0.136, 0]} name={`pcb-${board}`}>
@@ -485,47 +644,28 @@ export function LivingBoard({ board }: { board: Board }) {
             />
           </mesh>
         ))}
-        <mesh position={[chipX, 0.067, chipZ]} castShadow>
-          <boxGeometry
-            args={[uno ? 0.58 : 0.205, uno ? 0.07 : 0.055, uno ? 0.17 : 0.205]}
-          />
-          <meshStandardMaterial color="#202c28" roughness={0.59} />
-        </mesh>
-        {[-1, 1].flatMap((side) =>
-          Array.from({ length: uno ? 14 : 8 }, (_, i) => (
-            <mesh
-              key={`chip-${side}-${i}`}
-              position={[
-                chipX - (uno ? 0.265 : 0.087) + i * (uno ? 0.04 : 0.025),
-                0.049,
-                chipZ + side * (uno ? 0.105 : 0.12),
+        <group
+          position={[chipX, 0, chipZ]}
+          rotation={[0, nano ? Math.PI / 4 : 0, 0]}
+        >
+          <mesh position={[0, 0.067, 0]} castShadow>
+            <boxGeometry
+              args={[
+                uno ? 0.58 : 0.205,
+                uno ? 0.07 : 0.055,
+                uno ? 0.17 : 0.205,
               ]}
-            >
-              <boxGeometry args={[uno ? 0.026 : 0.015, 0.018, 0.045]} />
-              <meshStandardMaterial
-                color="#acb6af"
-                metalness={0.83}
-                roughness={0.29}
-              />
-            </mesh>
-          )),
-        )}
-        {!uno &&
-          [-1, 1].flatMap((side) =>
-            Array.from({ length: 8 }, (_, i) => (
-              <mesh
-                key={`chip-end-${side}-${i}`}
-                position={[chipX + side * 0.12, 0.049, -0.087 + i * 0.025]}
-              >
-                <boxGeometry args={[0.045, 0.018, 0.015]} />
-                <meshStandardMaterial
-                  color="#acb6af"
-                  metalness={0.83}
-                  roughness={0.29}
-                />
-              </mesh>
-            )),
-          )}
+            />
+            <meshStandardMaterial color="#202c28" roughness={0.59} />
+          </mesh>
+          <ChipContacts
+            key={board}
+            perSide={chipContacts}
+            pitch={chipPitch}
+            width={uno ? 0.026 : pico ? 0.009 : 0.015}
+            dip={uno}
+          />
+        </group>
         <UsbSocket uno={uno} nano={nano} width={width} />
         {uno ? (
           <>
@@ -553,6 +693,55 @@ export function LivingBoard({ board }: { board: Board }) {
               female
               pitch={0.062}
             />
+            <group position={[0.51, 0.03, 0.18]}>
+              <mesh position={[0, 0.027, 0]}>
+                <boxGeometry args={[0.18, 0.052, 0.115]} />
+                <meshStandardMaterial color="#1a2927" roughness={0.65} />
+              </mesh>
+              {[-1, 0, 1].flatMap((column) =>
+                [-1, 1].map((row) => (
+                  <mesh
+                    key={`${column}-${row}`}
+                    position={[column * 0.056, 0.085, row * 0.03]}
+                  >
+                    <boxGeometry args={[0.017, 0.088, 0.017]} />
+                    <meshStandardMaterial
+                      color="#c7b775"
+                      metalness={0.79}
+                      roughness={0.3}
+                    />
+                  </mesh>
+                )),
+              )}
+            </group>
+            <mesh position={[-0.43, 0.054, -0.13]} castShadow>
+              <boxGeometry args={[0.105, 0.04, 0.105]} />
+              <meshStandardMaterial color="#25312b" roughness={0.58} />
+            </mesh>
+            <mesh position={[-0.23, 0.052, 0.29]} castShadow>
+              <boxGeometry args={[0.097, 0.036, 0.047]} />
+              <meshStandardMaterial
+                color="#ccd2c8"
+                metalness={0.8}
+                roughness={0.3}
+              />
+            </mesh>
+            {[-0.22, -0.06].map((x) => (
+              <group key={x} position={[x, 0.035, 0.405]}>
+                <mesh position={[0, 0.047, 0]} castShadow>
+                  <cylinderGeometry args={[0.032, 0.033, 0.094, 12]} />
+                  <meshStandardMaterial color="#27302a" roughness={0.62} />
+                </mesh>
+                <mesh position={[0, 0.095, 0]}>
+                  <cylinderGeometry args={[0.029, 0.029, 0.003, 12]} />
+                  <meshStandardMaterial
+                    color="#c5ccbf"
+                    metalness={0.82}
+                    roughness={0.36}
+                  />
+                </mesh>
+              </group>
+            ))}
             <group position={[-0.64, 0.096, 0.32]}>
               <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
                 <cylinderGeometry args={[0.105, 0.105, 0.22, 18]} />
@@ -636,14 +825,32 @@ export function LivingBoard({ board }: { board: Board }) {
               </>
             )}
             {nano && (
-              <mesh position={[-0.235, 0.051, 0]}>
-                <boxGeometry args={[0.12, 0.032, 0.14]} />
-                <meshStandardMaterial color="#253430" roughness={0.64} />
-              </mesh>
+              <>
+                <mesh position={[0.19, 0.049, 0]}>
+                  <boxGeometry args={[0.083, 0.036, 0.09]} />
+                  <meshStandardMaterial
+                    color="#a9b8a6"
+                    metalness={0.72}
+                    roughness={0.36}
+                  />
+                </mesh>
+                <mesh position={[0.19, 0.071, 0]}>
+                  <boxGeometry args={[0.034, 0.017, 0.047]} />
+                  <meshStandardMaterial color="#2c372d" roughness={0.68} />
+                </mesh>
+                <mesh position={[-0.26, 0.05, 0]}>
+                  <boxGeometry args={[0.051, 0.035, 0.082]} />
+                  <meshStandardMaterial
+                    color="#bec6ba"
+                    metalness={0.78}
+                    roughness={0.3}
+                  />
+                </mesh>
+              </>
             )}
             <BoardText
-              position={[-0.12, 0.032, depth / 2 - 0.092]}
-              size={0.053}
+              position={[pico ? -0.12 : 0.265, 0.032, depth / 2 - 0.092]}
+              size={pico ? 0.053 : 0.041}
               color="#e5efd6"
             >
               {pico ? "PICO W" : "NANO"}
@@ -654,6 +861,13 @@ export function LivingBoard({ board }: { board: Board }) {
               color="#e5efd6"
             >
               {pico ? "GP2" : "D2"}
+            </BoardText>
+            <BoardText
+              position={pico ? [-0.028, 0.032, -0.127] : [-0.268, 0.032, 0.104]}
+              size={0.028}
+              color="#e5efd6"
+            >
+              {profile.sensorPin}
             </BoardText>
           </>
         )}
@@ -681,26 +895,49 @@ export function LivingBoard({ board }: { board: Board }) {
 }
 
 export function LivingSoilProbe() {
+  const pcb = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.084, 0.5);
+    shape.lineTo(0.084, 0.5);
+    shape.quadraticCurveTo(0.105, 0.5, 0.105, 0.477);
+    shape.lineTo(0.105, 0.32);
+    shape.lineTo(0.078, 0.285);
+    shape.lineTo(0.078, -0.425);
+    shape.quadraticCurveTo(0.07, -0.515, 0, -0.538);
+    shape.quadraticCurveTo(-0.07, -0.515, -0.078, -0.425);
+    shape.lineTo(-0.078, 0.285);
+    shape.lineTo(-0.105, 0.32);
+    shape.lineTo(-0.105, 0.477);
+    shape.quadraticCurveTo(-0.105, 0.5, -0.084, 0.5);
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.025,
+      bevelEnabled: true,
+      bevelSize: 0.003,
+      bevelThickness: 0.003,
+      bevelSegments: 2,
+      curveSegments: 10,
+    });
+  }, []);
+  useEffect(() => () => pcb.dispose(), [pcb]);
+  const electrode: V3[] = [
+    [-0.053, 0.205, 0.029],
+    [-0.053, -0.37, 0.029],
+    [-0.035, -0.455, 0.029],
+    [0.035, -0.455, 0.029],
+    [0.053, -0.37, 0.029],
+    [0.053, 0.205, 0.029],
+    [-0.053, 0.205, 0.029],
+  ];
   return (
     <group>
-      <mesh castShadow>
-        <boxGeometry args={[0.16, 1.02, 0.033]} />
+      <mesh geometry={pcb} position={[0, 0, -0.016]} castShadow>
         <meshPhysicalMaterial
-          color="#327d55"
+          color="#254d39"
           roughness={0.57}
           clearcoat={0.18}
         />
       </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * 0.046, -0.16, 0.019]}>
-          <boxGeometry args={[0.021, 0.54, 0.003]} />
-          <meshStandardMaterial
-            color="#9bae6c"
-            metalness={0.47}
-            roughness={0.45}
-          />
-        </mesh>
-      ))}
+      <Tube points={electrode} radius={0.006} color="#a8b66e" />
       <mesh position={[0, 0.385, 0.02]}>
         <boxGeometry args={[0.2, 0.24, 0.035]} />
         <meshStandardMaterial color="#285c40" roughness={0.61} />
@@ -709,20 +946,34 @@ export function LivingSoilProbe() {
         <boxGeometry args={[0.048, 0.067, 0.027]} />
         <meshStandardMaterial color="#26312b" roughness={0.61} />
       </mesh>
-      <mesh position={[0, 0.519, 0.02]}>
-        <boxGeometry args={[0.115, 0.054, 0.072]} />
-        <meshStandardMaterial color="#1d2e24" roughness={0.71} />
-      </mesh>
-      {[-1, 0, 1].map((offset) => (
-        <mesh key={offset} position={[offset * 0.037, 0.556, 0.026]}>
-          <boxGeometry args={[0.012, 0.04, 0.012]} />
-          <meshStandardMaterial
-            color="#d3b35f"
-            metalness={0.8}
-            roughness={0.28}
-          />
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * 0.065, 0.384, 0.043]}>
+          <boxGeometry args={[0.027, 0.041, 0.014]} />
+          <meshStandardMaterial color="#c4bd9e" roughness={0.66} />
         </mesh>
       ))}
+      <BoardText
+        position={[0, 0.274, 0.036]}
+        rotation={[0, 0, 0]}
+        size={0.028}
+        color="#d6e2bf"
+      >
+        AO
+      </BoardText>
+      <mesh position={[0, 0.519, 0.034]}>
+        <boxGeometry args={[0.15, 0.069, 0.077]} />
+        <meshStandardMaterial color="#f1efda" roughness={0.67} />
+      </mesh>
+      {[-1, 0, 1].map((offset) => (
+        <mesh key={offset} position={[offset * 0.043, 0.518, 0.0735]}>
+          <boxGeometry args={[0.024, 0.03, 0.002]} />
+          <meshStandardMaterial color="#53634e" roughness={0.78} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.547, 0.061]}>
+        <boxGeometry args={[0.155, 0.014, 0.032]} />
+        <meshStandardMaterial color="#e1e2cd" roughness={0.65} />
+      </mesh>
     </group>
   );
 }

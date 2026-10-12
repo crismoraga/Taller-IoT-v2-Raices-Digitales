@@ -52,9 +52,14 @@ test.afterEach(async ({ page }) => {
   await page.request.delete("/api/session", { headers: { Origin: ORIGIN } });
 });
 
-async function avrPeer(page: Page, oldNano = false, corrupt = false) {
+async function avrPeer(
+  page: Page,
+  oldNano = false,
+  corrupt = false,
+  oldUno = false,
+) {
   await page.addInitScript(
-    ({ oldNano, corrupt }) => {
+    ({ oldNano, corrupt, oldUno }) => {
       let controller: ReadableStreamDefaultController<Uint8Array>;
       let baud = 0,
         address = 0,
@@ -83,7 +88,8 @@ async function avrPeer(page: Page, oldNano = false, corrupt = false) {
           port.writable = new WritableStream({
             write(bytes: Uint8Array) {
               const command = bytes[0];
-              if (!released || held || (oldNano && baud !== 57600)) return;
+              if (!released || held || ((oldNano || oldUno) && baud !== 57600))
+                return;
               const reply = (data: number[] = []) =>
                 controller.enqueue(Uint8Array.from([0x14, ...data, 0x10]));
               if (command === 0x30) {
@@ -93,8 +99,13 @@ async function avrPeer(page: Page, oldNano = false, corrupt = false) {
                 );
                 controller.enqueue(Uint8Array.of(0x14));
                 setTimeout(() => controller.enqueue(Uint8Array.of(0x10)), 4);
-              } else if (command === 0x75) reply([0x1e, 0x95, 0x0f]);
-              else if (command === 0x55) {
+              } else if (command === 0x75) {
+                // Reproduce the user's STK500 error: old text and an empty
+                // delayed SYNC frame arrive with the real signature response.
+                controller.enqueue(new TextEncoder().encode("ready\r\n"));
+                controller.enqueue(Uint8Array.of(0x14, 0x10));
+                reply([0x1e, 0x95, 0x0f]);
+              } else if (command === 0x55) {
                 address = 2 * (bytes[1] | (bytes[2] << 8));
                 reply();
               } else if (command === 0x64) {
@@ -143,12 +154,17 @@ async function avrPeer(page: Page, oldNano = false, corrupt = false) {
         },
       });
     },
-    { oldNano, corrupt },
+    { oldNano, corrupt, oldUno },
   );
 }
 
-async function openFirstLed(page: Page, oldNano = false, corrupt = false) {
-  await avrPeer(page, oldNano, corrupt);
+async function openFirstLed(
+  page: Page,
+  oldNano = false,
+  corrupt = false,
+  oldUno = false,
+) {
+  await avrPeer(page, oldNano, corrupt, oldUno);
   // A failed readiness probe must never permanently disable a working compiler.
   await page.route("**/api/health", (route) =>
     route.fulfill({
@@ -209,10 +225,6 @@ async function openFirstLed(page: Page, oldNano = false, corrupt = false) {
   if (oldNano) {
     await page
       .getByRole("dialog")
-      .getByRole("button", { name: "Arduino Uno / Nano", exact: true })
-      .click();
-    await page
-      .getByRole("dialog")
       .getByRole("button", { name: "Arduino Nano", exact: true })
       .click();
   }
@@ -228,14 +240,18 @@ async function openFirstLed(page: Page, oldNano = false, corrupt = false) {
   return () => compiledHex;
 }
 
-for (const oldNano of [false, true]) {
-  test(`first integrated LED compiles real firmware and verifies every page on ${oldNano ? "old Nano" : "Uno"}`, async ({
+for (const { oldNano, oldUno, label } of [
+  { oldNano: false, oldUno: false, label: "Uno" },
+  { oldNano: true, oldUno: false, label: "old Nano" },
+  { oldNano: false, oldUno: true, label: "Uno clone with old bootloader" },
+]) {
+  test(`first integrated LED compiles real firmware and verifies every page on ${label}`, async ({
     page,
   }) => {
     test.setTimeout(100000);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const hex = await openFirstLed(page, oldNano);
+    const hex = await openFirstLed(page, oldNano, false, oldUno);
     await expect(
       page.getByRole("status", { name: "Estado de carga del programa" }),
     ).toContainText("Programa grabado y verificado", { timeout: 80000 });
@@ -261,7 +277,7 @@ for (const oldNano of [false, true]) {
     await expect(
       page.getByRole("combobox", { name: "Tu placa", exact: true }),
     ).toHaveValue(oldNano ? "nano-old" : "uno");
-    if (oldNano)
+    if (oldNano || oldUno)
       expect(result.speeds).toEqual(expect.arrayContaining([115200, 57600]));
     await expect(
       page.getByRole("log", { name: "Salida de la placa" }),

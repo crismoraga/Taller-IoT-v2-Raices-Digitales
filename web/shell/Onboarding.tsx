@@ -167,9 +167,7 @@ export function Onboarding({
         </p>
         {!app.serialSupported && (
           <Callout tone="warning" title="Programación por USB" compact>
-            Para programar la placa, abre el taller en Chrome o Edge de
-            escritorio. Aquí puedes seguir el montaje y practicar en el
-            simulador.
+            {app.usbHint} Puedes seguir el montaje y practicar en el simulador.
           </Callout>
         )}
         {app.board !== "pico" && app.health && !app.health.arduinoAvailable && (

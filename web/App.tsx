@@ -12,6 +12,7 @@ import { normalizeProgress } from "./content";
 import { api, post, type Reading, type Session } from "./lib/api";
 import { arduinoStationSketch } from "./lib/arduino";
 import { filterCalibrations } from "./lib/calibration";
+import { browserUSBCompatibility } from "./lib/usb-support";
 import {
   AppContext,
   BOARD_NAMES,
@@ -76,6 +77,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
+  const usbSupport = useMemo(browserUSBCompatibility, []);
   const [board, setBoardState] = useState<Board>(() => {
     const stored = readLocal<Board>("raices.board", "pico");
     return BOARDS.includes(stored) ? stored : "pico";
@@ -531,6 +533,13 @@ export default function App() {
   const connect = useCallback(
     async (existing?: USBPort, chosenBoard?: Board) => {
       if (usbConnecting.current || usbBusy.current) return;
+      if (!usbSupport.supported) {
+        notify(
+          usbSupport.hint ?? "USB no está disponible en esta pestaña.",
+          "info",
+        );
+        return;
+      }
       if (!sessionRef.current) {
         onboardingDestination.current = canonical(location.pathname);
         setOnboarding(true);
@@ -608,7 +617,7 @@ export default function App() {
         setConnecting(false);
       }
     },
-    [notify, resetUSBReadings],
+    [notify, resetUSBReadings, usbSupport],
   );
   const chooseUSBBoard = useCallback(
     async (chosen: Board) => {
@@ -942,7 +951,8 @@ export default function App() {
       notify,
       board,
       setBoard,
-      serialSupported: serial.supported,
+      serialSupported: usbSupport.supported,
+      usbHint: usbSupport.hint,
       connected,
       connecting,
       busy,
@@ -988,6 +998,7 @@ export default function App() {
       busy,
       running,
       uploadStatus,
+      usbSupport,
       connect,
       usbChoice,
       chooseUSBBoard,

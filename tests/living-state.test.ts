@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   livingBoardProfile,
+  livingReadingText,
+  LIVING_BOARD_POSITION,
   normalizedLivingReadings,
 } from "../web/experience/living-state";
 
@@ -20,6 +22,9 @@ describe("the selected controller in the living station", () => {
     expect(uno.signalPoint).not.toEqual(pico.signalPoint);
     expect(nano.signalPoint).not.toEqual(pico.signalPoint);
     expect(uno.description).not.toContain("MicroPython");
+    expect(pico.sensorPin).toBe("GP26");
+    expect(uno.sensorPin).toBe("A0");
+    expect(nano.sensorPin).toBe("A0");
   });
 
   it("keeps the same physical Nano when only its upload bootloader changes", () => {
@@ -46,9 +51,47 @@ describe("the selected controller in the living station", () => {
       expect(distance).toBeLessThan(18);
     }
   });
+
+  it("attaches the signal to a contact on the selected PCB rather than hovering above it", () => {
+    for (const board of ["pico", "uno", "nano", "nano-old"] as const) {
+      const { signalPoint, width, depth } = livingBoardProfile(board);
+      expect(signalPoint[1]).toBeGreaterThan(0.17);
+      expect(signalPoint[1]).toBeLessThan(0.3);
+      const distanceFromBoardCenter = Math.hypot(
+        signalPoint[0] - LIVING_BOARD_POSITION[0],
+        signalPoint[2] - LIVING_BOARD_POSITION[2],
+      );
+      expect(distanceFromBoardCenter).toBeLessThan(
+        Math.hypot(width, depth) / 2,
+      );
+    }
+  });
 });
 
 describe("partial station readings in the living model", () => {
+  it("describes both plant measurements without borrowing light for the humidity sensor", () => {
+    const lightOnly = { source: "hardware" as const, light: 27 };
+    expect(livingReadingText(lightOnly, "plant")).toBe("Luz 27%.");
+    expect(livingReadingText(lightOnly, "sensor")).toBe(
+      "Tu próxima lectura de humedad aparecerá aquí.",
+    );
+    expect(livingReadingText({ ...lightOnly, soil: 42 }, "plant")).toBe(
+      "Humedad 42% · Luz 27%.",
+    );
+  });
+
+  it("keeps an off LED and zero humidity visible while an unknown state waits for a reading", () => {
+    expect(livingReadingText({ source: "hardware", soil: 0 }, "sensor")).toBe(
+      "Humedad 0%.",
+    );
+    expect(livingReadingText({ source: "hardware", led: false }, "led")).toBe(
+      "LED de tu estación: apagado.",
+    );
+    expect(livingReadingText({ source: "hardware" }, "led")).toBe(
+      "El estado del LED aparecerá con tu próxima lectura.",
+    );
+  });
+
   it("keeps missing sensors and LED state unknown rather than inventing measurements", () => {
     expect(normalizedLivingReadings({ source: "hardware" })).toEqual({
       soil: undefined,

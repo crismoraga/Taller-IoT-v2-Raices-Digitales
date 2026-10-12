@@ -59,14 +59,11 @@ test("a complete LED assembly confirms every piece and cable before the program 
       .getByRole("button", { name: "Ya conecté B", exact: true })
       .click();
     await expect(
-      instruction.getByRole("heading", {
-        name: "¡Cable conectado!",
+      instruction.getByRole("button", {
+        name: "Conectado, siguiente",
         exact: true,
       }),
-    ).toBeVisible();
-    await instruction
-      .getByRole("button", { name: "Conectado, siguiente", exact: true })
-      .click();
+    ).toHaveCount(0);
   };
   await connect();
   await expect(progress).toHaveAttribute("aria-valuenow", "1");
@@ -93,10 +90,6 @@ test("a complete LED assembly confirms every piece and cable before the program 
   await instruction
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
     .click();
-  await expect(progress).toHaveAttribute("aria-valuenow", "1");
-  await instruction
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
-    .click();
   await expect(progress).toHaveAttribute("aria-valuenow", "2");
   await instruction
     .getByRole("button", { name: "Lo tengo", exact: true })
@@ -120,9 +113,6 @@ test("a complete LED assembly confirms every piece and cable before the program 
   ).toContainText("c26");
   await instruction
     .getByRole("button", { name: "Ya lo coloqué", exact: true })
-    .click();
-  await instruction
-    .getByRole("button", { name: "Listo, siguiente", exact: true })
     .click();
   await connect();
   await connect();
@@ -458,6 +448,9 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
     .click();
   await expect.poll(bounded).toBe(true);
   await scene
+    .locator("summary", { hasText: "Explorar piezas y conexiones" })
+    .click();
+  await scene
     .getByRole("button", { name: "Acercar montaje", exact: true })
     .click();
   await expect.poll(bounded).toBe(true);
@@ -496,7 +489,12 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
   await scene
     .getByRole("button", { name: "Acercar extremo A: a3", exact: true })
     .click();
-  await expect(instruction).toContainText("Encontraste a3 en el modelo");
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar extremo A: a3",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
   await instruction
     .getByRole("button", { name: "Ya conecté A", exact: true })
     .click();

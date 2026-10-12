@@ -93,6 +93,8 @@ export function ConnectButton({
         className,
       )}
       aria-label="Conectar placa"
+      disabled={!app.serialSupported || app.busy}
+      title={app.usbHint ?? "Elegir el puerto USB de tu placa"}
       loading={app.connecting}
       onClick={() => void app.connect()}
     >

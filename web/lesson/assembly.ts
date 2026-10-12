@@ -83,7 +83,9 @@ export function wireItemInfo(circuit: Circuit, wire: Wire) {
     if (partId === "controller")
       return circuit.board === "uno" ? "macho" : "hembra";
     const part = circuit.parts.find((candidate) => candidate.id === partId);
-    return part?.type === "ds18b20" ? "hilo del sensor" : "hembra";
+    return part?.type === "ds18b20" || part?.type === "soil"
+      ? "hilo del sensor"
+      : "hembra";
   };
   const a = connectorAt(wire.from);
   const b = connectorAt(wire.to);
@@ -224,8 +226,13 @@ export type AssemblyAction = "take" | "a" | "b" | "place" | "insert" | "done";
 /** A ready kit starts directly with the first component or cable. */
 export function firstAssemblyAction(
   step?: Pick<WiringStep, "wires" | "parts">,
+  part?: Pick<PartInstance, "holes">,
 ): AssemblyAction {
-  return step?.wires?.length || step?.parts?.length ? "take" : "place";
+  if (step?.wires?.length) return "take";
+  // External modules already sit beside the board. Start with their actual
+  // connector or sensor-plate action, rather than a separate kit checklist.
+  if (step?.parts?.length) return part && !part.holes ? "place" : "take";
+  return "place";
 }
 
 /** Restore only the current connection's gesture, never another step's approval. */
@@ -233,8 +240,9 @@ export function restoreAssemblyAction(
   value: unknown,
   signature: string,
   step: Pick<WiringStep, "id" | "wires" | "parts">,
+  part?: Pick<PartInstance, "holes">,
 ): AssemblyAction {
-  const initial = firstAssemblyAction(step);
+  const initial = firstAssemblyAction(step, part);
   if (!value || typeof value !== "object" || Array.isArray(value))
     return initial;
   const saved = value as Record<string, unknown>;

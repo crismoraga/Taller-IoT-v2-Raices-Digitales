@@ -484,6 +484,23 @@
     );
     box-shadow: var(--elev-soft);
   }
+  /* Una instrucción destaca junto al modelo; las acciones previas quedan discretas. */
+  .rd-guided-step {
+    border-color: color-mix(in srgb, var(--ink-accent) 24%, var(--border));
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--highlight) 24%, var(--surface)),
+      var(--surface) 65%
+    );
+    box-shadow: var(--elev-soft);
+  }
+  .rd-guided-confirmation {
+    border: 1px solid color-mix(in srgb, var(--success-ink) 15%, transparent);
+  }
+  .rd-guided-confirmation > :is(p, span) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .solar-sidebar {
     background-image:
       radial-gradient(ellipse at 10% 2%, #60924438, transparent 42%),

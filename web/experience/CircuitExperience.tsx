@@ -71,6 +71,8 @@ import {
   inspectedTerminals,
   highlightedTerminals,
   hardwareWireCurve,
+  ledFlangeGeometry,
+  terminalConnector,
 } from "./HardwareModels";
 import {
   SafeCanvas,
@@ -803,6 +805,93 @@ function Resistor({ part, dim }: { part: PartInstance; dim: boolean }) {
   );
 }
 
+function LedLens({
+  part,
+  color,
+  dim,
+  flow,
+}: {
+  part: PartInstance;
+  color: string;
+  dim: boolean;
+  flow: boolean;
+}) {
+  const flange = useMemo(ledFlangeGeometry, []);
+  useEffect(() => () => flange.dispose(), [flange]);
+  const orientation = useMemo(() => {
+    const anode = pointXY(part.holes!.anodo);
+    const cathode = pointXY(part.holes!.catodo);
+    return new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(
+        cathode.x - anode.x,
+        0,
+        cathode.y - anode.y,
+      ).normalize(),
+    );
+  }, [part.holes]);
+  return (
+    <group quaternion={orientation}>
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.125, 0.125, 0.19, 24]} />
+        <meshPhysicalMaterial
+          color={color}
+          emissive={flow ? color : "#000"}
+          emissiveIntensity={flow ? 0.42 : 0}
+          roughness={0.18}
+          clearcoat={0.92}
+          clearcoatRoughness={0.15}
+          transparent
+          opacity={dim ? 0.49 : 0.72}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, 0.145, 0]}>
+        <sphereGeometry
+          args={[0.125, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
+        />
+        <meshPhysicalMaterial
+          color={color}
+          emissive={flow ? color : "#000"}
+          emissiveIntensity={flow ? 0.46 : 0}
+          roughness={0.18}
+          clearcoat={0.92}
+          clearcoatRoughness={0.15}
+          transparent
+          opacity={dim ? 0.49 : 0.75}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, -0.055, 0]} geometry={flange}>
+        <meshStandardMaterial color={color} roughness={0.37} />
+      </mesh>
+      {/* The larger cup and the moulded flat face the cathode hole. */}
+      <mesh position={[0.037, 0.033, 0]}>
+        <cylinderGeometry args={[0.048, 0.018, 0.022, 16]} />
+        <meshStandardMaterial
+          color="#c5d0c4"
+          metalness={0.72}
+          roughness={0.29}
+        />
+      </mesh>
+      <mesh position={[-0.042, 0.013, 0]}>
+        <boxGeometry args={[0.022, 0.045, 0.022]} />
+        <meshStandardMaterial
+          color="#b7c4b7"
+          metalness={0.66}
+          roughness={0.3}
+        />
+      </mesh>
+      <CylinderBetween
+        from={[-0.042, 0.032, 0]}
+        to={[0.037, 0.049, 0]}
+        radius={0.003}
+        color="#cfb66b"
+      />
+    </group>
+  );
+}
+
 function SensorBody({
   part,
   dim,
@@ -827,7 +916,9 @@ function SensorBody({
           holePositions.length,
       }
     : { x: box.x + box.w / 2, y: box.y + box.h / 2 };
-  const pos = position(center, 0.31);
+  // External PCBs sit below their exposed header pins; otherwise the pins and
+  // female sleeves disappear into the PCB itself.
+  const pos = position(center, part.holes ? 0.31 : 0.18);
   const color = dim ? "#a7b5a0" : "#2f8463";
   const ledColor =
     part.props?.color === "azul"
@@ -849,40 +940,7 @@ function SensorBody({
       ))}
       <group position={pos}>
         {part.type === "led" ? (
-          <>
-            <mesh position={[0, 0.05, 0]}>
-              <cylinderGeometry args={[0.125, 0.125, 0.19, 24]} />
-              <meshPhysicalMaterial
-                color={ledColor}
-                emissive={flow ? ledColor : "#000"}
-                emissiveIntensity={flow ? 0.5 : 0}
-                roughness={0.26}
-                clearcoat={0.82}
-                clearcoatRoughness={0.21}
-                transparent
-                opacity={dim ? 0.63 : 0.88}
-              />
-            </mesh>
-            <mesh position={[0, 0.145, 0]}>
-              <sphereGeometry
-                args={[0.125, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
-              />
-              <meshPhysicalMaterial
-                color={ledColor}
-                emissive={flow ? ledColor : "#000"}
-                emissiveIntensity={flow ? 0.54 : 0}
-                roughness={0.26}
-                clearcoat={0.82}
-                clearcoatRoughness={0.21}
-                transparent
-                opacity={dim ? 0.63 : 0.9}
-              />
-            </mesh>
-            <mesh position={[0, -0.055, 0]}>
-              <cylinderGeometry args={[0.145, 0.145, 0.025, 24]} />
-              <meshStandardMaterial color={ledColor} roughness={0.41} />
-            </mesh>
-          </>
+          <LedLens part={part} color={ledColor} dim={dim} flow={flow} />
         ) : part.type === "ldr" ? (
           <>
             <mesh position={[0, 0.09, 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -1014,12 +1072,14 @@ function SensorBody({
           </mesh>
         ) : (
           <>
-            <HardwareBody
-              size={[box.w * U, 0.09, box.h * U]}
-              color={color}
-              radius={0.035}
-              roughness={0.55}
-            />
+            {part.type !== "ds18b20" && (
+              <HardwareBody
+                size={[box.w * U, 0.09, box.h * U]}
+                color={part.type === "soil" ? "#283f2c" : color}
+                radius={0.035}
+                roughness={0.55}
+              />
+            )}
             {part.type === "pir" ? (
               <mesh position={[0, 0.2, 0]}>
                 <sphereGeometry
@@ -1028,14 +1088,73 @@ function SensorBody({
                 <meshStandardMaterial color="#f7f5df" roughness={0.75} />
               </mesh>
             ) : part.type === "ds18b20" ? (
-              <mesh position={[0, 0.08, -0.02]} rotation={[0, 0, Math.PI / 2]}>
-                <cylinderGeometry args={[0.075, 0.075, 0.54, 18]} />
-                <meshStandardMaterial
-                  color="#ced8d0"
-                  metalness={0.75}
-                  roughness={0.27}
+              <>
+                <mesh
+                  position={[-0.02, 0.08, -0.02]}
+                  rotation={[0, 0, Math.PI / 2]}
+                >
+                  <cylinderGeometry args={[0.075, 0.075, 0.6, 20]} />
+                  <meshStandardMaterial
+                    color="#ced8d0"
+                    metalness={0.8}
+                    roughness={0.24}
+                  />
+                </mesh>
+                <mesh position={[-0.32, 0.08, -0.02]}>
+                  <sphereGeometry args={[0.075, 16, 12]} />
+                  <meshStandardMaterial
+                    color="#ced8d0"
+                    metalness={0.8}
+                    roughness={0.24}
+                  />
+                </mesh>
+                <HardwareBody
+                  position={[0.31, 0.08, -0.02]}
+                  size={[0.17, 0.14, 0.14]}
+                  color="#24392e"
+                  radius={0.026}
+                  roughness={0.54}
                 />
-              </mesh>
+              </>
+            ) : part.type === "soil" ? (
+              <>
+                <HardwareBody
+                  position={[0, 0.081, 0.015]}
+                  size={[0.18, 0.072, 0.15]}
+                  color="#22372d"
+                  radius={0.012}
+                  bevel={0.002}
+                  roughness={0.69}
+                />
+                {/* Capacitive copper follows one continuous perimeter;
+                    exposed parallel fingers belong to resistive probes. */}
+                {[
+                  [
+                    [-0.33, 0.05, -0.19],
+                    [0.33, 0.05, -0.19],
+                  ],
+                  [
+                    [-0.33, 0.05, -0.19],
+                    [-0.33, 0.05, 0.16],
+                  ],
+                  [
+                    [0.33, 0.05, -0.19],
+                    [0.33, 0.05, 0.16],
+                  ],
+                  [
+                    [-0.33, 0.05, 0.16],
+                    [0.33, 0.05, 0.16],
+                  ],
+                ].map(([from, to], index) => (
+                  <CylinderBetween
+                    key={index}
+                    from={from as V3}
+                    to={to as V3}
+                    radius={0.007}
+                    color="#c4b87a"
+                  />
+                ))}
+              </>
             ) : (
               <>
                 <mesh position={[-0.15, 0.095, 0]}>
@@ -1057,12 +1176,12 @@ function SensorBody({
               </>
             )}
             <BoardText
-              position={[0, 0.058, -0.18]}
+              position={[0, 0.058, part.type === "soil" ? -0.12 : -0.18]}
               size={0.08}
               color="#ebf3db"
               width={box.w * U * 0.85}
             >
-              {part.type.toUpperCase()}
+              {part.type === "soil" ? "Capacitiva" : part.type.toUpperCase()}
             </BoardText>
           </>
         )}
@@ -1075,10 +1194,25 @@ function SensorBody({
           );
           return (
             <group key={pin.id}>
-              <mesh position={position(point, 0.25)}>
-                <boxGeometry args={[0.045, 0.22, 0.045]} />
-                <meshStandardMaterial color="#cfb273" metalness={0.72} />
-              </mesh>
+              {part.type === "ds18b20" ? (
+                <CylinderBetween
+                  from={position({ x: center.x + 2.1, y: center.y }, 0.26)}
+                  to={position(point, 0.36)}
+                  radius={0.017}
+                  color={
+                    pin.role === "vcc"
+                      ? "#cb5343"
+                      : pin.id === "GND"
+                        ? "#2c3f31"
+                        : "#e2be58"
+                  }
+                />
+              ) : part.type !== "soil" ? (
+                <mesh position={position(point, 0.25)}>
+                  <boxGeometry args={[0.045, 0.22, 0.045]} />
+                  <meshStandardMaterial color="#cfb273" metalness={0.72} />
+                </mesh>
+              ) : null}
               <BoardText
                 position={position(
                   { x: point.x, y: point.y + (box.y < 0 ? 0.7 : -0.7) },
@@ -1093,7 +1227,72 @@ function SensorBody({
             </group>
           );
         })}
+      {!part.holes && part.type === "soil" && (
+        <HardwareBody
+          position={position(
+            { x: center.x, y: box.y < 0 ? box.y + box.h : box.y },
+            0.29,
+          )}
+          size={[box.w * U * 0.62, 0.13, 0.14]}
+          color="#f1efda"
+          radius={0.017}
+          bevel={0.003}
+          roughness={0.67}
+        />
+      )}
     </>
+  );
+}
+
+/** A Dupont sleeve sits over an exposed header; a male plug enters a socket. */
+function JumperPlug({
+  point,
+  kind,
+  color,
+  dim,
+}: {
+  point: V3;
+  kind: "macho" | "hembra" | "integrado";
+  color: string;
+  dim: boolean;
+}) {
+  if (kind === "integrado") return null;
+  const male = kind === "macho";
+  const height = male ? 0.14 : 0.17;
+  const center = male ? height / 2 : 0;
+  const top = male ? height : height / 2;
+  return (
+    <group position={point}>
+      {male && (
+        <mesh position={[0, -0.015, 0]}>
+          <boxGeometry args={[0.023, 0.075, 0.023]} />
+          <meshStandardMaterial
+            color="#b9bfa7"
+            metalness={0.76}
+            roughness={0.29}
+          />
+        </mesh>
+      )}
+      <HardwareBody
+        position={[0, center, 0]}
+        size={[0.069, height, 0.069]}
+        radius={0.012}
+        bevel={0.003}
+        color={dim ? "#75816c" : "#26372e"}
+        roughness={0.53}
+      />
+      <mesh position={[0, top + 0.012, 0]}>
+        <cylinderGeometry args={[0.025, 0.031, 0.027, 10]} />
+        <meshStandardMaterial color={color} roughness={0.42} />
+      </mesh>
+      <mesh position={[0.035, center, 0]}>
+        <boxGeometry args={[0.003, height * 0.47, 0.039]} />
+        <meshStandardMaterial
+          color={dim ? "#8d987f" : "#425343"}
+          roughness={0.61}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -1114,11 +1313,32 @@ function Connection({
   animate: boolean;
   select: (selection: Selection) => void;
 }) {
+  const ends = useMemo<V3[]>(
+    () => [atEndpoint(circuit, wire.from), atEndpoint(circuit, wire.to)],
+    [circuit, wire],
+  );
+  const kinds = [
+    terminalConnector(circuit, wire.from),
+    terminalConnector(circuit, wire.to),
+  ];
   const points = useMemo<V3[]>(() => {
-    const a = atEndpoint(circuit, wire.from),
-      b = atEndpoint(circuit, wire.to);
+    // The flexible insulation leaves the top of its sleeve; it does not run
+    // through the casing or start inside the breadboard.
+    const [a, b] = ends.map(
+      (point, index) =>
+        [
+          point[0],
+          point[1] +
+            (kinds[index] === "macho"
+              ? 0.165
+              : kinds[index] === "hembra"
+                ? 0.11
+                : 0),
+          point[2],
+        ] as V3,
+    );
     return hardwareWireCurve(a, b);
-  }, [circuit, wire]);
+  }, [ends, kinds[0], kinds[1]]);
   if (active && (connectionState === "take" || connectionState === "a"))
     return null;
   const preview = active && connectionState === "b";
@@ -1153,14 +1373,15 @@ function Connection({
           count={2}
         />
       )}
-      {(preview ? [points[0]] : [points[0], points[points.length - 1]]).map(
-        (end, index) => (
-          <mesh key={index} position={[end[0], end[1] + 0.01, end[2]]}>
-            <cylinderGeometry args={[0.037, 0.024, 0.07, 10]} />
-            <meshStandardMaterial color={WIRE_HEX[wire.color]} />
-          </mesh>
-        ),
-      )}
+      {(preview ? [ends[0]] : ends).map((end, index) => (
+        <JumperPlug
+          key={index}
+          point={end}
+          kind={kinds[index]}
+          color={WIRE_HEX[wire.color]}
+          dim={!active}
+        />
+      ))}
     </group>
   );
 }
@@ -1894,6 +2115,17 @@ export function CircuitExperience({
       <div className="rdx-circuit-heading">
         <span>
           <Box size={15} /> Montaje 3D
+          <small
+            className="rdx-circuit-orientation"
+            aria-label={`Orientación: ${circuit.board === "uno" ? "Arduino Uno" : circuit.board && circuit.board !== "pico" ? "Arduino Nano" : "Pico W"}, USB a la izquierda`}
+          >
+            {circuit.board === "uno"
+              ? "Uno"
+              : circuit.board && circuit.board !== "pico"
+                ? "Nano"
+                : "Pico W"}{" "}
+            · USB ←
+          </small>
         </span>
         <small>Arrastra para girar · rueda para acercar</small>
       </div>
@@ -1986,20 +2218,6 @@ export function CircuitExperience({
         >
           <RotateCcw size={16} />
         </button>
-        <button
-          type="button"
-          onClick={() => camera("zoom-in")}
-          aria-label="Acercar montaje"
-        >
-          <ZoomIn size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={() => camera("zoom-out")}
-          aria-label="Alejar montaje"
-        >
-          <ZoomOut size={16} />
-        </button>
       </div>
       <details
         className="rdx-circuit-details"
@@ -2011,6 +2229,20 @@ export function CircuitExperience({
       >
         <summary>Explorar piezas y conexiones</summary>
         <div className="rdx-circuit-controls rdx-circuit-controls--extras">
+          <button
+            type="button"
+            onClick={() => camera("zoom-in")}
+            aria-label="Acercar montaje"
+          >
+            <ZoomIn size={16} /> Acercar
+          </button>
+          <button
+            type="button"
+            onClick={() => camera("zoom-out")}
+            aria-label="Alejar montaje"
+          >
+            <ZoomOut size={16} /> Alejar
+          </button>
           <button
             type="button"
             className="rdx-flow-toggle"

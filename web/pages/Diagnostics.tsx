@@ -78,11 +78,10 @@ export default function Diagnostics() {
     },
     {
       title: "USB del navegador",
-      detail:
-        "serial" in navigator
-          ? "Navegador compatible con conexión USB."
-          : `Usa Chrome o Edge de escritorio; también puedes descargar el código para ${app.board === "pico" ? "Thonny" : "Arduino IDE"}.`,
-      ok: "serial" in navigator,
+      detail: app.serialSupported
+        ? "Navegador compatible con conexión USB."
+        : (app.usbHint ?? "USB no está disponible en esta pestaña."),
+      ok: app.serialSupported,
       Icon: Usb,
     },
     {

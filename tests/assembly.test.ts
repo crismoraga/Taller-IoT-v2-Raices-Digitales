@@ -332,6 +332,29 @@ describe("microacciones guardadas: retomar el extremo actual", () => {
     expect(firstAssemblyAction({})).toBe("place");
   });
 
+  it("los módulos externos comienzan con su conexión física y las piezas insertables con su identificación", () => {
+    const soil = circuits.soil.parts.find(
+      (candidate) => candidate.id === "soil",
+    )!;
+    const rain = circuits.rain.parts.find(
+      (candidate) => candidate.id === "rain",
+    )!;
+    const led = circuits.led.parts.find((candidate) => candidate.id === "led")!;
+    expect(firstAssemblyAction(part, soil)).toBe("place");
+    expect(firstAssemblyAction(part, rain)).toBe("place");
+    expect(firstAssemblyAction(part, led)).toBe("take");
+    // Jumper identification is still necessary when it connects to a module.
+    expect(firstAssemblyAction(wire, soil)).toBe("take");
+    expect(restoreAssemblyAction(null, "current", part, soil)).toBe("place");
+    // Previously saved gestures remain resumable after removing the extra screen.
+    expect(
+      restoreAssemblyAction(save(part.id, "take"), "current", part, soil),
+    ).toBe("take");
+    expect(
+      restoreAssemblyAction(save(part.id, "done"), "current", part, soil),
+    ).toBe("done");
+  });
+
   it("mantiene el extremo B pendiente después de conectar A y recargar", () => {
     expect(restoreAssemblyAction(save(wire.id, "b"), "current", wire)).toBe(
       "b",
@@ -481,7 +504,12 @@ describe("alineación de patas y mapa replicable", () => {
         circuits.soil,
         circuits.soil.wires.find((wire) => wire.from === "soil.VCC")!,
       ),
-    ).toMatchObject({ a: "hembra", b: "macho", ownLead: false });
+    ).toMatchObject({
+      a: "hilo del sensor",
+      b: "macho",
+      ownLead: true,
+      label: "Un solo hilo rojo del sensor.",
+    });
     expect(
       wireItemInfo(
         circuits.ds18b20,

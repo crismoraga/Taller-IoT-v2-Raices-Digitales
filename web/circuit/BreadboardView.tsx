@@ -19,6 +19,7 @@ import {
   LETTERS,
   RAIL_COLUMNS,
   RAIL_INFO,
+  RAIL_SPLIT_AFTER,
   holesOfStrip,
   isPoint,
   letterY,
@@ -215,15 +216,21 @@ const BoardLayer = memo(function BoardLayer({
         const color = RAIL_INFO[rail].sign === "+" ? INK.red : INK.blue;
         return (
           <g key={rail}>
-            <line
-              x1={px(BOARD.x0 + 1.4)}
-              x2={lastX - px(1.4)}
-              y1={px(y)}
-              y2={px(y)}
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-            />
+            {[
+              [BOARD.x0 + 1.4, BOARD.x0 + RAIL_SPLIT_AFTER - 1],
+              [BOARD.x0 + RAIL_SPLIT_AFTER + 1, BOARD.x0 + COLUMNS - 2.4],
+            ].map(([from, to], index) => (
+              <line
+                key={index}
+                x1={px(from)}
+                x2={px(to)}
+                y1={px(y)}
+                y2={px(y)}
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+            ))}
             {[px(BOARD.x0 + 0.2), lastX - px(0.2)].map((x) => (
               <text
                 key={x}
@@ -1098,6 +1105,7 @@ function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
   const def = partDef(part);
   const style = MODULE_STYLE[part.type] ?? MODULE_STYLE.generic;
   const above = box.y < 0;
+  const ownLeads = part.type === "soil" || part.type === "ds18b20";
   return (
     <g>
       {active && (
@@ -1145,6 +1153,18 @@ function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
           strokeWidth={1.5}
         />
       )}
+      {part.type === "soil" && (
+        <rect
+          x={px(box.x + box.w * 0.18)}
+          y={px(above ? box.y + box.h : box.y) - 7}
+          width={px(box.w * 0.64)}
+          height={14}
+          rx={3}
+          fill="#f1efda"
+          stroke="#c5cbb4"
+          strokeWidth={1.5}
+        />
+      )}
       {def.pins.map((pin) => {
         const at = modulePinXY(part, pin.id);
         return (
@@ -1168,16 +1188,34 @@ function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
             >
               {pin.label}
             </text>
-            <rect
-              x={px(at.x) - 4}
-              y={px(at.y) - 4}
-              width={8}
-              height={8}
-              rx={2}
-              fill={INK.pad}
-              stroke="#8a6d22"
-              strokeWidth={1}
-            />
+            {ownLeads ? (
+              <line
+                x1={px(at.x)}
+                x2={px(at.x)}
+                y1={px(at.y) + (above ? -3 : 3)}
+                y2={px(at.y)}
+                stroke={
+                  pin.role === "vcc"
+                    ? "#d35645"
+                    : pin.role === "gnd"
+                      ? "#26392b"
+                      : "#d8b23b"
+                }
+                strokeWidth={5}
+                strokeLinecap="round"
+              />
+            ) : (
+              <rect
+                x={px(at.x) - 4}
+                y={px(at.y) - 4}
+                width={8}
+                height={8}
+                rx={2}
+                fill={INK.pad}
+                stroke="#8a6d22"
+                strokeWidth={1}
+              />
+            )}
           </g>
         );
       })}

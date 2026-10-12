@@ -8,6 +8,18 @@ import {
 } from "../web/lib/serial";
 
 const HEX = ":0400100001020304E2\n:00000001FF";
+function imageHex(image: Uint8Array) {
+  const records: string[] = [];
+  for (let offset = 0; offset < image.length; offset += 16) {
+    const payload = [...image.slice(offset, offset + 16)];
+    const record = [payload.length, offset >> 8, offset & 255, 0, ...payload];
+    record.push(-record.reduce((sum, byte) => sum + byte, 0) & 255);
+    records.push(
+      `:${record.map((byte) => byte.toString(16).padStart(2, "0")).join("")}`,
+    );
+  }
+  return [...records, ":00000001FF"].join("\n");
+}
 
 describe("USB models with a different Arduino upload protocol", () => {
   it.each([
@@ -20,6 +32,9 @@ describe("USB models with a different Arduino upload protocol", () => {
     [0x0036, "Arduino Leonardo"],
     [0x8036, "Arduino Leonardo"],
     [0x8037, "Arduino Micro"],
+    [0x0058, "Arduino Nano Every"],
+    [0x0057, "Arduino Nano 33 IoT"],
+    [0x8057, "Arduino Nano 33 IoT"],
   ])(
     "identifies PID %s as %s before opening an incompatible installer",
     (product, model) => {
@@ -64,13 +79,21 @@ function bootloader(
     signature?: number[];
     unplugOnWrite?: boolean;
     corruptReadback?: boolean;
+    missFirstReset?: boolean;
+    duplicateSyncReply?: boolean;
+    failTerminalRestore?: boolean;
+    signatureNoise?: boolean;
+    rejectWrite?: boolean;
+    missFirstEnter?: boolean;
   } = {},
 ) {
   let incoming: ReadableStreamDefaultController<Uint8Array>;
   let address = 0,
     resetAsserted = false,
     resetSeen = false,
-    active = false;
+    active = false,
+    resets = 0;
+  let enterRequests = 0;
   const memory = new Uint8Array(32768).fill(255);
   const packets: number[][] = [],
     rates: number[] = [];
@@ -81,6 +104,12 @@ function bootloader(
     writable: null,
     async open({ baudRate }) {
       rates.push(baudRate);
+      if (
+        options.failTerminalRestore &&
+        baudRate === 115200 &&
+        rates.length > 1
+      )
+        throw new Error("USB: no se pudo restaurar el puerto del programa");
       port.readable = new ReadableStream<Uint8Array>({
         start(controller) {
           incoming = controller;
@@ -94,6 +123,14 @@ function bootloader(
             return;
           if (packet.at(-1) !== 0x20) throw new Error("Missing STK CRC_EOP");
           const command = packet[0];
+          if (
+            command === 0x50 &&
+            options.missFirstEnter &&
+            ++enterRequests === 1
+          )
+            return;
+          if (command === 0x75 && options.signatureNoise)
+            emit([0x72, 0x65, 0x61, 0x64, 0x79, 0x0d, 0x0a, 0x14, 0x10]);
           if (command === 0x30 && options.syncNoise) {
             // Stale adapter input and a partial previous handshake precede SYNC.
             emit([0x62, 0x6f, 0x6f, 0x74, 0x0a, 0x15, 0x14]);
@@ -103,6 +140,10 @@ function bootloader(
           else if (command === 0x55)
             address = ((packet[2] << 8) | packet[1]) * 2;
           else if (command === 0x64) {
+            if (options.rejectWrite) {
+              emit([0x14, 0x11]);
+              return;
+            }
             if (options.unplugOnWrite) {
               incoming.close();
               return;
@@ -124,6 +165,8 @@ function bootloader(
           emit([0x14]);
           if (reply.length) emit(reply);
           emit([0x10]);
+          if (command === 0x30 && options.duplicateSyncReply)
+            emit([0x14, 0x10]);
         },
       });
     },
@@ -134,14 +177,107 @@ function bootloader(
       resetAsserted = dataTerminalReady;
       if (resetAsserted) {
         resetSeen = true;
-        active = !options.releaseRequired;
-      } else if (resetSeen) active = true;
+        resets++;
+        active =
+          !options.releaseRequired && (!options.missFirstReset || resets > 1);
+      } else if (resetSeen) active = !options.missFirstReset || resets > 1;
     },
   };
   return { port, packets, rates, signals, memory };
 }
 
 describe("Arduino upload with a real bootloader lifecycle", () => {
+  it("recovers a failed preparation handshake before writing any flash page", async () => {
+    const peer = bootloader({ missFirstEnter: true });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect(peer.packets.filter((packet) => packet[0] === 0x50)).toHaveLength(
+        2,
+      );
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+  it("recognizes a classic Uno clone with a 57600 bootloader without calling it a Nano", async () => {
+    const peer = bootloader({ bootRate: 57600 });
+    const transport = new ArduinoUSBSerial();
+    const detected: ArduinoBoard[] = [];
+    transport.onBootloaderDetected = (board) => detected.push(board);
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect(peer.rates).toEqual([115200, 57600, 115200]);
+      expect(detected).toEqual([]);
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+  it("does not confuse STK marker bytes in binary firmware with protocol framing", async () => {
+    const peer = bootloader();
+    const transport = new ArduinoUSBSerial();
+    const image = Uint8Array.from(
+      { length: 260 },
+      (_, i) => [0x14, 0x10, 0x11, 0x15, 0x20][i % 5],
+    );
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(imageHex(image));
+      expect(peer.memory.slice(0, image.length)).toEqual(image);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+  it("reports an actual rejected write with its stage and never retries writing automatically", async () => {
+    const peer = bootloader({ rejectWrite: true });
+    const transport = new ArduinoUSBSerial();
+    const progress: ArduinoUploadProgress[] = [];
+    transport.onUploadProgress = (event) => progress.push(event);
+    await transport.connect("uno", peer.port);
+    try {
+      await expect(transport.upload(HEX)).rejects.toThrow(
+        /grabación de la página.*0x11.*115200/,
+      );
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect(peer.rates).toEqual([115200]);
+      expect(progress.some((event) => event.stage === "complete")).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+  it("protects the larger old Uno bootloader before writing an oversized firmware", async () => {
+    const peer = bootloader({ bootRate: 57600 });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await expect(
+        transport.upload(imageHex(new Uint8Array(30721))),
+      ).rejects.toThrow("30720 bytes");
+      expect(peer.packets.some((packet) => packet[0] === 0x64)).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+  it("separates late SYNC acknowledgements and application bytes from the MCU signature", async () => {
+    const peer = bootloader({ signatureNoise: true });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(peer.packets.at(-1)?.[0]).toBe(0x51);
+    } finally {
+      await transport.disconnect();
+    }
+  });
   it("releases the reset line before synchronization instead of holding the AVR in reset", async () => {
     const peer = bootloader({ releaseRequired: true });
     const transport = new ArduinoUSBSerial();
@@ -164,6 +300,38 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
       await transport.upload(HEX);
       expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
       expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
+        1,
+      );
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("reopens a missed bootloader window instead of retrying against the sketch", async () => {
+    const peer = bootloader({ releaseRequired: true, missFirstReset: true });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect(peer.signals.filter(Boolean)).toHaveLength(2);
+      expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
+        2,
+      );
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(peer.rates).toEqual([115200]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("drains residual sync acknowledgements before reading the MCU signature", async () => {
+    const peer = bootloader({ duplicateSyncReply: true });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(peer.packets.filter((packet) => packet[0] === 0x75)).toHaveLength(
         1,
       );
     } finally {
@@ -251,9 +419,15 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
     const peer = bootloader({ bootRate: 57600, releaseRequired: true });
     const transport = new ArduinoUSBSerial();
     const detected: ArduinoBoard[] = [];
+    transport.onUploadProgress = ({ stage }) => {
+      if (stage === "complete") {
+        expect(peer.rates.at(-1)).toBe(115200);
+        expect(transport.connected).toBe(true);
+      }
+    };
     transport.onBootloaderDetected = (board) => {
       detected.push(board);
-      expect(peer.packets.at(-1)?.[0]).toBe(0x75);
+      expect(peer.packets.some((packet) => packet[0] === 0x75)).toBe(true);
       expect(peer.packets.some((packet) => packet[0] === 0x64)).toBe(false);
     };
     await transport.connect("nano", peer.port);
@@ -278,6 +452,28 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
       expect(peer.rates).toEqual([115200]);
       expect(progress.some((event) => event.stage === "complete")).toBe(false);
       expect(peer.packets.some((packet) => packet[0] === 0x51)).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("does not claim completion when the Nano terminal cannot be restored", async () => {
+    const peer = bootloader({ bootRate: 57600, failTerminalRestore: true });
+    const transport = new ArduinoUSBSerial();
+    const progress: ArduinoUploadProgress[] = [];
+    const output: string[] = [];
+    transport.onUploadProgress = (event) => progress.push(event);
+    transport.onOutput = (text) => output.push(text);
+    await transport.connect("nano-old", peer.port);
+    try {
+      await expect(transport.upload(HEX)).rejects.toThrow(
+        "restaurar el puerto",
+      );
+      expect(peer.packets.at(-1)?.[0]).toBe(0x51);
+      expect(peer.rates).toEqual([115200, 57600, 115200]);
+      expect(progress.some((event) => event.stage === "complete")).toBe(false);
+      expect(output.join("")).not.toContain("grabado y verificado");
+      expect(transport.connected).toBe(false);
     } finally {
       await transport.disconnect();
     }

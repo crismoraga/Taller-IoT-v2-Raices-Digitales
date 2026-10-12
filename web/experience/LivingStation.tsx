@@ -20,6 +20,7 @@ import {
 import * as THREE from "three";
 import { BOARD_NAMES, type Board } from "../lib/context";
 import { MovingSignal, Tube, type V3 } from "./Primitives";
+import { HardwareStudio } from "./HardwareModels";
 import {
   LivingBoard,
   LivingLeaf,
@@ -37,6 +38,9 @@ import {
 } from "./SceneSupport";
 import {
   livingBoardProfile,
+  livingReadingText,
+  LIVING_BOARD_POSITION,
+  LIVING_BOARD_ROTATION,
   normalizedLivingReadings,
   type LivingReadings,
 } from "./living-state";
@@ -52,37 +56,37 @@ const ELEMENTS: {
 }[] = [
   {
     id: "plant",
-    title: "Una planta, muchas señales",
+    title: "La planta responde",
     short: "Planta",
-    text: "Prueba la luz y el agua. Después convertirás esas condiciones en datos con tu propia placa.",
+    text: "Mueve la luz o la humedad y descubre cómo responde la planta.",
     icon: Leaf,
   },
   {
     id: "sensor",
-    title: "El sensor convierte humedad en una señal",
+    title: "De humedad a señal",
     short: "Sensor",
-    text: "Mueve el control de humedad y mira cómo cambia la señal que recibe la placa.",
+    text: "Cambia la humedad y sigue la señal hasta tu placa.",
     icon: Droplets,
   },
   {
     id: "pico",
     title: "Aquí vive tu código",
     short: "Pico W",
-    text: "Una Pico W o Arduino interpreta la señal. En el taller la programarás por USB desde esta página.",
+    text: "Tu placa recibe la señal y ejecuta tu código.",
     icon: Cpu,
   },
   {
     id: "led",
-    title: "Del código a una luz real",
+    title: "Una señal enciende el LED",
     short: "LED",
-    text: "Enciéndelo con un toque. En tu circuito será una instrucción de tu programa la que lo controle.",
+    text: "Toca el LED para encenderlo. Después lo controlarás con tu código.",
     icon: Lightbulb,
   },
   {
     id: "network",
-    title: "La señal llega a tu dashboard",
+    title: "Tu señal llega al dashboard",
     short: "Red",
-    text: "Envía un dato de esta exploración y sigue su recorrido. Más adelante llegarán las lecturas de tu estación.",
+    text: "Envía una señal y sigue su recorrido desde la planta al dashboard.",
     icon: Radio,
   },
 ];
@@ -188,86 +192,93 @@ function Plant({
       }}
     >
       <LivingPot roots={roots} soil={soil} />
-      {rootPaths.map((points, index) => (
-        <group key={index}>
-          <Tube
-            points={points}
-            radius={index % 3 === 0 ? 0.033 : 0.021}
-            color="#e4bf83"
+      {roots &&
+        rootPaths.map((points, index) => (
+          <group key={index}>
+            <Tube
+              points={points}
+              radius={index % 3 === 0 ? 0.033 : 0.021}
+              color="#e4bf83"
+            />
+            <Tube
+              points={[
+                points[2],
+                [
+                  points[2][0] + 0.17 * Math.cos(index),
+                  0.43,
+                  points[2][2] + 0.1,
+                ],
+                [
+                  points[2][0] + 0.23 * Math.cos(index),
+                  0.27,
+                  points[2][2] + 0.18,
+                ],
+              ]}
+              radius={0.012}
+              color="#e4bf83"
+            />
+          </group>
+        ))}
+      <group ref={canopy} position={[0, 1.55, 0]}>
+        <group position={[0, -1.55, 0]}>
+          {stems.map((points, index) => (
+            <Tube
+              key={index}
+              points={points}
+              radius={index ? 0.034 : 0.055}
+              color="#4e7e44"
+            />
+          ))}
+          <LivingLeaf
+            position={[0.02, 2.25, 0]}
+            rotation={[0.35, 0.3, -0.96]}
+            length={1.38}
+            width={0.37}
+            color="#65ad68"
           />
-          <Tube
-            points={[
-              points[2],
-              [points[2][0] + 0.17 * Math.cos(index), 0.43, points[2][2] + 0.1],
-              [
-                points[2][0] + 0.23 * Math.cos(index),
-                0.27,
-                points[2][2] + 0.18,
-              ],
-            ]}
-            radius={0.012}
-            color="#e4bf83"
+          <LivingLeaf
+            position={[-0.02, 2.65, 0.01]}
+            rotation={[-0.2, 2.4, 0.92]}
+            length={1.5}
+            width={0.44}
+            color="#96ce79"
+          />
+          <LivingLeaf
+            position={[0, 3.22, 0.02]}
+            rotation={[0.45, -0.5, -0.89]}
+            length={1.36}
+            width={0.34}
+            color="#76ba69"
+          />
+          <LivingLeaf
+            position={[0, 3.57, 0]}
+            rotation={[0.3, 2.6, 0.65]}
+            length={1.2}
+            width={0.31}
+            color="#aedb83"
+          />
+          <LivingLeaf
+            position={[-0.04, 4.02, 0.02]}
+            rotation={[0.12, -0.3, -0.28]}
+            length={0.76}
+            width={0.24}
+            color="#c4e997"
+          />
+          <LivingLeaf
+            position={[-0.38, 2.9, -0.12]}
+            rotation={[0.4, 1.6, 0.9]}
+            length={1.13}
+            width={0.3}
+            color="#5ba865"
+          />
+          <LivingLeaf
+            position={[0.47, 2.76, 0.1]}
+            rotation={[0.3, -0.7, -0.88]}
+            length={1.15}
+            width={0.34}
+            color="#83c175"
           />
         </group>
-      ))}
-      <group ref={canopy}>
-        {stems.map((points, index) => (
-          <Tube
-            key={index}
-            points={points}
-            radius={index ? 0.034 : 0.055}
-            color="#4e7e44"
-          />
-        ))}
-        <LivingLeaf
-          position={[0.02, 2.25, 0]}
-          rotation={[0.35, 0.3, -0.96]}
-          length={1.38}
-          width={0.37}
-          color="#65ad68"
-        />
-        <LivingLeaf
-          position={[-0.02, 2.65, 0.01]}
-          rotation={[-0.2, 2.4, 0.92]}
-          length={1.5}
-          width={0.44}
-          color="#96ce79"
-        />
-        <LivingLeaf
-          position={[0, 3.22, 0.02]}
-          rotation={[0.45, -0.5, -0.89]}
-          length={1.36}
-          width={0.34}
-          color="#76ba69"
-        />
-        <LivingLeaf
-          position={[0, 3.57, 0]}
-          rotation={[0.3, 2.6, 0.65]}
-          length={1.2}
-          width={0.31}
-          color="#aedb83"
-        />
-        <LivingLeaf
-          position={[-0.04, 4.02, 0.02]}
-          rotation={[0.12, -0.3, -0.28]}
-          length={0.76}
-          width={0.24}
-          color="#c4e997"
-        />
-        <LivingLeaf
-          position={[-0.38, 2.9, -0.12]}
-          rotation={[0.4, 1.6, 0.9]}
-          length={1.13}
-          width={0.3}
-          color="#5ba865"
-        />
-        <LivingLeaf
-          position={[0.47, 2.76, 0.1]}
-          rotation={[0.3, -0.7, -0.88]}
-          length={1.15}
-          width={0.34}
-          color="#83c175"
-        />
       </group>
       {selected && (
         <Html center position={[0, 1.8, 1.15]}>
@@ -289,8 +300,12 @@ function HeroPico({
 }) {
   return (
     <group
-      position={[-2.03, board === "uno" ? 0.035 : 0.1, 0.7]}
-      rotation={[0, -0.22, 0]}
+      position={[
+        LIVING_BOARD_POSITION[0],
+        board === "uno" ? 0.035 : LIVING_BOARD_POSITION[1],
+        LIVING_BOARD_POSITION[2],
+      ]}
+      rotation={[0, LIVING_BOARD_ROTATION, 0]}
       onPointerOver={(event) => sceneCursor(event, true)}
       onPointerOut={(event) => sceneCursor(event, false)}
       onClick={(event) => {
@@ -316,12 +331,14 @@ function Network({
   pulse,
   selected,
   board,
+  signalAvailable,
 }: {
   animate: boolean;
   onSelect: (id: ElementId) => void;
   pulse: number;
   selected: boolean;
   board: Board;
+  signalAvailable: boolean;
 }) {
   const signalPoint = livingBoardProfile(board).signalPoint;
   const paths = useMemo<V3[][]>(
@@ -351,7 +368,7 @@ function Network({
             key={pulse}
             points={points}
             animate={animate}
-            count={pulse ? 5 : 2}
+            count={signalAvailable ? (pulse ? 4 : 1) : 0}
             color={index ? "#91e5df" : "#d6f96c"}
             size={0.045}
           />
@@ -486,7 +503,7 @@ function SolarSeeds({ animate, light }: { animate: boolean; light: number }) {
   });
   return (
     <group ref={group}>
-      {Array.from({ length: 12 }, (_, index) => (
+      {Array.from({ length: 8 }, (_, index) => (
         <mesh
           key={index}
           position={[
@@ -519,6 +536,7 @@ function LivingWorld({
   pulse,
   board,
   canToggleLed,
+  signalAvailable,
 }: {
   animate: boolean;
   roots: boolean;
@@ -531,9 +549,11 @@ function LivingWorld({
   pulse: number;
   board: Board;
   canToggleLed: boolean;
+  signalAvailable: boolean;
 }) {
   return (
     <>
+      <HardwareStudio />
       <ambientLight intensity={0.7} />
       <hemisphereLight args={["#e4f5da", "#173b33", 1]} />
       <directionalLight
@@ -615,6 +635,7 @@ function LivingWorld({
         pulse={pulse}
         selected={selected === "network"}
         board={board}
+        signalAvailable={signalAvailable}
       />
       <mesh
         position={[FOCUS[selected].target[0], 0.025, FOCUS[selected].target[2]]}
@@ -639,7 +660,11 @@ function LivingWorld({
         target={[0, 2.1, 0]}
         home={[6, 4.7, 7.2]}
         maxDistance={18}
-        bounds={{ min: [-3.1, 0, -1.5], max: [3.1, 4.8, 1.7] }}
+        bounds={
+          action.type === "reset" || action.type === "top"
+            ? { min: [-3.1, 0, -1.5], max: [3.1, 4.8, 1.7] }
+            : undefined
+        }
         enablePan
       />
     </>
@@ -700,12 +725,19 @@ export function LivingStation({
     selected === "pico"
       ? boardProfile.description
       : selected === "network" && board !== "pico"
-        ? "Tu Arduino entrega sus datos por USB. El navegador los lleva al dashboard: observa cómo una lectura se convierte en información para tu equipo."
+        ? readings
+          ? "Arduino → USB → navegador → dashboard. Aquí llegan las lecturas de tu estación."
+          : "Arduino → USB → navegador → dashboard. Envía una señal para ver el recorrido."
         : selection.text;
   const reported = readings ? normalizedLivingReadings(readings) : undefined;
   const soilValue = readings ? reported?.soil : soil;
   const lightValue = readings ? reported?.light : light;
   const ledValue = readings ? reported?.led : led;
+  const signalAvailable =
+    !readings ||
+    reported?.soil !== undefined ||
+    reported?.light !== undefined ||
+    reported?.led !== undefined;
   const sourceLabel = readings
     ? readings.source === "hardware"
       ? "Lecturas de tu estación"
@@ -748,6 +780,7 @@ export function LivingStation({
       className={`rdx-living rdx-living--${mode} ${className}`}
       aria-label="Estación de planta en 3D: toca y descubre sus partes"
       data-board={board}
+      data-selected={selected}
     >
       <div className="rdx-scene-eyebrow">
         <span /> {sourceLabel}
@@ -801,6 +834,7 @@ export function LivingStation({
               pulse={pulse}
               board={board}
               canToggleLed={!readings}
+              signalAvailable={signalAvailable}
             />
           </Suspense>
         </SafeCanvas>
@@ -883,16 +917,11 @@ export function LivingStation({
         <div className="rdx-selection" aria-live="polite">
           <strong>{selectedTitle}</strong>
           <p>
-            {readings
-              ? selected === "sensor" || selected === "plant"
-                ? reported?.soil !== undefined
-                  ? `Humedad de tu estación: ${Math.round(reported.soil)}%.`
-                  : "El próximo dato de humedad aparecerá aquí."
-                : selected === "led"
-                  ? reported?.led !== undefined
-                    ? `LED de tu estación: ${reported.led ? "encendido" : "apagado"}.`
-                    : "Explora la luz que controlarás desde tu código."
-                  : selectedText
+            {readings &&
+            (selected === "plant" ||
+              selected === "sensor" ||
+              selected === "led")
+              ? livingReadingText(readings, selected)
               : selectedText}
           </p>
         </div>
@@ -962,15 +991,12 @@ export function LivingStation({
             )}
           </div>
         )}
-        <div className="rdx-world-feedback" role="status">
-          {feedback ||
-            (!readings && visited.length === ELEMENTS.length
-              ? "¡Estación descubierta! Ahora construirás la tuya, paso a paso."
-              : "")}
-        </div>
-        <span className="rdx-model-note">
-          {readings ? sourceLabel : "Modelo de exploración"}
-        </span>
+        {(feedback || (!readings && visited.length === ELEMENTS.length)) && (
+          <div className="rdx-world-feedback" role="status">
+            {feedback ||
+              "¡Estación descubierta! Construye la tuya, paso a paso."}
+          </div>
+        )}
       </div>
     </section>
   );
