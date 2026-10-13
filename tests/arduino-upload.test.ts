@@ -499,8 +499,10 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
     try {
       await transport.upload(HEX);
       expect(peer.signals.filter(Boolean)).toHaveLength(2);
+      // Three frames spend the window the first reset never opened; the
+      // fourth one is answered after the second reset.
       expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
-        2,
+        4,
       );
       expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
       expect(peer.rates).toEqual([115200]);
