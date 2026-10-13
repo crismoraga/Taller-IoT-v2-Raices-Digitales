@@ -772,21 +772,39 @@ export class ArduinoUSBSerial extends SerialLink {
     stillConnected();
     // Release reset, as avrdude does. A direct RTS/DTR reset connection must
     // not remain asserted throughout programming; capacitor-reset boards work
-    // with the same pulse. Keep this before the short Optiboot entry window.
+    // with the same pulse. A real Uno drops every byte sent during the first
+    // 70-80 ms after the reset edge, so the first frame waits beyond that.
     await port!.setSignals({ dataTerminalReady: false, requestToSend: false });
-    await delay(80);
+    await delay(120);
     stillConnected();
   }
-  private async synchronize(timeout: number) {
-    await this.send([0x30, 0x20]);
-    const deadline = Date.now() + timeout;
+  private async synchronize() {
     let previous = -1;
-    // USB adapters can deliver the tail of the old sketch or NOSYNC before the
-    // real response. Match the complete SYNC frame, even across separate reads.
-    while (Date.now() < deadline) {
-      const byte = (await this.bytes(1, Math.max(1, deadline - Date.now())))[0];
-      if (previous === 0x14 && byte === 0x10) return;
-      previous = byte;
+    // Optiboot answers nothing while its LED flashes: on a real Uno the first
+    // reply leaves about 450 ms after the reset edge, and only three unread
+    // bytes survive in the AVR UART until then. A second frame sent too early
+    // leaves half a frame behind and makes the bootloader start the sketch, so
+    // wait past the flashes once and repeat only for a frame that was lost.
+    for (const patience of [600, 250, 250]) {
+      await this.send([0x30, 0x20]);
+      const deadline = Date.now() + patience;
+      try {
+        // USB adapters can deliver the tail of the old sketch or NOSYNC before
+        // the real response. Match the complete SYNC frame, even across reads.
+        while (Date.now() < deadline) {
+          const byte = (
+            await this.bytes(1, Math.max(1, deadline - Date.now()))
+          )[0];
+          if (previous === 0x14 && byte === 0x10) {
+            // Let the reply to a repeated frame arrive; command() discards it.
+            await delay(30);
+            return;
+          }
+          previous = byte;
+        }
+      } catch (problem) {
+        if (!this.connected) throw problem;
+      }
     }
     throw new Error("El bootloader Arduino no respondió a la sincronización.");
   }
@@ -810,15 +828,16 @@ export class ArduinoUSBSerial extends SerialLink {
           this.inbox = [];
           this.onUploadProgress({ stage: "sync", percent: 0 });
           await this.resetForUpload();
-          for (let attempt = 0; attempt < 10 && !synchronized; attempt++) {
+          for (let attempt = 0; attempt < 3 && !synchronized; attempt++) {
             // A missed Optiboot window cannot be recovered by talking to the
-            // running sketch. Reopen the bootloader on every sync retry, before
-            // any flash command; the initial reset already discharged the cap.
+            // running sketch. Each attempt spends one whole bootloader window;
+            // only then reopen it, before any flash command. A reset restarts
+            // the bootloader, and the initial one already discharged the cap.
             if (attempt > 0) await this.resetForUpload(20);
             this.inbox = [];
             let signature: Uint8Array;
             try {
-              await this.synchronize(180);
+              await this.synchronize();
               signature = await this.command([0x75], 3);
             } catch (problem) {
               handshakeError = problem;

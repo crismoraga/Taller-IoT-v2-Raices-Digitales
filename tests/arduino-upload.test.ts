@@ -96,7 +96,14 @@ describe("USB models with a different Arduino upload protocol", () => {
   });
 });
 
-/** A STK500v1 peer with reset gating, split replies, and serial bridge noise. */
+/**
+ * A STK500v1 peer with reset gating, split replies, and serial bridge noise.
+ * It keeps the Optiboot timing measured on a genuine Uno: the UART is deaf for
+ * about 75 ms after the reset edge, then holds at most three unread bytes while
+ * the LED flashes, and the first reply leaves 447 ms after the edge. Every reset
+ * restarts that clock; one silent second or a frame without CRC_EOP starts the
+ * sketch, which answers nothing.
+ */
 function bootloader(
   options: {
     releaseRequired?: boolean;
@@ -111,20 +118,108 @@ function bootloader(
     signatureNoise?: boolean;
     rejectWrite?: boolean;
     missFirstEnter?: boolean;
+    deafFor?: number;
   } = {},
 ) {
   let incoming: ReadableStreamDefaultController<Uint8Array>;
   let address = 0,
     resetAsserted = false,
-    resetSeen = false,
-    active = false,
-    resets = 0;
+    resets = 0,
+    boots = 0;
   let enterRequests = 0;
+  let phase: "sketch" | "reset" | "deaf" | "flashing" | "listening" = "sketch";
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  let held: number[] = [],
+    pending: number[] = [];
   const memory = new Uint8Array(32768).fill(255);
   const packets: number[][] = [],
     rates: number[] = [];
   const signals: boolean[] = [];
-  const emit = (bytes: number[]) => incoming.enqueue(Uint8Array.from(bytes));
+  const emit = (bytes: number[]) => {
+    try {
+      incoming.enqueue(Uint8Array.from(bytes));
+    } catch {
+      /* The stream was closed by an unplug. */
+    }
+  };
+  const feed = () => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => (phase = "sketch"), 1000);
+  };
+  const execute = (packet: number[]) => {
+    const command = packet[0];
+    if (command === 0x50 && options.missFirstEnter && ++enterRequests === 1)
+      return;
+    if (command === 0x75 && options.signatureNoise)
+      emit([0x72, 0x65, 0x61, 0x64, 0x79, 0x0d, 0x0a, 0x14, 0x10]);
+    if (command === 0x30 && options.syncNoise) {
+      // Stale adapter input and a partial previous handshake precede SYNC.
+      emit([0x62, 0x6f, 0x6f, 0x74, 0x0a, 0x15, 0x14]);
+    }
+    let reply: number[] = [];
+    if (command === 0x75) reply = options.signature ?? [0x1e, 0x95, 0x0f];
+    else if (command === 0x55) address = ((packet[2] << 8) | packet[1]) * 2;
+    else if (command === 0x64) {
+      if (options.rejectWrite) {
+        emit([0x14, 0x11]);
+        return;
+      }
+      if (options.unplugOnWrite) {
+        incoming.close();
+        return;
+      }
+      memory.set(packet.slice(4, 4 + ((packet[1] << 8) | packet[2])), address);
+    } else if (command === 0x74) {
+      reply = [
+        ...memory.slice(address, address + ((packet[1] << 8) | packet[2])),
+      ];
+      if (options.corruptReadback) reply[0] ^= 1;
+    }
+    // INSYNC, data, and OK may arrive as separate Web Serial reads.
+    emit([0x14]);
+    if (reply.length) emit(reply);
+    emit([0x10]);
+    if (command === 0x30 && options.duplicateSyncReply) emit([0x14, 0x10]);
+    if (command === 0x51) {
+      clearTimeout(watchdog);
+      phase = "sketch";
+    }
+  };
+  const receive = (bytes: number[]) => {
+    pending.push(...bytes);
+    while (phase === "listening" && pending.length) {
+      const command = pending[0];
+      let length = 2;
+      if (command === 0x55) length = 4;
+      else if (command === 0x74) length = 5;
+      else if (command === 0x64)
+        length =
+          pending.length < 3 ? Infinity : 5 + ((pending[1] << 8) | pending[2]);
+      if (pending.length < length) return;
+      const packet = pending.splice(0, length);
+      if (packet.at(-1) !== 0x20) {
+        // Optiboot gives up on a frame without CRC_EOP and starts the sketch.
+        clearTimeout(watchdog);
+        phase = "sketch";
+        return;
+      }
+      feed();
+      execute(packet);
+    }
+  };
+  const boot = () => {
+    const epoch = boots;
+    phase = "deaf";
+    setTimeout(() => {
+      if (epoch === boots) phase = "flashing";
+    }, options.deafFor ?? 75);
+    setTimeout(() => {
+      if (epoch !== boots) return;
+      phase = "listening";
+      feed();
+      receive(held.splice(0));
+    }, 447);
+  };
   const port: USBPort = {
     readable: null,
     writable: null,
@@ -145,54 +240,10 @@ function bootloader(
         write(bytes) {
           const packet = [...bytes];
           packets.push(packet);
-          if (!active || (options.bootRate && baudRate !== options.bootRate))
-            return;
-          if (packet.at(-1) !== 0x20) throw new Error("Missing STK CRC_EOP");
-          const command = packet[0];
-          if (
-            command === 0x50 &&
-            options.missFirstEnter &&
-            ++enterRequests === 1
-          )
-            return;
-          if (command === 0x75 && options.signatureNoise)
-            emit([0x72, 0x65, 0x61, 0x64, 0x79, 0x0d, 0x0a, 0x14, 0x10]);
-          if (command === 0x30 && options.syncNoise) {
-            // Stale adapter input and a partial previous handshake precede SYNC.
-            emit([0x62, 0x6f, 0x6f, 0x74, 0x0a, 0x15, 0x14]);
-          }
-          let reply: number[] = [];
-          if (command === 0x75) reply = options.signature ?? [0x1e, 0x95, 0x0f];
-          else if (command === 0x55)
-            address = ((packet[2] << 8) | packet[1]) * 2;
-          else if (command === 0x64) {
-            if (options.rejectWrite) {
-              emit([0x14, 0x11]);
-              return;
-            }
-            if (options.unplugOnWrite) {
-              incoming.close();
-              return;
-            }
-            memory.set(
-              bytes.slice(4, 4 + ((packet[1] << 8) | packet[2])),
-              address,
-            );
-          } else if (command === 0x74) {
-            reply = [
-              ...memory.slice(
-                address,
-                address + ((packet[1] << 8) | packet[2]),
-              ),
-            ];
-            if (options.corruptReadback) reply[0] ^= 1;
-          }
-          // INSYNC, data, and OK may arrive as separate Web Serial reads.
-          emit([0x14]);
-          if (reply.length) emit(reply);
-          emit([0x10]);
-          if (command === 0x30 && options.duplicateSyncReply)
-            emit([0x14, 0x10]);
+          if (options.bootRate && baudRate !== options.bootRate) return;
+          if (phase === "flashing")
+            held.push(...packet.slice(0, 3 - held.length));
+          else if (phase === "listening") receive(packet);
         },
       });
     },
@@ -200,13 +251,20 @@ function bootloader(
     async setSignals({ dataTerminalReady }) {
       if (dataTerminalReady === undefined) return;
       signals.push(dataTerminalReady);
+      if (dataTerminalReady === resetAsserted) return;
       resetAsserted = dataTerminalReady;
       if (resetAsserted) {
-        resetSeen = true;
         resets++;
-        active =
-          !options.releaseRequired && (!options.missFirstReset || resets > 1);
-      } else if (resetSeen) active = !options.missFirstReset || resets > 1;
+        boots++;
+        clearTimeout(watchdog);
+        held = [];
+        pending = [];
+        phase = options.releaseRequired ? "reset" : "sketch";
+      }
+      if (options.missFirstReset && resets < 2) return;
+      // A capacitor-coupled reset starts the bootloader on the DTR edge; a
+      // direct reset line keeps the AVR stopped until it is released.
+      if (resets && resetAsserted !== Boolean(options.releaseRequired)) boot();
     },
   };
   return { port, packets, rates, signals, memory };
@@ -399,6 +457,41 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
     }
   });
 
+  it("waits for the bootloader's start-up flashes with one reset and one sync frame", async () => {
+    const peer = bootloader();
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect(peer.signals.filter(Boolean)).toHaveLength(1);
+      // A second frame sent during the flashes would leave half a frame in the
+      // AVR UART and make Optiboot start the sketch on the next command.
+      expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
+        1,
+      );
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(peer.rates).toEqual([115200]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("repeats a lost sync frame inside the same bootloader window without another reset", async () => {
+    const peer = bootloader({ deafFor: 300 });
+    const transport = new ArduinoUSBSerial();
+    await transport.connect("uno", peer.port);
+    try {
+      await transport.upload(HEX);
+      expect(peer.signals.filter(Boolean)).toHaveLength(1);
+      expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
+        2,
+      );
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
   it("reopens a missed bootloader window instead of retrying against the sketch", async () => {
     const peer = bootloader({ releaseRequired: true, missFirstReset: true });
     const transport = new ArduinoUSBSerial();
@@ -406,8 +499,10 @@ describe("Arduino upload with a real bootloader lifecycle", () => {
     try {
       await transport.upload(HEX);
       expect(peer.signals.filter(Boolean)).toHaveLength(2);
+      // Three frames spend the window the first reset never opened; the
+      // fourth one is answered after the second reset.
       expect(peer.packets.filter((packet) => packet[0] === 0x30)).toHaveLength(
-        2,
+        4,
       );
       expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
       expect(peer.rates).toEqual([115200]);
