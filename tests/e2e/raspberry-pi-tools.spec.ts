@@ -67,5 +67,7 @@ test("optional Raspberry Pi GPIO checks show real header pins and downloads with
     expect(await downloaded.text()).toMatch(/^#!\/usr\/bin\/env python3/);
   }
   await page.goto("/taller/led");
-  await expect(page.getByLabel("Tu placa", { exact: true })).toHaveValue("uno");
+  await expect(
+    page.getByRole("combobox", { name: "Tu placa", exact: true }),
+  ).toHaveValue("uno");
 });
