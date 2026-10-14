@@ -2,14 +2,14 @@ import type { Stage } from "./types";
 
 /**
  * La ruta del taller: las Etapas 0 a 10 del contexto maestro más la Zona Explora.
- * Las actividades marcadas como `essential` forman la ruta exprés de 60 minutos.
+ * Las actividades marcadas como `essential` forman el recorrido recomendado.
  */
 export const stages: Stage[] = [
   {
     id: 0,
     label: "Etapa 0",
     title: "Bienvenida",
-    summary: "Qué es IoT, qué vas a construir y cómo trabajar con seguridad.",
+    summary: "Conoce tu placa y el viaje que harán los datos de tu planta.",
     icon: "rocket",
     glyph: "rocket",
     lessons: ["welcome"],
@@ -127,15 +127,53 @@ export const stages: Stage[] = [
   },
 ];
 
-/** Ruta exprés: de cero a una planta conectada en 60 minutos. */
+/** Un recorrido: primero el LED, después los sensores y al final la planta. */
 export const expressRoute = [
-  "welcome",
   "led",
-  "blink",
+  "ldr",
+  "dht11",
   "soil",
   "calibration",
-  "cloud",
+  "station",
+  "dashboard",
 ];
+
+/** Nombres concretos para reconocer cada paso sin aprender todo el catálogo. */
+export const guidedRouteCopy: Record<
+  string,
+  { title: string; summary: string }
+> = {
+  led: {
+    title: "Enciende un LED",
+    summary: "Conecta el LED, carga el programa y comprueba que se enciende.",
+  },
+  ldr: {
+    title: "Mide la luz",
+    summary: "Añade la LDR y mira cómo cambia la lectura al taparla.",
+  },
+  dht11: {
+    title: "Mide temperatura y humedad",
+    summary: "Conecta el DHT11 y recibe las dos medidas del aire.",
+  },
+  soil: {
+    title: "Mide la humedad del suelo",
+    summary: "Conecta la sonda capacitiva y compara tierra seca y húmeda.",
+  },
+  calibration: {
+    title: "Calibra tu sonda",
+    summary:
+      "Guarda tus dos referencias para interpretar la humedad del suelo.",
+  },
+  station: {
+    title: "Conecta los sensores de tu planta",
+    summary: "Reúne luz, temperatura, humedad y suelo en un solo programa.",
+  },
+  dashboard: {
+    title: "Monitorea tu planta",
+    summary:
+      "Observa tus lecturas reales y descubre cómo cambian con el tiempo.",
+  },
+};
 
 /** Identificadores antiguos que siguen apareciendo en progresos guardados. */
 export const legacyLessonIds: Record<string, string> = { sensors: "soil" };

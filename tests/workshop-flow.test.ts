@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { essentials, lessonById, lessons } from "../web/content";
+import {
+  essentials,
+  lessonById,
+  lessons,
+  nextLesson,
+  normalizeProgress,
+} from "../web/content";
 import {
   lessonFlow,
   lessonIdFromRoute,
@@ -12,20 +18,73 @@ describe("recorrido del taller", () => {
     expect(lessonIdFromRoute("/taller/%")).toBe("");
     expect(lessonIdFromRoute("/taller/%6ced")).toBe("led");
   });
-  it("termina la ruta guiada al completar las seis actividades esenciales", () => {
+  it("termina el recorrido al completar LED, sensores y monitoreo sin exigir extras", () => {
     const done = new Set(essentials.map((lesson) => lesson.id));
     expect(resumeWorkshop(true, done)).toBeUndefined();
-    expect(lessonFlow(lessonById("cloud")!, true).following).toBeUndefined();
-    expect(resumeWorkshop(false, done)?.id).toBe("led_onboard");
+    expect(
+      lessonFlow(lessonById("dashboard")!, true).following,
+    ).toBeUndefined();
+    expect(resumeWorkshop(false, done)).toBeUndefined();
   });
 
-  it("respeta los pasos intermedios al elegir el recorrido completo", () => {
+  it("cambiar la vista a Libre conserva el recorrido y deja el catálogo disponible", () => {
     expect(lessonFlow(lessonById("welcome")!, false).following?.id).toBe(
       "led_onboard",
     );
-    expect(lessonFlow(lessonById("welcome")!, true).following?.id).toBe("led");
-    expect(lessonFlow(lessonById("soil")!, true).previous?.id).toBe("blink");
+    expect(lessonFlow(lessonById("welcome")!, true).following?.id).toBe(
+      "led_onboard",
+    );
+    expect(lessonFlow(lessonById("soil")!, true).previous?.id).toBe("dht11");
     expect(lessonFlow(lessonById("soil")!, false).previous?.id).toBe("dht11");
+    expect(lessonFlow(lessonById("led")!, false).following?.id).toBe("ldr");
+    expect(nextLesson("led", false)?.id).toBe("blink");
+    expect(workshopRoute(false)).toEqual(workshopRoute(true));
+  });
+
+  it("aprende luz y aire antes del suelo y abre el monitoreo después de integrar", () => {
+    const route = workshopRoute(true);
+    expect(route[0].id).toBe("led");
+    for (let index = 0; index < route.length; index++) {
+      const flow = lessonFlow(route[index], true);
+      expect(flow.index).toBe(index);
+      expect(flow.total).toBe(7);
+      expect(flow.previous?.id).toBe(route[index - 1]?.id);
+      expect(flow.following?.id).toBe(route[index + 1]?.id);
+      expect(nextLesson(route[index].id, true)?.id).toBe(route[index + 1]?.id);
+    }
+    expect(nextLesson("station", true)?.id).toBe("dashboard");
+  });
+
+  it("conserva el progreso antiguo y retoma los básicos nuevos pendientes", () => {
+    const saved = [
+      "welcome",
+      "led",
+      "blink",
+      "sensors",
+      "calibration",
+      "cloud",
+      "led",
+    ];
+    const progress = normalizeProgress(saved);
+    expect(progress).toEqual([
+      "welcome",
+      "led",
+      "blink",
+      "soil",
+      "calibration",
+      "cloud",
+    ]);
+    expect(resumeWorkshop(true, new Set(progress))?.id).toBe("ldr");
+    expect(nextLesson("sensors", true)?.id).toBe("calibration");
+  });
+
+  it("una actividad opcional no se intercala en el recorrido principal", () => {
+    const optional = lessonFlow(lessonById("blink")!, true);
+    expect(optional.express).toBe(false);
+    expect(optional.following?.id).toBe("button");
+    expect(workshopRoute(true).some((lesson) => lesson.id === "cloud")).toBe(
+      false,
+    );
   });
 
   it("retoma el primer pendiente sin saltarlo por tener progreso posterior", () => {

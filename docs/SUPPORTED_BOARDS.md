@@ -12,6 +12,7 @@ Esta tabla describe los perfiles que el código implementa. **Compatibilidad USB
 | Arduino Nano ATmega328P | `arduino:avr:nano:cpu=atmega328`; STK500v1 | USB por navegador | Compilación y firma de MCU | Seleccionar Nano con bootloader antiguo si el perfil moderno no sincroniza. |
 | Arduino Nano ATmega328P · bootloader antiguo | `arduino:avr:nano:cpu=atmega328old`; STK500v1 | USB por navegador | Compilación con velocidad heredada | 57600 se intenta antes que 115200; clones pueden variar. |
 | Arduino Nano ATmega168 | `arduino:avr:nano:cpu=atmega168`; firma `1E 94 06`, 19200 baud | USB por navegador | Compilación real de catálogo/estación y peer de carga con verificación de páginas | Flash/RAM son menores; no sustituir automáticamente por ATmega328P. |
+| Raspberry Pi 3 / 4 con Raspberry Pi OS | Computador Linux anfitrión; Chromium + Arduino USB. Comprobador Python local para GPIO; no se flashea desde Web Serial | USB de Arduino hacia navegador o puente Python autorizado; pruebas GPIO imprimen JSON local | Parser USB, permisos de credencial, reconexión, cola acotada y drivers GPIO con peers de prueba | No tiene ADC nativo. Suelo/LDR/nivel necesitan un ADC externo, como MCP3008, o Arduino. No se ensayó hardware Pi físico en esta revisión. |
 
 ### Compatibilidad de pines de la familia Pico
 
@@ -19,7 +20,13 @@ Pico, Pico W, Pico 2 y Pico 2 W comparten el formato de 40 contactos y el perfil
 
 ### Placas que se reconocen pero no se deben flashear con estos perfiles
 
-Entre otras, Arduino Mega, Leonardo/Micro, Due, Zero, Uno R4, Nano Every, placas ESP32 y Raspberry Pi con Linux tienen distinto MCU, pinout, bootloader o protocolo. La interfaz puede identificarlas como dispositivo conocido/no compatible, pero no debe compilar ni cargar el perfil AVR/Pico del taller. Un microcontrolador compatible montado en un clon puede tener bootloader, reloj, regulador o puente serial diferente: la firma y el funcionamiento real son lo que determina la carga.
+Entre otras, Arduino Mega, Leonardo/Micro, Due, Zero, Uno R4, Nano Every, placas ESP32 y Raspberry Pi con Linux tienen distinto MCU, pinout, bootloader o protocolo. No se les compila ni carga el perfil AVR/Pico del taller. Raspberry Pi 3/4 dispone de su herramienta Linux independiente en Ajustes; permanece fuera del selector de microcontroladores para que la compilación y el mapa de Arduino conserven su significado. Un microcontrolador compatible montado en un clon puede tener bootloader, reloj, regulador o puente serial diferente: la firma y el funcionamiento real son lo que determina la carga.
+
+### Raspberry Pi 3 / 4: comprobación acotada de sensores
+
+En Ajustes → «Raspberry Pi 3 / 4 · comprobar sensores» se descarga `check_sensors.py`. Se ejecuta en Raspberry Pi OS, imprime lecturas JSON y devuelve estados explícitos cuando falta una biblioteca, una respuesta o el ADC. Permite DHT11, DS18B20, HC-SR04, HC-SR501 y FC-37+LM393. Suelo, LDR y nivel de agua son opcionales mediante MCP3008 por SPI; el conversor no identifica automáticamente la presencia física de una sonda. Los pines BCM y físicos aparecen para un sensor a la vez.
+
+El puente opcional [`firmware/raspberry-pi/bridge.py`](../firmware/raspberry-pi/bridge.py) transporta la estación Arduino USB a `/api/device/ingest` sin dejar un navegador abierto. Vincula con un código de un uso, conserva la credencial únicamente en un archivo local `0600`, usa HTTPS verificado y no sigue redirecciones con el token. El buffer serial tiene límite, cada reconexión descarta datos anteriores y las interrupciones de red conservan solo la lectura más reciente por ocho segundos. No sube programas ni transforma diagnósticos fallidos en medidas válidas.
 
 ## Perfiles AVR implementados
 

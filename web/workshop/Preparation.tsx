@@ -199,8 +199,8 @@ export function FinalReview() {
           tus dos referencias.
         </li>
         <li>
-          Crea una regla, cruza su umbral y comprueba la alerta y su
-          recuperación. Telegram requiere la configuración del docente.
+          Tapa la LDR y compara la luz. Observa también temperatura y humedad
+          del aire: cada tarjeta corresponde al sensor que conectaste.
         </li>
         <li>
           Exporta el CSV de tus mediciones y comparte con el equipo una decisión

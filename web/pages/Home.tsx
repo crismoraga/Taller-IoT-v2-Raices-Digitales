@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Icon } from "../brand/Graphics";
 import {
   essentials,
+  guidedRouteCopy,
   lessonsOf,
   stages,
   type Lesson,
@@ -10,8 +11,8 @@ import {
 import { useApp } from "../lib/context";
 import { useProgress } from "../lib/progress";
 import { Button } from "../ui/Button";
-import { Segmented, Tag } from "../ui/Card";
-import { Page } from "../ui/Layout";
+import { Tag } from "../ui/Card";
+import { Disclosure, Page } from "../ui/Layout";
 import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
 import { FinalReview } from "../workshop/Preparation";
@@ -23,21 +24,31 @@ const LivingStation = lazy(() => import("../experience/LivingStation"));
 export default function Home() {
   const app = useApp();
   const progress = useProgress();
-  const route = workshopRoute(app.guided);
+  const route = workshopRoute(true);
   const completedSteps = route.flatMap((lesson, index) =>
     progress.done.has(lesson.id) ? [index] : [],
   );
   const done = completedSteps.length;
   const finished = done === route.length;
-  const resume = resumeWorkshop(app.guided, progress.done);
+  const resume = resumeWorkshop(true, progress.done);
   const duration = route.reduce(
     (minutes, lesson) => minutes + lesson.duration,
     0,
   );
-  const open = (lesson: Lesson) =>
+  const open = (lesson: Lesson) => {
+    app.setGuided(true);
     app.session
       ? app.navigate(`/taller/${lesson.id}`)
       : app.openOnboarding(`/taller/${lesson.id}`);
+  };
+  const optionalStages = stages
+    .map((stage) => ({
+      ...stage,
+      lessons: stage.lessons.filter(
+        (id) => !essentials.some((lesson) => lesson.id === id),
+      ),
+    }))
+    .filter((stage) => stage.lessons.length > 0);
 
   return (
     <Page wide className="experience-home home-solarpunk">
@@ -60,7 +71,7 @@ export default function Home() {
               ? finished
                 ? `${app.session.name}, ya completaron la ruta. Es momento de ver qué cuenta su planta.`
                 : `${app.session.name}, continuemos. Conecta, programa y comprueba una cosa a la vez.`
-              : "Tu kit está listo. Conecta tu placa por USB y descubre una planta que siente, se comunica y cobra vida. Un cable, un paso y un hallazgo a la vez."}
+              : "Empieza encendiendo un LED. Añade luz, temperatura y humedad, un sensor a la vez. Después reúne tus lecturas y descubre qué cuenta tu planta."}
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button
@@ -68,11 +79,12 @@ export default function Home() {
               variant="accent"
               iconRight="arrowRight"
               className="solar-start-button"
-              onClick={() =>
+              onClick={() => {
+                app.setGuided(true);
                 app.session
                   ? app.navigate(resume ? `/taller/${resume.id}` : "/planta")
-                  : app.openOnboarding()
-              }
+                  : app.openOnboarding("/taller/led");
+              }}
             >
               {!app.session || done === 0
                 ? "Comenzar taller"
@@ -82,8 +94,7 @@ export default function Home() {
             </Button>
             <span className="inline-flex items-center gap-2 text-sm text-on-dark">
               <Icon name="clock" size={16} />
-              {duration} minutos ·{" "}
-              {app.guided ? "paso a paso" : "ruta completa"}
+              {route.length} actividades · paso a paso
             </span>
           </div>
           <p className="solar-kit-note">
@@ -120,23 +131,16 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="ruta" className="t-heading text-ink">
-              Pequeños pasos. Grandes descubrimientos.
+              LED → sensores → tu planta
             </h2>
             <p className="mt-1 text-sm text-ink-soft">
-              {app.guided
-                ? "Desde encender una luz hasta escuchar a tu planta. Toca una actividad para entrar."
-                : "Abre una etapa para ver sus actividades."}
+              Sigue los pasos en orden. En cada uno conecta, programa y
+              comprueba.
             </p>
           </div>
-          <Segmented
-            label="Qué ruta ver"
-            value={app.guided ? "express" : "full"}
-            onChange={(value) => app.setGuided(value === "express")}
-            options={[
-              { value: "express", label: "Guiada", icon: "route" },
-              { value: "full", label: "Completa", icon: "book" },
-            ]}
-          />
+          <span className="text-xs text-ink-soft">
+            {duration} min orientativos
+          </span>
         </div>
         {app.session && (
           <div className="mt-4 flex items-center gap-3 text-sm text-ink-soft">
@@ -153,38 +157,44 @@ export default function Home() {
             />
           </div>
         )}
-        {app.guided ? (
-          <ol
-            className="home-route mt-4"
-            aria-label="Actividades de la ruta guiada"
-          >
-            {essentials.map((lesson, index) => (
-              <li key={lesson.id}>
-                <LessonRow
-                  lesson={lesson}
-                  number={index + 1}
-                  done={progress.done.has(lesson.id)}
-                  current={resume?.id === lesson.id}
-                  onOpen={() => open(lesson)}
-                />
-              </li>
+        <ol
+          className="home-route mt-4"
+          aria-label="Actividades de la ruta guiada"
+        >
+          {essentials.map((lesson, index) => (
+            <li key={lesson.id}>
+              <LessonRow
+                lesson={lesson}
+                number={index + 1}
+                done={progress.done.has(lesson.id)}
+                current={resume?.id === lesson.id}
+                onOpen={() => open(lesson)}
+                guided
+              />
+            </li>
+          ))}
+        </ol>
+        <Disclosure
+          title="Otros experimentos · opcionales"
+          icon="flask"
+          tone="plain"
+          className="mt-4"
+        >
+          <p className="mb-3 text-sm text-ink-soft">
+            Tu recorrido ya está arriba. Aquí puedes probar más sensores,
+            botones, pantallas y alertas a tu ritmo.
+          </p>
+          <div className="flex flex-col gap-3">
+            {optionalStages.map((stage) => (
+              <StageRow
+                key={stage.id}
+                stage={stage}
+                done={progress.done}
+                onOpen={open}
+              />
             ))}
-          </ol>
-        ) : (
-          <div className="mt-4 flex flex-col gap-3">
-            {stages
-              .filter((stage) => stage.id !== "explora")
-              .map((stage) => (
-                <StageRow
-                  key={stage.id}
-                  stage={stage}
-                  done={progress.done}
-                  nextId={resume?.id}
-                  onOpen={open}
-                />
-              ))}
           </div>
-        )}
+        </Disclosure>
       </section>
 
       {app.session && finished && (
@@ -222,12 +232,14 @@ function LessonRow({
   done,
   current,
   onOpen,
+  guided = false,
 }: {
   lesson: Lesson;
   number: number;
   done: boolean;
   current: boolean;
   onOpen: () => void;
+  guided?: boolean;
 }) {
   return (
     <button
@@ -247,10 +259,14 @@ function LessonRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display text-[15px] font-bold leading-5 text-ink">
-          {lesson.title}
+          {guided
+            ? (guidedRouteCopy[lesson.id]?.title ?? lesson.title)
+            : lesson.title}
         </span>
         <span className="mt-1 block text-sm leading-5 text-ink-soft">
-          {lesson.summary}
+          {guided
+            ? (guidedRouteCopy[lesson.id]?.summary ?? lesson.summary)
+            : lesson.summary}
         </span>
       </span>
       <span className="home-lesson-state">

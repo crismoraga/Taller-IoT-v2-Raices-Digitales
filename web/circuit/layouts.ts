@@ -1022,6 +1022,24 @@ export const circuits = {
     { from: 1, to: 63 },
   ),
   pir: make("pir", "PIR HC-SR501 en GP19", [gndTop, pir], { from: 1, to: 26 }),
+  /** La ruta guiada reúne únicamente las piezas que ya se aprendieron. */
+  station_basic: make(
+    "station_basic",
+    "Mi primera estación de planta",
+    [
+      v33Top,
+      gndTop,
+      gndBottom,
+      v33Bottom,
+      bridge("bp"),
+      bridge("bn"),
+      led,
+      ldr,
+      dht11,
+      soil,
+    ],
+    { from: 1, to: 52 },
+  ),
   /** Etapa 7: todo lo anterior a la vez, cada pieza en el lugar que ya ocupaba. */
   station: make(
     "station",

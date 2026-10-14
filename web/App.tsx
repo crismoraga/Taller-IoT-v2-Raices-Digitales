@@ -14,6 +14,7 @@ import { arduinoStationSketch } from "./lib/arduino";
 import { filterCalibrations } from "./lib/calibration";
 import { browserUSBCompatibility } from "./lib/usb-support";
 import { SerialTextBuffer } from "./lib/serial-text";
+import { usbBridgeReadings, usbFrame } from "./lib/usb-readings";
 import { isBoard, nanoUSBChoice } from "../shared/boards";
 import {
   AppContext,
@@ -102,7 +103,7 @@ export default function App() {
     Record<string, unknown>
   >({});
   const [onboarding, setOnboarding] = useState(false);
-  const onboardingDestination = useRef("/taller/welcome");
+  const onboardingDestination = useRef("/taller/led");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
@@ -425,27 +426,16 @@ export default function App() {
         const trimmed = line.trim();
         if (!trimmed.startsWith("{")) continue;
         try {
-          const data = JSON.parse(trimmed) as {
-            sensor?: string;
-            value?: unknown;
-            readings?: Reading[];
-            diagnostics?: Record<string, unknown>;
-          };
-          // Una lectura suelta ({"sensor":…,"value":…}) se trata como un lote de una.
-          const batch: Reading[] | undefined = Array.isArray(data.readings)
-            ? data.readings
-            : data.sensor && "value" in data
-              ? [data as unknown as Reading]
-              : undefined;
+          const data = usbFrame(JSON.parse(trimmed));
+          if (!data) continue;
+          const batch = data.readings;
           if (data.diagnostics) setLastDiagnostics(data.diagnostics);
-          if (!batch?.length) continue;
-          const stamped = batch
-            .filter((reading) => typeof reading?.sensor === "string")
-            .map((reading) => ({
-              ...reading,
-              source: "hardware",
-              timestamp: new Date().toISOString(),
-            }));
+          if (!batch.length) continue;
+          const stamped = batch.map((reading) => ({
+            ...reading,
+            source: "hardware",
+            timestamp: new Date().toISOString(),
+          }));
           setLocalReadings((previous) => [
             ...previous.filter(
               (reading) =>
@@ -455,8 +445,7 @@ export default function App() {
           ]);
           if (publishesAlone(data.diagnostics)) pendingUSB.current.clear();
           else {
-            for (const reading of batch) {
-              if (typeof reading?.sensor !== "string") continue;
+            for (const reading of usbBridgeReadings(batch)) {
               const { sensor, value, unit, status, raw, confidence, error } =
                 reading;
               pendingUSB.current.set(sensor, {
@@ -864,11 +853,22 @@ export default function App() {
     [compileAndUpload, connected, guard, notify],
   );
   const installStation = useCallback(
-    (ssid: string, password: string, endpoint: string) =>
+    (
+      ssid: string,
+      password: string,
+      endpoint: string,
+      enabledOverrides?: Record<string, boolean>,
+    ) =>
       guard(async () => {
         const current = boardRef.current;
-        const active = sessionRef.current;
+        let active = sessionRef.current;
         if (!connected) throw new Error("Conecta tu placa por USB.");
+        if (active && enabledOverrides) {
+          await updateSession({
+            sensorEnabled: { ...active.sensorEnabled, ...enabledOverrides },
+          });
+          active = sessionRef.current;
+        }
         const calibrations = filterCalibrations(
           active?.calibrations ?? {},
           current,
@@ -935,7 +935,7 @@ export default function App() {
             : "Estación instalada. Las lecturas viajan por USB a tu planta.",
         );
       }),
-    [compileAndUpload, connected, guard, notify],
+    [compileAndUpload, connected, guard, notify, updateSession],
   );
   const revokeDevice = useCallback(
     async (deviceId: string) => {
@@ -974,13 +974,13 @@ export default function App() {
     }
   }, []);
   const clearTerminal = useCallback(() => setTerminal(""), []);
-  const openOnboarding = useCallback((destination = "/taller/welcome") => {
+  const openOnboarding = useCallback((destination = "/taller/led") => {
     onboardingDestination.current =
       typeof destination === "string" &&
       destination.startsWith("/") &&
       !destination.startsWith("//")
         ? destination
-        : "/taller/welcome";
+        : "/taller/led";
     setOnboarding(true);
   }, []);
 

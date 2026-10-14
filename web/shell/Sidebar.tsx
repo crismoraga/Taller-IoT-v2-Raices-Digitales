@@ -1,12 +1,12 @@
 import { Icon, type IconName } from "../brand/Graphics";
+import { guidedRouteCopy } from "../content";
 import { useApp } from "../lib/context";
 import { useProgress } from "../lib/progress";
-import type { ThemePref } from "../lib/theme";
-import { ProgressBar, SegmentedProgress } from "../ui/Progress";
-import { Segmented } from "../ui/Card";
+import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
 import { resumeWorkshop, workshopRoute } from "../workshop/flow";
 import { Brand } from "./Brand";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 export interface NavEntry {
   path: string;
@@ -57,10 +57,10 @@ export function Sidebar({
 }) {
   const app = useApp();
   const progress = useProgress();
-  const next = resumeWorkshop(app.guided, progress.done);
-  const routeDone = app.guided ? progress.expressDone : progress.routeDone;
-  const routeTotal = app.guided ? progress.expressTotal : progress.routeTotal;
-  const route = workshopRoute(app.guided);
+  const next = resumeWorkshop(true, progress.done);
+  const routeDone = progress.expressDone;
+  const routeTotal = progress.expressTotal;
+  const route = workshopRoute(true);
   const completedSteps = route.flatMap((lesson, index) =>
     progress.done.has(lesson.id) ? [index] : [],
   );
@@ -128,9 +128,7 @@ export function Sidebar({
       {!collapsed && app.session && (
         <div className="mx-3.5 mt-5 shrink-0 border-t border-accent-soft/20 px-2 pt-5">
           <p className="text-xs font-semibold text-accent-soft">
-            {app.guided
-              ? "Tu avance · ruta guiada"
-              : "Tu avance · ruta completa"}
+            Tu avance · LED → sensores → planta
           </p>
           <p className="mt-1 font-display text-[15px] font-bold leading-5 text-cream">
             {app.session
@@ -139,23 +137,13 @@ export function Sidebar({
                 : `${routeDone} de ${routeTotal} actividades`
               : "De cero a una planta conectada"}
           </p>
-          {app.guided ? (
-            <SegmentedProgress
-              className="mt-3"
-              total={routeTotal}
-              done={completedSteps}
-              current={route.findIndex((lesson) => lesson.id === next?.id)}
-              label="Avance de la ruta guiada"
-            />
-          ) : (
-            <ProgressBar
-              className="mt-3"
-              value={routeDone}
-              max={routeTotal}
-              label="Avance de la ruta libre"
-              onDark
-            />
-          )}
+          <SegmentedProgress
+            className="mt-3"
+            total={routeTotal}
+            done={completedSteps}
+            current={route.findIndex((lesson) => lesson.id === next?.id)}
+            label="Avance de la ruta guiada"
+          />
           <button
             type="button"
             onClick={() =>
@@ -167,7 +155,7 @@ export function Sidebar({
           >
             <span className="line-clamp-2 min-w-0 flex-1">
               {next
-                ? `${app.session ? "Seguir: " : "Empezar: "}${next.title}`
+                ? `${app.session ? "Seguir: " : "Empezar: "}${guidedRouteCopy[next.id]?.title ?? next.title}`
                 : "Ver mi planta"}
             </span>
             <Icon name="arrowRight" size={16} />
@@ -183,19 +171,7 @@ export function Sidebar({
       >
         {NAV_END.map(item)}
         {!collapsed && (
-          <Segmented<ThemePref>
-            tone="dark"
-            size="sm"
-            label="Tema de la interfaz"
-            className="mt-2 w-full [&>button]:flex-1"
-            value={app.theme}
-            onChange={app.setTheme}
-            options={[
-              { value: "light", label: "Claro", icon: "sun" },
-              { value: "dark", label: "Oscuro", icon: "moon" },
-              { value: "system", label: "Auto", icon: "themeAuto" },
-            ]}
-          />
+          <ThemeSwitch value={app.theme} onChange={app.setTheme} />
         )}
         {onToggle && (
           <button

@@ -69,13 +69,13 @@ async function expectCompletedSoil(
   tone: "success" | "accent",
 ) {
   await expect(progress).toHaveAttribute("aria-valuenow", "1");
-  await expect(progress).toHaveAttribute("aria-valuetext", "1 de 6");
+  await expect(progress).toHaveAttribute("aria-valuetext", "1 de 7");
   const segments = progress.locator(":scope > span");
-  await expect(segments).toHaveCount(6);
+  await expect(segments).toHaveCount(7);
   // The fourth activity is complete; coloring the first segment would falsely
-  // claim that the skipped welcome activity had already been completed.
+  // claim that the skipped LED activity had already been completed.
   await expect(segments.nth(3)).toHaveClass(new RegExp(`\\bbg-${tone}\\b`));
-  for (const index of [0, 1, 2, 4, 5])
+  for (const index of [0, 1, 2, 4, 5, 6])
     await expect(segments.nth(index)).not.toHaveClass(
       new RegExp(`\\bbg-${tone}\\b`),
     );
@@ -114,7 +114,7 @@ test("team creation focuses the name, keeps keyboard focus inside and returns to
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/welcome$/);
+  await expect(page).toHaveURL(/\/taller\/led$/);
   const response = await page.request.get("/api/session");
   expect(response.ok()).toBe(true);
   expect((await response.json()).session.name).toBe("Equipo teclado QA");
@@ -212,7 +212,9 @@ test("Nano ATmega168 chosen at onboarding keeps its 2D plan and offers the Ardui
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/welcome$/);
+  await expect(page).toHaveURL(/\/taller\/led$/);
+  // The board explorer remains available as an optional legacy activity.
+  await page.goto("/taller/welcome");
   await expect(page.getByLabel("Tu placa")).toHaveValue("nano-168");
   await phase(page, "Conecta");
   await expect(

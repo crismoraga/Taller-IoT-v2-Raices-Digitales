@@ -37,7 +37,7 @@ export function lessonsOf(stage: Stage): Lesson[] {
 /** Actividad siguiente dentro de la ruta completa, o de la ruta exprés. */
 export function nextLesson(id: string, express = false): Lesson | undefined {
   const order = express ? expressRoute : lessons.map((lesson) => lesson.id);
-  const index = order.indexOf(id);
+  const index = order.indexOf(legacyLessonIds[id] ?? id);
   return index >= 0 ? byId.get(order[index + 1]) : undefined;
 }
 /** Normaliza un progreso guardado: ids antiguos y duplicados. */
@@ -51,4 +51,5 @@ export const essentials: Lesson[] = expressRoute.flatMap((id) =>
 );
 
 export { stages, expressRoute };
+export { guidedRouteCopy } from "./route";
 export type { Lesson, Stage };

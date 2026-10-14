@@ -9,6 +9,7 @@ import {
   type Stage,
 } from "../content";
 import { useApp } from "./context";
+import { resumeWorkshop } from "../workshop/flow";
 
 export interface Progress {
   done: Set<string>;
@@ -19,7 +20,7 @@ export interface Progress {
   /** Avance de la ruta completa, sin la Zona Explora. */
   routeDone: number;
   routeTotal: number;
-  /** Lo siguiente por hacer: primero la ruta exprés, después el resto. */
+  /** Lo siguiente en el recorrido elegido; los extras no bloquean el cierre. */
   next: Lesson | undefined;
   stageDone: (stage: Stage) => boolean;
   stageCount: (stage: Stage) => { done: number; total: number };
@@ -31,13 +32,16 @@ export function useProgress(): Progress {
   return useMemo(() => {
     const done = new Set(normalizeProgress(session?.progress ?? []));
     const route = lessons.filter((lesson) => lesson.stage !== "explora");
-    const expressDone = essentials.filter((lesson) => done.has(lesson.id)).length;
-    const next =
-      essentials.find((lesson) => !done.has(lesson.id)) ??
-      route.find((lesson) => !done.has(lesson.id));
+    const expressDone = essentials.filter((lesson) =>
+      done.has(lesson.id),
+    ).length;
+    const next = resumeWorkshop(true, done);
     const stageCount = (stage: Stage) => {
       const list = lessonsOf(stage);
-      return { done: list.filter((lesson) => done.has(lesson.id)).length, total: list.length };
+      return {
+        done: list.filter((lesson) => done.has(lesson.id)).length,
+        total: list.length,
+      };
     };
     return {
       done,

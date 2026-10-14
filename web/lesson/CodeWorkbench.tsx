@@ -144,6 +144,8 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     const [confirmSave, setConfirmSave] = useState(false);
     const [confirmRestore, setConfirmRestore] = useState(false);
     const [dark, setDark] = useState(() => resolveTheme(app.theme) === "dark");
+    const [followingTerminal, setFollowingTerminal] = useState(true);
+    const followTerminal = useRef(true);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pending = useRef<string | null>(null);
     const draftRevision = useRef(0);
@@ -193,9 +195,13 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     }, [key]);
 
     useEffect(() => {
-      if (terminal.current)
+      if (!app.terminal) {
+        followTerminal.current = true;
+        setFollowingTerminal(true);
+      }
+      if (terminal.current && followTerminal.current)
         terminal.current.scrollTop = terminal.current.scrollHeight;
-    }, [app.terminal]);
+    }, [app.terminal, full]);
 
     useEffect(() => {
       const change = () =>
@@ -529,7 +535,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             full && "h-[32%]",
           )}
         >
-          <div className="flex items-center gap-2 px-3.5 pt-2.5">
+          <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2.5">
             <Icon name="terminal" size={16} className="text-accent" />
             <span className="t-overline text-[10.5px] text-accent">
               Terminal serial
@@ -539,6 +545,20 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
                 ? "Lo que imprime tu placa"
                 : "Sin placa conectada"}
             </span>
+            {!followingTerminal && (
+              <button
+                type="button"
+                className="focus-ring rounded-sm px-2 py-1 text-xs font-bold text-accent hover:underline"
+                onClick={() => {
+                  followTerminal.current = true;
+                  setFollowingTerminal(true);
+                  if (terminal.current)
+                    terminal.current.scrollTop = terminal.current.scrollHeight;
+                }}
+              >
+                Volver a lecturas en vivo
+              </button>
+            )}
             <IconButton
               icon="eraser"
               label="Limpiar la terminal"
@@ -551,6 +571,18 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
             ref={terminal}
             role="log"
             aria-label="Salida de la placa"
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const following =
+                element.scrollHeight -
+                  element.clientHeight -
+                  element.scrollTop <=
+                12;
+              if (following !== followTerminal.current) {
+                followTerminal.current = following;
+                setFollowingTerminal(following);
+              }
+            }}
             tabIndex={0}
             className={cx(
               "t-mono scrollbar-thin m-0 overflow-auto whitespace-pre-wrap break-words px-3.5 pb-2 pt-1 text-cream-soft focus-visible:outline-accent",

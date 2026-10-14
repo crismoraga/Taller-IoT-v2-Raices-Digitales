@@ -228,7 +228,7 @@ async function openUsbLesson(page: Page, board: "pico" | "uno" = "pico") {
     .getByRole("dialog")
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/welcome/);
+  await expect(page).toHaveURL(/taller\/led/);
   await page.goto("/taller/led");
   await page
     .getByRole("navigation", { name: "Partes de la actividad" })

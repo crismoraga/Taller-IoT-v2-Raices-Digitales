@@ -138,15 +138,16 @@ export const calibration = activity("calibration", {
 export const station: Lesson = {
   id: "station",
   stage: 7,
+  essential: true,
   title: "Tu planta reúne al equipo",
   summary:
     "Integra los sensores que ya probaste sin cruzar sus señales ni inventar lecturas.",
   duration: 15,
   icon: "board",
-  circuit: "station",
+  circuit: "station_basic",
   tool: "station",
   objective:
-    "Instalar un programa con drivers independientes y comprobar la respuesta de cada sensor realmente montado.",
+    "Reunir luz, temperatura, humedad del aire y suelo en un programa y recibir sus lecturas reales por USB.",
   materials: [
     { name: "Pico W con USB de datos", qty: 1 },
     { name: "LED, 220 Ω y sensores ya probados" },
@@ -160,32 +161,26 @@ export const station: Lesson = {
     title: "Integrar no es empezar de nuevo",
     body: [
       "Cada sensor conserva su lugar y su señal. La estación reúne sus drivers: pequeñas piezas de programa que saben leer cada modelo y comunicar valor, unidad y estado.",
-      "Empieza con suelo y LED. Agrega un sensor por vez, tras probarlo solo. Un problema de DHT11 debe producir un estado de error en ese driver, sin detener la lectura del suelo.",
-      "Activa en Estación solo los sensores que realmente montaste. Guardar calibraciones o cambiar la selección requiere reinstalar el programa para que la placa use esa configuración.",
+      "Ya probaste el LED, la luz, el DHT11 y el suelo por separado. Reúne esos montajes, conserva sus pines y comprueba cada lectura. Los sensores de agua, movimiento y distancia pueden añadirse después.",
+      "Pulsa Instalar sensores conectados para reunir luz, DHT11 y suelo en un programa. Tus referencias de calibración se incluyen en esta carga. Mantén la página abierta para enviar las lecturas por USB.",
     ],
     facts: [
       { label: "ADC0", value: "Suelo GP26" },
       { label: "ADC1", value: "Luz GP27" },
-      { label: "ADC2", value: "Nivel GP28" },
-      { label: "Drivers", value: "8 modelos / 9 variables" },
+      { label: "Digital", value: "DHT11 GP15" },
+      { label: "Lecturas", value: "Luz, aire y suelo" },
     ],
   },
   safety: [
     "Desconecta USB antes de añadir un componente. Revisa una señal nueva cada vez.",
-    "El plano completo incluye un piezo pasivo con resistencia. Un buzzer activo requiere ULN2003 y su propia actividad; no lo reemplaces directamente.",
-    "Antes de usar HC-SR04, pide verificar su divisor 2 kΩ / 3 kΩ. Mantén VBUS de 5 V separado de los rieles de 3,3 V.",
+    "Conserva la alimentación indicada en la actividad de cada sensor.",
   ],
   arduino: {
     rows: [
       { from: "Sonda AOUT", to: "A0" },
       { from: "Nodo LDR + 10 kΩ", to: "A1" },
-      { from: "Nivel S", to: "A2" },
       { from: "DHT11 DATA", to: "D4" },
-      { from: "DS18B20 DATA + pull-up", to: "D5" },
-      { from: "LM393 DO", to: "D6" },
-      { from: "HC-SR04 TRIG / ECHO", to: "D7 / D8" },
-      { from: "PIR OUT", to: "D9" },
-      { from: "LED mediante 220 Ω / piezo mediante 220 Ω", to: "D2 / D3" },
+      { from: "LED mediante 220 Ω", to: "D2" },
       { from: "GND de todos los módulos", to: "GND" },
     ],
     notes: [
@@ -193,14 +188,14 @@ export const station: Lesson = {
       "DHT11 usa alimentación compatible con lógica de 5 V. Los analógicos pueden conservar 3,3 V con su calibración propia. Uno/Nano envía datos mediante el puente USB de esta página.",
     ],
   },
-  why: "Tres ADC leen tres salidas diferentes. Los sensores digitales usan sus líneas asignadas. Todos comparten GND para interpretar señales con la misma referencia, pero no comparten salidas. Los drivers aíslan fallos y describen límites: UNVERIFIED no es lo mismo que presencia comprobada.",
+  why: "Dos entradas analógicas leen suelo y luz. El DHT11 envía temperatura y humedad por una sola línea digital. Todos comparten GND, pero cada señal conserva su pin. El programa lee cada sensor por separado y muestra su estado sin inventar valores.",
   expected:
-    "En Estación: conecta, activa solo lo instalado, comprueba calibraciones y pulsa la instalación correspondiente a tu placa. La terminal entrega lotes JSON y Mi planta recibe datos de tu dispositivo. Si no montaste un sensor, su estado debe estar deshabilitado, no inventarse un valor.",
+    "Comprueba los montajes de luz, DHT11 y suelo, conecta USB y pulsa Instalar sensores conectados. La terminal muestra sus lecturas y Mi planta las recibe de tu dispositivo. Mantén USB y esta página abiertos. Los sensores extra que tu grupo ya habilitó se conservan.",
   modify: [
     {
       title: "Crece de uno en uno",
       instruction:
-        "Activa solo Suelo e instala. Provoca un cambio real, luego añade un segundo sensor con USB desconectado y reinstala con ese sensor habilitado.",
+        "Con la estación instalada, tapa la LDR y después mueve la sonda entre tus referencias. Observa la lectura correspondiente a cada cambio.",
       observe:
         "Puedes atribuir cada nueva lectura a una conexión que acabas de comprobar.",
     },
@@ -213,7 +208,7 @@ export const station: Lesson = {
     },
   ],
   experiment: [
-    "Señala las tres entradas analógicas del plano y explica por qué LM35 no se suma como un cuarto ADC.",
+    "Señala las entradas de suelo y luz y el pin del DHT11. Explica por qué las dos medidas del aire comparten un solo cable de datos.",
     "Haz una prueba física de cada sensor habilitado y registra valor, unidad y estado. Un bit constante requiere más evidencia que una identidad digital encontrada.",
   ],
   challenge: {
@@ -266,7 +261,6 @@ export const station: Lesson = {
 
 export const cloud = activity("cloud", {
   stage: 8,
-  essential: true,
   title: "Tus raíces llegan a la red",
   summary:
     "Instala tu estación, recibe tus datos y crea una alerta: hardware, software y redes juntos.",
@@ -386,6 +380,7 @@ export const cloud = activity("cloud", {
 export const dashboard: Lesson = {
   id: "dashboard",
   stage: 9,
+  essential: true,
   title: "Lee el pulso de tu planta",
   summary:
     "Distingue un valor, su historia, su origen y la confianza que puedes darle.",

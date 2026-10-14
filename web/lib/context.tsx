@@ -84,6 +84,7 @@ export type AppContextType = {
     ssid: string,
     password: string,
     endpoint: string,
+    enabledOverrides?: Record<string, boolean>,
   ) => Promise<void>;
   revokeDevice: (deviceId: string) => Promise<void>;
 

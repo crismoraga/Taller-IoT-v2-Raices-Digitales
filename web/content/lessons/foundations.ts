@@ -3,7 +3,6 @@ import type { Lesson } from "../types";
 
 export const welcome = activity("welcome", {
   stage: 0,
-  essential: true,
   title: "De una señal a una planta conectada",
   summary:
     "Conoce tu placa, la protoboard y el viaje que harán los datos de tu planta.",
@@ -26,10 +25,10 @@ export const welcome = activity("welcome", {
     body: [
       "Una planta no habla en números. Un sensor transforma una condición física, como la humedad, en una señal. La placa lee esa señal y tu programa le da significado.",
       "La red transporta las lecturas al servidor. La web las muestra para que puedas decidir: observar, revisar o regar a mano. Ese encuentro entre electrónica, código y comunicaciones es una parte de la Ingeniería Civil Telemática.",
-      "Hoy avanzas en seis pasos: reconoces la placa, enciendes un LED, cambias su ritmo, lees el suelo, calibras y conectas la estación. La ruta completa agrega botones, sonido y más sensores cuando tengas tiempo.",
+      "Empieza conectando un LED. Después añade luz, temperatura y humedad del aire; prueba y calibra el suelo. Al final reúne los sensores y observa tu planta en vivo. Los botones, el sonido y otros sensores son experimentos opcionales.",
     ],
     facts: [
-      { label: "Ruta exprés", value: "60 minutos" },
+      { label: "Tu recorrido", value: "LED → sensores → planta" },
       { label: "Grupo", value: "Una estación propia" },
       { label: "Cadena", value: "Sensor → código → red" },
       { label: "Primero", value: "Toca y descubre" },
@@ -242,7 +241,6 @@ void loop() {}
 
 export const blink = activity("blink", {
   stage: 1,
-  essential: true,
   summary:
     "Conserva tu circuito y escribe su ritmo: rápido, lento o un pulso por segundo.",
   duration: 7,

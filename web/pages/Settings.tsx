@@ -27,6 +27,7 @@ import { circuitForBoard } from "../circuit/boards";
 import { circuits } from "../circuit/layouts";
 import { BOARD_NAMES } from "../lib/context";
 import { UploadFeedback } from "../shell/UploadFeedback";
+import { RaspberryPiTools } from "../settings/RaspberryPiTools";
 import { Segmented } from "../ui/Card";
 import { readLocal, writeLocal } from "../lib/theme";
 import {
@@ -129,8 +130,9 @@ export default function Settings() {
   const enabled = app.session?.sensorEnabled || {};
   const advancedSensorCount = sensors.filter(
     (sensor) =>
-      !["soil", "air_temperature", "air_humidity"].includes(sensor.id) &&
-      enabled[sensor.id],
+      !["soil", "light", "air_temperature", "air_humidity"].includes(
+        sensor.id,
+      ) && enabled[sensor.id],
   ).length;
   const save = async () => {
     if (saving) return;
@@ -476,8 +478,8 @@ export default function Settings() {
             <h3>2. Elige tus sensores</h3>
           </div>
           <p>
-            Toca los sensores de tu experimento. Cada selección añade sus
-            lecturas al programa de estación.
+            Activa suelo, luz y DHT11 después de probar sus conexiones. La
+            estación reúne sus lecturas para monitorear tu planta.
           </p>
           {[false, true].map((advanced) => {
             const options = sensors
@@ -485,8 +487,8 @@ export default function Settings() {
                 (s) =>
                   s.id !== "air_humidity" &&
                   (advanced
-                    ? !["soil", "air_temperature"].includes(s.id)
-                    : ["soil", "air_temperature"].includes(s.id)),
+                    ? !["soil", "light", "air_temperature"].includes(s.id)
+                    : ["soil", "light", "air_temperature"].includes(s.id)),
               )
               .map((s) => {
                 // Sensor IDs in the inventory are the canonical telemetry keys.
@@ -781,6 +783,7 @@ export default function Settings() {
           </Button>
         </section>
       )}
+      <RaspberryPiTools />
       <details
         className="settings-card simple-details"
         onToggle={(event) => setPreviewOpen(event.currentTarget.open)}

@@ -8,11 +8,9 @@ export function lessonIdFromRoute(route: string): string {
   }
 }
 
-/** The guided workshop ends after its six essentials; extra lessons are opt-in. */
-export function workshopRoute(guided: boolean): Lesson[] {
-  return guided
-    ? essentials
-    : lessons.filter((lesson) => lesson.stage !== "explora");
+/** Guided/free changes the presentation, never the recommended lesson order. */
+export function workshopRoute(_guided: boolean): Lesson[] {
+  return essentials;
 }
 
 export function resumeWorkshop(guided: boolean, done: ReadonlySet<string>) {
@@ -20,12 +18,17 @@ export function resumeWorkshop(guided: boolean, done: ReadonlySet<string>) {
 }
 
 /** Keep next/previous navigation inside the route the learner actually chose. */
-export function lessonFlow(lesson: Lesson, guided: boolean) {
-  const express = guided && Boolean(lesson.essential);
+export function lessonFlow(lesson: Lesson, _guided: boolean) {
+  const express = Boolean(lesson.essential);
   const route =
     lesson.stage === "explora"
       ? lessons.filter((candidate) => candidate.stage === "explora")
-      : workshopRoute(express);
+      : !express
+        ? lessons.filter(
+            (candidate) =>
+              candidate.stage !== "explora" && !candidate.essential,
+          )
+        : workshopRoute(express);
   const index = route.findIndex((candidate) => candidate.id === lesson.id);
   return {
     express,

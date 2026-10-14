@@ -4,7 +4,24 @@ import { test, expect, type Download, type Page } from "@playwright/test";
 test.use({ reducedMotion: "reduce" });
 
 const ORIGIN = "http://127.0.0.1:5173";
-const ESSENTIALS = ["welcome", "led", "blink", "soil", "calibration", "cloud"];
+const ESSENTIALS = [
+  "led",
+  "ldr",
+  "dht11",
+  "soil",
+  "calibration",
+  "station",
+  "dashboard",
+];
+const ROUTE_TITLES = [
+  "Enciende un LED",
+  "Mide la luz",
+  "Mide temperatura y humedad",
+  "Mide la humedad del suelo",
+  "Calibra tu sonda",
+  "Conecta los sensores de tu planta",
+  "Monitorea tu planta",
+];
 
 test.afterEach(async ({ page }) => {
   await page.request
@@ -26,7 +43,7 @@ async function createGroup(page: Page, name: string) {
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/welcome/);
+  await expect(page).toHaveURL(/taller\/led/);
 }
 
 async function seedProgress(page: Page, progress: string[]) {
@@ -58,12 +75,36 @@ async function expectFitsScreen(page: Page) {
   ).toBe(true);
 }
 
-test("six guided essentials close at the plant and keep extras optional on Home", async ({
+async function routeStoryWithoutGpu(page: Page) {
+  // Navigation stories check the actual API and DOM. Dedicated visual stories
+  // continue to inspect real WebGL and the board and cable geometry.
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...args: unknown[]
+    ) {
+      if (["webgl", "webgl2", "experimental-webgl"].includes(kind)) return null;
+      return Reflect.apply(original, this, [kind, ...args]);
+    } as typeof original;
+  });
+}
+
+test("seven incremental activities close at the plant and keep extras collapsed on Home", async ({
   page,
 }) => {
+  await routeStoryWithoutGpu(page);
   await createGroup(page, "Cierre guiado QA");
   await seedProgress(page, ESSENTIALS.slice(0, -1));
-  await page.goto("/taller/cloud");
+  await page.goto("/taller/dashboard");
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Monitorea tu planta",
+      exact: true,
+    }),
+  ).toBeVisible();
   await phase(page, "Comprueba");
   await page
     .getByRole("checkbox", { name: /Probé la actividad en mi placa/ })
@@ -75,7 +116,7 @@ test("six guided essentials close at the plant and keep extras optional on Home"
     name: "¡Tu ruta guiada está completa!",
   });
   await expect(celebration).toBeVisible();
-  await expect(celebration).toContainText("6 de 6");
+  await expect(celebration).toContainText("7 de 7");
   await celebration
     .getByRole("button", { name: "Ver mi planta", exact: true })
     .click();
@@ -86,6 +127,31 @@ test("six guided essentials close at the plant and keep extras optional on Home"
 
   await page.goto("/");
   await expect(page.getByText(/ya completaron la ruta/)).toBeVisible();
+  const activities = page.getByRole("list", {
+    name: "Actividades de la ruta guiada",
+  });
+  await expect(activities.getByRole("listitem")).toHaveCount(7);
+  for (const [index, title] of ROUTE_TITLES.entries())
+    await expect(activities.getByRole("listitem").nth(index)).toContainText(
+      title,
+    );
+  const extras = page.getByRole("button", {
+    name: "Otros experimentos · opcionales",
+    exact: true,
+  });
+  await expect(extras).toBeVisible();
+  await expect(extras).toHaveAttribute("aria-expanded", "false");
+  const extrasPanel = page.locator(
+    `[id="${await extras.getAttribute("aria-controls")}"]`,
+  );
+  await expect(extrasPanel).toBeHidden();
+  await extras.click();
+  await expect(extrasPanel).toBeVisible();
+  await extras.click();
+  await expect(extrasPanel).toBeHidden();
+  await expect(
+    page.getByRole("radio", { name: "Completa", exact: true }),
+  ).toHaveCount(0);
   const primary = page
     .locator(".workshop-welcome")
     .getByRole("button", { name: "Ver mi planta", exact: true });
@@ -95,32 +161,56 @@ test("six guided essentials close at the plant and keep extras optional on Home"
   await expect(page).toHaveURL(/\/planta$/);
 });
 
-test("free mode follows the full lesson order instead of skipping to the express LED", async ({
+test("free mode keeps the same LED, light, climate, soil and monitoring sequence after reload", async ({
   page,
 }) => {
+  test.setTimeout(150000);
+  await routeStoryWithoutGpu(page);
   await createGroup(page, "Ruta libre QA");
-  await seedProgress(page, ["welcome"]);
-  await page.goto("/taller/welcome");
+  await seedProgress(page, ESSENTIALS);
+  await page.goto("/taller/led");
   await page.getByRole("radio", { name: "Libre", exact: true }).click();
-  await page
-    .getByRole("button", {
-      name: "Siguiente: Una luz que ya está en tu placa",
-      exact: true,
-    })
-    .click();
-  await expect(page).toHaveURL(/\/taller\/led_onboard$/);
   await page.reload();
   await expect(
     page.getByRole("radio", { name: "Libre", exact: true }),
   ).toBeChecked();
+  for (const [index, id] of ESSENTIALS.entries()) {
+    await expect(page).toHaveURL(new RegExp(`/taller/${id}$`));
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: ROUTE_TITLES[index],
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("radio", { name: "Libre", exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByRole("navigation", { name: "Partes de la actividad" }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("main")
+      .getByRole("button", {
+        name:
+          index < ESSENTIALS.length - 1
+            ? `Siguiente: ${ROUTE_TITLES[index + 1]}`
+            : "Ver mi planta",
+        exact: true,
+      })
+      .click();
+  }
+  await expect(page).toHaveURL(/\/planta$/);
 });
 
-test("the completed final guided lesson opens the plant while free mode continues to dashboard", async ({
+test("both activity views close at monitoring and optional legacy lessons retain their own route", async ({
   page,
 }) => {
+  test.setTimeout(120000);
+  await routeStoryWithoutGpu(page);
   await createGroup(page, "Última actividad QA");
-  await seedProgress(page, ESSENTIALS);
-  await page.goto("/taller/cloud");
+  await seedProgress(page, [...ESSENTIALS, "welcome", "blink", "cloud"]);
+  await page.goto("/taller/dashboard");
   await phase(page, "Comprueba");
   await page
     .getByRole("main")
@@ -128,10 +218,35 @@ test("the completed final guided lesson opens the plant while free mode continue
     .click();
   await expect(page).toHaveURL(/\/planta$/);
 
-  await page.goto("/taller/cloud");
+  await page.goto("/taller/dashboard");
   await page.getByRole("radio", { name: "Libre", exact: true }).click();
-  await page.getByRole("button", { name: /^Siguiente:/ }).click();
-  await expect(page).toHaveURL(/\/taller\/dashboard$/);
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: "Ver mi planta", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/planta$/);
+
+  await page.goto("/taller/welcome");
+  await page
+    .getByRole("button", {
+      name: "Siguiente: Una luz que ya está en tu placa",
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveURL(/\/taller\/led_onboard$/);
+  await page.goto("/taller/cloud");
+  await page
+    .getByRole("button", {
+      name: "Siguiente: La planta pide atención",
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveURL(/\/taller\/alerts$/);
+  const session = (await (await page.request.get("/api/session")).json())
+    .session;
+  expect(session.progress).toEqual(
+    expect.arrayContaining([...ESSENTIALS, "welcome", "blink", "cloud"]),
+  );
 });
 
 for (const failure of ["network", "503"] as const) {
@@ -257,7 +372,7 @@ test("mobile station, diagnostics and teacher controls remain usable at 320 and 
   expect(errors).toEqual([]);
 });
 
-test("mobile onboarding preserves Arduino and free mode through welcome and the cloud tools", async ({
+test("mobile onboarding starts with the LED and preserves Arduino and free view in optional board and cloud tools", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -272,18 +387,26 @@ test("mobile onboarding preserves Arduino and free mode through welcome and the 
   await onboarding.getByLabel("Nombre del equipo").fill("Arduino móvil QA");
   await onboarding.getByLabel("Placa del equipo").selectOption("uno");
   await onboarding
-    .getByRole("button", { name: "Elegir otro recorrido" })
+    .getByRole("button", { name: "Opciones de la actividad" })
     .click();
-  await onboarding.getByLabel("Recorrido del equipo").selectOption("full");
+  await onboarding.getByLabel("Cómo ver las actividades").selectOption("full");
   await expectFitsScreen(page);
   await onboarding
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/welcome$/);
+  await expect(page).toHaveURL(/\/taller\/led$/);
   await expect(page.getByLabel("Tu placa")).toHaveValue("uno");
   await expect(
     page.getByRole("radio", { name: "Libre", exact: true }),
   ).toBeChecked();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Enciende un LED",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.goto("/taller/welcome");
   const connect = page.getByRole("region", {
     name: /Conecta Cableado paso a paso/,
   });
@@ -400,8 +523,13 @@ test("a JSON backup restores learning in a fresh session and rejects malformed f
   const saved = await page.request.patch("/api/session", {
     headers: { Origin: ORIGIN },
     data: {
-      progress: ["welcome", "led"],
-      drafts: { "led.python": draft },
+      progress: ["welcome", "led", "blink", "cloud"],
+      drafts: {
+        "led.python": draft,
+        "welcome.python": "# Bienvenida guardada\n",
+        "blink.python": "# Parpadeo guardado\n",
+        "cloud.python": "# Conexión guardada\n",
+      },
       calibrations: { soil: { dry: 50000, wet: 20000 } },
       sensorEnabled: { soil: true },
     },
@@ -451,8 +579,11 @@ test("a JSON backup restores learning in a fresh session and rejects malformed f
     .session;
   expect(session.id).not.toBe(previousId);
   expect(session.name).toBe("Respaldo recuperable QA");
-  expect(session.progress).toEqual(["welcome", "led"]);
+  expect(session.progress).toEqual(["welcome", "led", "blink", "cloud"]);
   expect(session.drafts["led.python"]).toBe(draft);
+  expect(session.drafts["welcome.python"]).toBe("# Bienvenida guardada\n");
+  expect(session.drafts["blink.python"]).toBe("# Parpadeo guardado\n");
+  expect(session.drafts["cloud.python"]).toBe("# Conexión guardada\n");
   expect(session.calibrations.soil).toEqual({ dry: 50000, wet: 20000 });
   expect(session.sensorEnabled.soil).toBe(true);
   const dashboard = await (await page.request.get("/api/dashboard")).json();

@@ -140,6 +140,21 @@ Para SG90, el fabricante TowerPro declara alimentación mediante adaptador exter
 
 ## Diagnóstico honesto
 
+### Comprobador independiente Raspberry Pi 3 / 4
+
+El taller principal mantiene el mapa Arduino. El comprobador Linux opcional usa el conector GPIO de 40 contactos de Pi 3/4 y muestra únicamente el sensor elegido. No se deben aplicar los números GP de Pico al GPIO de una Pi Linux.
+
+| Sensor | GPIO BCM | Contacto físico | Alimentación / lectura |
+| --- | --- | --- | --- |
+| DHT11 DATA | 22 | 15 | VCC 3V3 (1), GND (6); módulo apto para 3,3 V, pull-up a 3V3 |
+| DS18B20 DATA | 4 | 7 | Bus 1-Wire del kernel; VDD 3V3 (1), GND (6), pull-up 4,7 kΩ o dos 10 kΩ en paralelo |
+| HC-SR04 TRIG / ECHO | 23 / 24 | 16 / 18 | VCC 5V (2), GND (6); ECHO mediante 2 kΩ arriba y 3 kΩ abajo, como el divisor Pico de esta página |
+| HC-SR501 OUT | 26 | 37 | VCC 5V (2), GND (6); salida habitual 3,3 V, estabilización inicial |
+| FC-37+LM393 DO | 17 | 11 | VCC 3V3 (1), GND (6); estado digital, no intensidad de lluvia |
+| MCP3008 SPI0 CE0 | CLK 11 / DOUT 9 / DIN 10 / CS 8 | 23 / 21 / 19 / 24 | VDD/VREF 3V3, AGND/DGND GND; CH0 suelo, CH1 LDR, CH2 agua |
+
+Pi 3/4 no incorpora ADC. Sin conversor externo o Arduino, esos tres sensores analógicos no se leen por GPIO: el comprobador informa `ERROR`, valor nulo y motivo. Con MCP3008 explícitamente configurado, entrega `raw` de 10 bits con `NEEDS_CALIBRATION`; no inventa porcentajes. El ejecutable y sus bibliotecas funcionan en Linux, no en MicroPython de Pico. Su prueba de software con GPIO/red simulados no constituye ensayo físico de una Pi o de los módulos.
+
 | Sensor              | Se puede comprobar                | No se puede inferir con certeza                            |
 | ------------------- | --------------------------------- | ---------------------------------------------------------- |
 | DS18B20             | ROM encontrada, conversión, CRC   | Exactitud absoluta sin referencia                          |

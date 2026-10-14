@@ -1117,6 +1117,8 @@ describe("alertas reales y transporte SSE", () => {
     expect(files["drivers.py"]).toContain("class AnalogSensor");
     expect(files["config.json"]).toBeUndefined();
     expect(files["config.py"]).toBeUndefined();
+    expect(files["raspberry-pi/bridge.py"]).toBeUndefined();
+    expect(files["raspberry-pi/check_sensors.py"]).toBeUndefined();
     const ca = new X509Certificate(files["ca.pem"]);
     expect(ca.subject).toContain("CN=ISRG Root X1");
     expect(ca.fingerprint256).toBe(

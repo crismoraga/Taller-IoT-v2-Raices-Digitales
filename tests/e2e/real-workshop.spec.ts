@@ -21,7 +21,7 @@ async function group(page: Page, board = "pico") {
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/welcome/);
+  await expect(page).toHaveURL(/taller\/led/);
 }
 
 async function phase(page: Page, name: string) {
@@ -400,13 +400,32 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
   await group(page);
   await page.goto("/taller/led");
   await phase(page, "Conecta");
-  await page
-    .getByRole("region", { name: "Instrucción de montaje" })
+  const instruction = page.getByRole("region", {
+    name: "Instrucción de montaje",
+  });
+  await instruction
     .getByRole("button", { name: "Lo tengo", exact: true })
     .click();
   const scene = page.locator(".rdx-circuit");
   await expect(scene.locator("canvas")).toBeVisible();
   const labels = scene.locator(".rdx-terminal-overlay g[role='button'] > rect");
+  const activeLabel = async (end: "A" | "B", endpoint: string) => {
+    const overlay = scene.locator(".rdx-terminal-overlay");
+    await expect.poll(() => labels.count()).toBe(1);
+    await expect(overlay.getByRole("button")).toHaveCount(1);
+    await expect(
+      overlay.getByRole("button", {
+        name: `Tocar extremo ${end}: ${endpoint}`,
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      scene.getByRole("button", {
+        name: `Acercar extremo ${end}: ${endpoint}`,
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+  };
   const bounded = async () => {
     const canvas = await scene.locator("canvas").boundingBox();
     if (!canvas) return false;
@@ -441,7 +460,7 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
   await scene
     .getByRole("button", { name: "Ver todo el montaje 3D", exact: true })
     .click();
-  await expect.poll(() => labels.count()).toBe(2);
+  await activeLabel("A", "a3");
   await expect.poll(bounded).toBe(true);
   await scene
     .getByRole("button", { name: "Vista superior", exact: true })
@@ -458,10 +477,24 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
   await scene
     .getByRole("button", { name: "Ver todo el montaje 3D", exact: true })
     .click();
-  await expect.poll(() => labels.count()).toBe(2);
+  await activeLabel("A", "a3");
   await expect.poll(bounded).toBe(true);
   await page.setViewportSize({ width: 1366, height: 768 });
   await expect.poll(bounded).toBe(true);
+  await instruction
+    .getByRole("button", { name: "Ya conecté A", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("heading", {
+      name: "Conecta B en − · 3",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await activeLabel("B", "bn:3");
+  await expect.poll(bounded).toBe(true);
+  await expect(
+    instruction.getByRole("button", { name: "Ya conecté A", exact: true }),
+  ).toHaveCount(0);
   // Lose a real, already-rendered GPU context: startup-only fallback does not
   // establish that an in-progress classroom assembly survives this failure.
   const lost = await scene
@@ -480,28 +513,28 @@ test("projected labels remain readable after camera moves and a lost WebGL conte
     }),
   ).toBeVisible();
   await expect(scene.locator("canvas")).toHaveCount(0);
-  const instruction = page.getByRole("region", {
-    name: "Instrucción de montaje",
-  });
-  await expect(
-    instruction.getByRole("heading", { name: "Conecta A en a3", exact: true }),
-  ).toBeVisible();
-  await scene
-    .getByRole("button", { name: "Acercar extremo A: a3", exact: true })
-    .click();
-  await expect(
-    instruction.getByRole("button", {
-      name: "Explorar extremo A: a3",
-      exact: true,
-    }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await instruction
-    .getByRole("button", { name: "Ya conecté A", exact: true })
-    .click();
   await expect(
     instruction.getByRole("heading", {
       name: "Conecta B en − · 3",
       exact: true,
     }),
   ).toBeVisible();
+  await scene
+    .getByRole("button", { name: "Acercar extremo B: bn:3", exact: true })
+    .click();
+  await expect(
+    instruction.getByRole("button", {
+      name: "Explorar extremo B: − · 3",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await instruction
+    .getByRole("button", { name: "Ya conecté B", exact: true })
+    .click();
+  await expect(instruction.getByRole("status")).toHaveText(
+    "Cable negro conectado",
+  );
+  await expect(
+    page.getByRole("progressbar", { name: "Avance del montaje" }),
+  ).toHaveAttribute("aria-valuenow", "1");
 });

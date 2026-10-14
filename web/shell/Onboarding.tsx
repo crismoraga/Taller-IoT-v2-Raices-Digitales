@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BOARD_NAMES, useApp, type Board } from "../lib/context";
 import { ARDUINO_BOARDS } from "../../shared/boards";
+import { essentials } from "../content";
 import { Button } from "../ui/Button";
 import { Callout } from "../ui/Feedback";
 import { Field, Input, Select } from "../ui/Form";
@@ -137,10 +138,10 @@ export function Onboarding({
             )}
           </Field>
         </div>
-        <Disclosure title="Elegir otro recorrido" icon="route" tone="plain">
+        <Disclosure title="Opciones de la actividad" icon="route" tone="plain">
           <Field
-            label="Recorrido del equipo"
-            hint="Puedes cambiarlo durante el taller."
+            label="Cómo ver las actividades"
+            hint="El recorrido recomendado empieza con el LED. Puedes cambiar la vista durante el taller."
           >
             {(props) => (
               <Select
@@ -151,8 +152,8 @@ export function Onboarding({
                   app.setGuided(event.target.value === "guided")
                 }
               >
-                <option value="guided">Guiado · 6 actividades · 60 min</option>
-                <option value="full">Completo · a tu ritmo</option>
+                <option value="guided">Guiado · una cosa a la vez</option>
+                <option value="full">Libre · todas las secciones juntas</option>
               </Select>
             )}
           </Field>
@@ -163,10 +164,9 @@ export function Onboarding({
           </Callout>
         )}
         <p className="text-sm leading-6 text-ink-soft">
-          Su estación está lista para explorar.{" "}
-          {app.guided
-            ? "El recorrido guiado tiene 6 actividades y dura 60 minutos."
-            : "El recorrido completo reúne todas las actividades para avanzar a tu ritmo."}
+          Empieza con el LED. Después mide luz, temperatura, humedad y suelo; al
+          final monitorea tu planta. {essentials.length} actividades, una a la
+          vez.
         </p>
         {!app.serialSupported && (
           <Callout tone="warning" title="Programación por USB" compact>

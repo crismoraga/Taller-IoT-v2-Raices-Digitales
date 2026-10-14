@@ -2,6 +2,7 @@ import { activity, quiz, serialTrouble } from "../library";
 
 export const ldr = activity("ldr", {
   stage: 3,
+  essential: true,
   icon: "sun",
   circuit: "ldr",
   summary:
@@ -213,6 +214,7 @@ export const lm35 = activity("lm35", {
 
 export const dht11 = activity("dht11", {
   stage: 4,
+  essential: true,
   icon: "thermometer",
   circuit: "dht11",
   summary:

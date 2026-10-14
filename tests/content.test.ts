@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { lessons } from "../web/content/index.ts";
-import { expressRoute, stages } from "../web/content/route.ts";
+import { expressRoute, guidedRouteCopy, stages } from "../web/content/route.ts";
 import { circuits } from "../web/circuit/layouts.ts";
 import type { Lesson } from "../web/content/types.ts";
 
@@ -152,28 +152,31 @@ describe("contenido del taller", () => {
       );
   });
 
-  it("la ruta exprés dura 60 minutos y culmina en telemetría y una alerta", () => {
+  it("el recorrido recomendado empieza con el LED, integra los sensores y termina monitoreando", () => {
     const route = expressRoute.map((id) =>
       lessons.find((item) => item.id === id)!,
     );
     expect(route.every(Boolean)).toBe(true);
     expect(route.reduce((minutes, item) => minutes + item.duration, 0)).toBe(
-      60,
+      64,
     );
     expect(route.map((item) => item.id)).toEqual([
-      "welcome",
       "led",
-      "blink",
+      "ldr",
+      "dht11",
       "soil",
       "calibration",
-      "cloud",
+      "station",
+      "dashboard",
     ]);
-    expect(route.at(-1)!.tool).toBe("station");
-    expect(
-      route
-        .at(-1)!
-        .modify.some((task) => /umbral|alerta/i.test(task.instruction)),
-    ).toBe(true);
+    expect(route.at(-2)!.tool).toBe("station");
+    expect(route.at(-1)!.tool).toBe("dashboard");
+    expect(Object.keys(guidedRouteCopy)).toEqual(expressRoute);
+    expect(route.slice(1, 4).map((lesson) => lesson.sensor)).toEqual([
+      "light",
+      "air_temperature",
+      "soil",
+    ]);
   });
 
   it("todas las muestras, soluciones y reemplazos Python tienen sintaxis válida", () => {

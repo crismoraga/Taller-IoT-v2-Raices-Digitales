@@ -97,7 +97,7 @@ export interface PinRow {
 export interface Lesson {
   id: string;
   stage: StageId;
-  /** Parte de la ruta exprés de 60 minutos. */
+  /** Parte del recorrido recomendado: LED, sensores y planta. */
   essential?: boolean;
   /** Título en oración, sin punto final: "Tu primera señal". */
   title: string;

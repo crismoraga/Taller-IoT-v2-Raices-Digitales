@@ -205,6 +205,7 @@ export function Segmented<T extends string>({
   label,
   tone = "light",
   size = "md",
+  equalWidth = false,
   className,
 }: {
   options: SegmentedOption<T>[];
@@ -214,6 +215,8 @@ export function Segmented<T extends string>({
   label: string;
   tone?: "light" | "dark";
   size?: "sm" | "md";
+  /** Permite encajar opciones en un espacio fijo sin que su ancho mínimo las recorte. */
+  equalWidth?: boolean;
   className?: string;
 }) {
   const id = useId();
@@ -250,10 +253,18 @@ export function Segmented<T extends string>({
         }
       }}
       className={cx(
-        "inline-flex gap-1 rounded-md p-1",
+        "gap-1 rounded-md p-1",
+        equalWidth ? "grid min-w-0 w-full" : "inline-flex",
         tone === "light" ? "bg-surface-alt" : "bg-primary-deep/60",
         className,
       )}
+      style={
+        equalWidth
+          ? {
+              gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
+            }
+          : undefined
+      }
     >
       {options.map((option, index) => {
         const active = option.value === value;
@@ -267,7 +278,10 @@ export function Segmented<T extends string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cx(
-              "pressable focus-ring inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-sm font-bold",
+              "pressable focus-ring inline-flex items-center justify-center gap-1.5 rounded-sm font-bold",
+              equalWidth
+                ? "min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+                : "whitespace-nowrap",
               size === "md"
                 ? "min-h-11 px-3.5 text-[13px]"
                 : "min-h-11 px-2.5 text-xs",
@@ -280,8 +294,10 @@ export function Segmented<T extends string>({
                   : "text-accent-soft hover:text-cream",
             )}
           >
-            {option.icon && <Icon name={option.icon} size={15} />}
-            {option.label}
+            {option.icon && (
+              <Icon name={option.icon} size={15} className="shrink-0" />
+            )}
+            <span className="min-w-0">{option.label}</span>
           </button>
         );
       })}

@@ -145,6 +145,18 @@ export function describeEndpoint(circuit: Circuit, endpoint: string): string {
 export function circuitForBoard(source: Circuit, board: Board): Circuit {
   if (board === "pico") return source;
   const potentiometer = source.id === "potentiometer";
+  const dhtParts = source.parts.filter((part) => part.type === "dht11");
+  const dhtSupply = new Set(dhtParts.map((part) => `${part.id}.VCC`));
+  const shared5V = source.nets.some((net) => net.includes("pico:VBUS"));
+  // KY-015 uses 5 V on AVR. Keep the analog sensors' existing 3V3 rails:
+  // a single/basic DHT plugs into 5V; the expanded kit shares the free g1 hole.
+  const unusedPowerWires = new Set(
+    dhtParts.length && source.id === "dht11"
+      ? ["w_3v3_top", "w_3v3_bottom", "w_bridge_bp"]
+      : dhtParts.length && source.id === "station_basic"
+        ? ["w_3v3_bottom", "w_bridge_bp"]
+        : [],
+  );
   const mapPin = (name: string) => {
     const mapped = ARDUINO_STATION_PINS[name];
     if (!mapped)
@@ -164,26 +176,37 @@ export function circuitForBoard(source: Circuit, board: Board): Circuit {
   };
   const hasEcho = source.parts.some((part) => part.id === "hc");
   const removed = (id: string) =>
-    hasEcho && (id.startsWith("r_echo") || id === "w_hc_div_gnd");
+    unusedPowerWires.has(id) ||
+    (hasEcho && (id.startsWith("r_echo") || id === "w_hc_div_gnd"));
   const parts = source.parts.filter((part) => !removed(part.id));
   const wires = source.wires
     .filter((wire) => !removed(wire.id))
     .map((wire) => ({
       ...wire,
       from: mapEndpoint(wire.id === "w_hc_echo" ? "c59" : wire.from),
-      to: mapEndpoint(wire.to),
+      to:
+        dhtParts.length && wire.id === "w_dht_3v3"
+          ? shared5V
+            ? "g1"
+            : "controller.5V"
+          : mapEndpoint(wire.to),
       kind:
         board !== "uno" &&
-        [wire.from, wire.to].some(
-          (end) => isPoint(end) && picoPinForStrip(stripOf(end)),
-        )
+        ((dhtParts.length && wire.id === "w_dht_3v3" && !shared5V) ||
+          [wire.from, wire.to].some(
+            (end) => isPoint(end) && picoPinForStrip(stripOf(end)),
+          ))
           ? ("cable" as const)
           : wire.kind,
       color:
-        potentiometer && wire.carries === "3V3"
+        (dhtParts.length && wire.id === "w_dht_3v3") ||
+        (potentiometer && wire.carries === "3V3")
           ? ("naranja" as const)
           : wire.color,
-      carries: wire.carries.replace(/GP\d+|3V3|VBUS/g, (name) => mapPin(name)),
+      carries:
+        dhtParts.length && wire.id === "w_dht_3v3"
+          ? "5 V"
+          : wire.carries.replace(/GP\d+|3V3|VBUS/g, (name) => mapPin(name)),
     }));
   for (const wire of wires) {
     const female = (end: string) =>
@@ -209,7 +232,11 @@ export function circuitForBoard(source: Circuit, board: Board): Circuit {
     nets: [],
   };
   circuit.steps = source.steps
-    .filter((step) => !step.id.startsWith("hc-div-"))
+    .filter(
+      (step) =>
+        !step.id.startsWith("hc-div-") &&
+        !step.wires?.some((id) => unusedPowerWires.has(id)),
+    )
     .map((step) => {
       const connected = wires.filter((wire) => step.wires?.includes(wire.id));
       if (!connected.length) return { ...step, warning: undefined };
@@ -230,7 +257,10 @@ export function circuitForBoard(source: Circuit, board: Board): Circuit {
     source.nets
       .map((net) =>
         net
-          .filter((terminal) => !terminal.startsWith("r_echo"))
+          .filter(
+            (terminal) =>
+              !terminal.startsWith("r_echo") && !dhtSupply.has(terminal),
+          )
           .map((terminal) =>
             terminal.startsWith("pico:")
               ? controllerTerminal(mapPin(terminal.slice(5)))
@@ -239,6 +269,11 @@ export function circuitForBoard(source: Circuit, board: Board): Circuit {
       )
       .filter((net) => net.length > 1),
   );
+  if (dhtParts.length)
+    circuit.nets = mergeGroups([
+      ...circuit.nets,
+      ["controller:5V", ...dhtSupply],
+    ]);
   if (source.nets.some((net) => net.includes("pico:VBUS"))) {
     circuit.wires.unshift({
       id: "w_controller_5v",

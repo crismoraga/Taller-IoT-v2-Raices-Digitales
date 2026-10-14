@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../lib/context";
 import { Icon } from "../brand/Graphics";
-import { essentials, normalizeProgress } from "../content";
+import { essentials, guidedRouteCopy, normalizeProgress } from "../content";
 import { PageHeader } from "../ui/Layout";
 import {
   api,
@@ -484,30 +484,26 @@ export default function Teacher() {
             </div>
           </details>
           <details className="teacher-guide simple-details">
-            <summary>Ritmo sugerido · 60 minutos</summary>
+            <summary>
+              Recorrido recomendado · {essentials.length} actividades
+            </summary>
             <h2>Conecta, programa y prueba</h2>
             <div>
-              {[
-                ["05", "Conoce tu estación"],
-                ["08", "Tu primer LED"],
-                ["07", "Código en movimiento"],
-                ["15", "Escucha a tu planta"],
-                ["10", "Calibra y comprueba"],
-                ["15", "Conecta y observa"],
-              ].map(([n, t]) => (
-                <span key={n + t}>
+              {essentials.map((lesson) => (
+                <span key={lesson.id}>
                   <strong>
-                    {n}
+                    {String(lesson.duration).padStart(2, "0")}
                     <small>min</small>
                   </strong>
-                  {t}
+                  {guidedRouteCopy[lesson.id]?.title ?? lesson.title}
                 </span>
               ))}
             </div>
             <p>
-              Para terminar a tiempo, usa humedad de suelo y DHT11 como estación
-              mínima. Los otros sensores quedan en el laboratorio libre. Reserva
-              los últimos minutos para mostrar qué cambió al cruzar un umbral.
+              Empieza con el LED. Prueba luz y DHT11 antes de conectar y
+              calibrar el suelo. Reúne esos sensores en Estación y termina
+              mirando las lecturas reales en Mi planta. Los sensores adicionales
+              y las alertas son opcionales.
             </p>
             <Button
               variant="secondary"

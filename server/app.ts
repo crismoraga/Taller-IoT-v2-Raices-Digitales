@@ -809,7 +809,8 @@ export async function buildApp(
         if (
           item.isDirectory() &&
           !item.name.startsWith(".") &&
-          item.name !== "__pycache__"
+          item.name !== "__pycache__" &&
+          item.name !== "raspberry-pi"
         )
           await walk(path);
         else if (

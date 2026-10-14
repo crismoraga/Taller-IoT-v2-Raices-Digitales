@@ -42,7 +42,7 @@ test("2D sensor inspection works with mouse and keyboard while the pending Ardui
   await team
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/welcome/);
+  await expect(page).toHaveURL(/taller\/led/);
   await page.goto("/taller/soil");
   const phase = (name: string) =>
     page
