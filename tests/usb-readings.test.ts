@@ -35,6 +35,7 @@ describe("USB telemetry boundary", () => {
     { value: [] },
     { value: Infinity },
     { unit: {} },
+    { unit: "°C" },
     { raw: "567" },
     { raw: null },
     { error: {} },
@@ -58,11 +59,18 @@ describe("USB telemetry boundary", () => {
     const connected = { ...soil, status: "CONNECTED" };
     const wrongUnit = { ...soil, unit: "lux" };
     const frame = usbFrame({ readings: [custom, connected, wrongUnit] });
-    expect(frame?.readings).toEqual([custom, wrongUnit]);
+    expect(frame?.readings).toEqual([custom, connected]);
     expect(usbReading(connected)).toEqual(connected);
     expect(usbBridgeReadings([custom, connected, wrongUnit, soil])).toEqual([
       soil,
     ]);
+  });
+
+  it("does not replace a valid sensor sample with an incompatible unit", () => {
+    const frame = usbFrame({
+      readings: [soil, { ...soil, value: 31, unit: "°C", status: "READING" }],
+    });
+    expect(frame?.readings).toEqual([soil]);
   });
 
   it("preserves scalar diagnostics and prevents nested values from invalidating good rows", () => {

@@ -1,4 +1,4 @@
-import { readingSchema } from "../../shared/telemetry";
+import { readingSchema, sensorUnits } from "../../shared/telemetry";
 import type { Reading } from "./api";
 
 type Diagnostics = Record<string, string | number | boolean | null>;
@@ -17,6 +17,8 @@ export function usbReading(value: unknown): Reading | undefined {
     !value.sensor.trim() ||
     !(value.value === null || finite(value.value)) ||
     !text(value.unit, 32) ||
+    (Object.hasOwn(sensorUnits, value.sensor) &&
+      value.unit !== sensorUnits[value.sensor]) ||
     !text(value.status, 100) ||
     !value.status.trim() ||
     (value.raw !== undefined && !finite(value.raw)) ||

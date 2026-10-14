@@ -109,7 +109,12 @@ test("malformed USB rows remain in the terminal while valid sensor rows keep the
       peer.emit([
         JSON.stringify(bad) + "\r\n",
         JSON.stringify({
-          readings: [bad, good, { ...good, sensor: "light", value: {} }],
+          readings: [
+            bad,
+            good,
+            { ...good, sensor: "light", value: {} },
+            { ...good, value: 31, unit: "°C", status: "READING" },
+          ],
           diagnostics: { uptime: 12, nested: { bad: true } },
         }) + "\r\n",
       ]);
