@@ -20,6 +20,8 @@ export interface USBSerial extends EventTarget {
 const encoder = new TextEncoder();
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+const USB_WRITE_TIMEOUT = 6000;
+const USB_CLOSE_TIMEOUT = 1500;
 const navigatorSerial = (): USBSerial | undefined =>
   typeof navigator === "undefined"
     ? undefined
@@ -206,7 +208,7 @@ export class SerialLink {
       this.writer = writer;
       this.reader = reader;
       api?.addEventListener("disconnect", this.disconnectListener);
-      this.pump = this.readLoop();
+      this.pump = this.readLoop(reader);
     } catch (problem) {
       // Only release locks acquired here. A stream already held elsewhere must
       // never be cancelled just because this connection could not take it.
@@ -224,20 +226,22 @@ export class SerialLink {
       this.opening = false;
     }
   }
-  private async readLoop() {
+  private async readLoop(reader: ReadableStreamDefaultReader<Uint8Array>) {
     try {
-      while (this.reader && !this.closing) {
-        const { value, done } = await this.reader.read();
+      while (this.reader === reader && !this.closing) {
+        const { value, done } = await reader.read();
+        if (this.reader !== reader || this.closing) break;
         if (done) break;
         if (value) this.consume(value);
       }
     } catch (error) {
-      if (!this.closing)
+      if (this.reader === reader && !this.closing)
         this.failure = new Error(`USB desconectado: ${errorText(error)}`);
     } finally {
-      this.reader?.releaseLock();
-      this.reader = null;
-      if (!this.closing) {
+      reader.releaseLock();
+      const owned = this.reader === reader;
+      if (owned) this.reader = null;
+      if (owned && !this.closing) {
         this.failure ??= new Error("Se perdió la conexión USB.");
         this.wake();
         // Close after the reader task exits, avoiding a promise waiting on itself.
@@ -248,18 +252,47 @@ export class SerialLink {
   protected async send(bytes: Uint8Array | number[]) {
     if (!this.writer || this.closing)
       throw new Error("Conecta la placa por USB primero.");
-    try {
-      await this.writer.write(
-        bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes),
+    const writer = this.writer;
+    let timer: ReturnType<typeof setTimeout>;
+    let cancel!: () => void;
+    const interrupted = new Promise<never>((_, reject) => {
+      cancel = () => {
+        if (this.closing || this.writer !== writer)
+          reject(this.failure ?? new Error("Puerto USB cerrado."));
+      };
+      this.waking.add(cancel);
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              "El puerto USB no confirmó el envío en 6 segundos. Vuelve a conectar la placa y reintenta la carga.",
+            ),
+          ),
+        USB_WRITE_TIMEOUT,
       );
+    });
+    try {
+      // A Windows USB driver can leave write() pending forever. The STK500
+      // response timeout starts afterwards, so reads alone cannot bound it.
+      await Promise.race([
+        writer.write(
+          bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes),
+        ),
+        interrupted,
+      ]);
     } catch (problem) {
       const failure = new Error(
         `No se pudo escribir por USB: ${errorText(problem)}`,
       );
-      this.failure = failure;
-      this.wake();
-      await this.disconnect();
+      if (this.writer === writer && !this.closing) {
+        this.failure = failure;
+        this.wake();
+        await this.disconnect();
+      }
       throw failure;
+    } finally {
+      clearTimeout(timer!);
+      this.waking.delete(cancel);
     }
   }
   async write(text: string) {
@@ -360,25 +393,40 @@ export class SerialLink {
       "disconnect",
       this.disconnectListener,
     );
-    try {
-      await this.reader?.cancel();
-    } catch {
-      /* Already unplugged. */
-    }
-    await this.pump;
+    const deadline = Date.now() + USB_CLOSE_TIMEOUT;
+    const settle = async (promise: Promise<unknown> | null | undefined) => {
+      if (!promise) return;
+      let timer: ReturnType<typeof setTimeout>;
+      // Always observe late failures, even if the USB driver missed the limit.
+      const settled = promise.then(
+        () => {},
+        () => {},
+      );
+      try {
+        await Promise.race([
+          settled,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, Math.max(0, deadline - Date.now()));
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer!);
+      }
+    };
+    const reader = this.reader;
+    await settle(reader?.cancel());
+    await settle(this.pump);
+    // A late read task owns only this reader, never a subsequent connection.
+    this.reader = null;
+    reader?.releaseLock();
     this.pump = null;
-    try {
-      await this.writer?.abort();
-    } catch {
-      /* Already unplugged. */
-    }
-    this.writer?.releaseLock();
+    const writer = this.writer;
+    // abort() waits for an in-flight sink write. Release the stream lock before
+    // waiting, so the browser can close the port and the UI can finish cleanup.
+    const aborting = writer?.abort();
+    writer?.releaseLock();
     this.writer = null;
-    try {
-      await port.close();
-    } catch {
-      /* Already unplugged. */
-    }
+    await settle(Promise.allSettled([aborting, port.close()]));
     this.port = null;
     this.protocol = false;
     this.inbox = [];
@@ -717,11 +765,11 @@ export class ArduinoUSBSerial extends SerialLink {
     // The previous command's complete response has already been consumed.
     // Remaining bytes are stale adapter input, never the next command's payload.
     this.inbox = [];
-    await this.send([...command, 0x20]);
-    const deadline = Date.now() + timeout;
-    const receive = (count: number) =>
-      this.bytes(count, Math.max(1, deadline - Date.now()));
     try {
+      await this.send([...command, 0x20]);
+      const deadline = Date.now() + timeout;
+      const receive = (count: number) =>
+        this.bytes(count, Math.max(1, deadline - Date.now()));
       for (let discarded = 0; discarded < 512; discarded++) {
         const prefix = (await receive(1))[0];
         if ([0x11, 0x12, 0x13, 0x15].includes(prefix))
@@ -747,7 +795,6 @@ export class ArduinoUSBSerial extends SerialLink {
       }
       throw describe("La respuesta USB no contiene un marco válido");
     } catch (problem) {
-      if (!this.connected) throw problem;
       if (problem instanceof Error && problem.message.includes("STK500v1"))
         throw problem;
       throw describe(
@@ -841,10 +888,7 @@ export class ArduinoUSBSerial extends SerialLink {
               signature = await this.command([0x75], 3);
             } catch (problem) {
               handshakeError = problem;
-              if (!this.connected)
-                throw new Error(
-                  "La placa se desconectó. Conéctala de nuevo para instalar.",
-                );
+              if (!this.connected) throw problem;
               continue;
             }
             // A different MCU is a conclusive result, never a reason to try
@@ -918,9 +962,6 @@ export class ArduinoUSBSerial extends SerialLink {
           );
           if (!page.every((byte, i) => readback[i] === byte))
             throw new Error(`Verificación flash falló en dirección ${offset}.`);
-          this.onOutput(
-            `\rGrabando y verificando ${Math.min(100, Math.round(((offset + pageSize) * 100) / data.length))}%`,
-          );
         }
         await this.command([0x51]);
       } finally {

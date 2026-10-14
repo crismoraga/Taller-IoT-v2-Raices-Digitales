@@ -361,13 +361,13 @@ export default function Settings() {
                     app.setBoard(e.target.value as typeof app.board)
                   }
                 >
-                  <option value="pico">Raspberry Pi Pico · MicroPython</option>
                   <option value="uno">Arduino Uno · ATmega328P</option>
                   <option value="nano">Arduino Nano · ATmega328P</option>
                   <option value="nano-old">
                     Arduino Nano · bootloader antiguo
                   </option>
                   <option value="nano-168">Arduino Nano · ATmega168</option>
+                  <option value="pico">Raspberry Pi Pico · MicroPython</option>
                 </select>
               </label>
               {app.connected && (
@@ -391,6 +391,19 @@ export default function Settings() {
               placa y, si el adaptador no informa el modelo, te pedimos elegirlo
               una vez.
             </p>
+            {!app.connected && arduino && (
+              <details className="simple-details">
+                <summary>¿El puerto de Arduino no aparece?</summary>
+                <p>
+                  En Windows abre Administrador de dispositivos → Puertos (COM y
+                  LPT). Busca Arduino Uno o USB-SERIAL CH340. Si aparece un
+                  dispositivo desconocido, instala el controlador oficial del
+                  fabricante de tu placa; si no aparece ninguno, prueba otro
+                  cable USB con datos. Cierra el monitor serial del IDE antes de
+                  conectar aquí.
+                </p>
+              </details>
+            )}
             <Button
               variant="secondary"
               loading={app.connecting}

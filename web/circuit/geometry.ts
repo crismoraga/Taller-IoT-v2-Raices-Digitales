@@ -17,7 +17,12 @@ export type Outline =
   | { kind: "circle"; cx: number; cy: number; r: number }
   | { kind: "rect"; x: number; y: number; w: number; h: number };
 
-/** Tamaño de la tarjeta de un módulo que queda fuera de la protoboard. */
+/**
+ * Siluetas de variantes habituales, en pasos de 2,54 mm. Los módulos no son
+ * tarjetas del mismo tamaño: la sonda capacitiva mide unos 98 × 23 mm y la
+ * placa de nivel unos 63 × 19 mm. Conservamos el borde del conector junto al
+ * banco; el cuerpo se extiende hacia afuera, sin tapar la protoboard.
+ */
 export function moduleBox(part: PartInstance): {
   x: number;
   y: number;
@@ -26,7 +31,35 @@ export function moduleBox(part: PartInstance): {
 } {
   const pins = partDef(part).pins.length;
   const at = part.at ?? { x: 0, y: -9.5 };
-  return { x: at.x, y: at.y, w: Math.max(6.4, pins * 1.7 + 1.2), h: 4.4 };
+  const dimensions = {
+    soil: { w: 9.1, h: 38.6, offset: 0 },
+    water: { w: 7.5, h: 24.8, offset: 0 },
+    pir: { w: 12.6, h: 9.1, offset: 3 },
+    ds18b20: { w: 21.5, h: 8, offset: 10 },
+    rain: { w: 5.5, h: 12.6, offset: 0 },
+  }[part.type as "soil" | "water" | "pir" | "ds18b20" | "rain"];
+  const w = dimensions?.w ?? Math.max(6.4, pins + 2.4);
+  const h = dimensions?.h ?? 4.4;
+  return {
+    x: at.x + (dimensions?.offset ?? 0),
+    y: at.y < 0 ? at.y + 4.4 - h : at.y,
+    w,
+    h,
+  };
+}
+
+/** FC-37: la placa de gotas es otra pieza, unida al LM393 con dos hilos. */
+export function rainPlateBox(part: PartInstance) {
+  const module = moduleBox(part);
+  return { x: module.x + module.w + 3, y: module.y, w: 19.7, h: 15.7 };
+}
+
+/** Incluye accesorios físicos para encuadrar ambos renderers. */
+export function moduleBounds(part: PartInstance) {
+  const box = moduleBox(part);
+  if (part.type !== "rain") return box;
+  const plate = rainPlateBox(part);
+  return { ...box, w: plate.x + plate.w - box.x, h: Math.max(box.h, plate.h) };
 }
 
 /** Posición del pin de un módulo: en el borde que mira hacia la protoboard. */
@@ -34,9 +67,14 @@ export function modulePinXY(part: PartInstance, pinId: string): XY {
   const box = moduleBox(part);
   const pins = partDef(part).pins;
   const index = pins.findIndex((pin) => pin.id === pinId);
-  const gap = box.w / (pins.length + 1);
+  if (index < 0)
+    throw new Error(`La pieza ${part.label} no tiene el pin ${pinId}.`);
   const above = box.y < 0;
-  return { x: box.x + gap * (index + 1), y: above ? box.y + box.h : box.y };
+  // The row is a physical 2.54 mm header, rather than a fraction of PCB width.
+  return {
+    x: box.x + box.w / 2 + index - (pins.length - 1) / 2,
+    y: above ? box.y + box.h : box.y,
+  };
 }
 
 /** Dónde termina un cable: un agujero o el pin de una pieza. */

@@ -28,6 +28,8 @@ test("production cache keeps lessons and drafts offline, then syncs the authenti
     .getByRole("button", { name: "Comenzar taller", exact: true })
     .click();
   await page.getByLabel("Nombre del equipo").fill("Offline QA");
+  // This cached editor scenario persists led.python, independently of defaults.
+  await page.getByLabel("Placa del equipo").selectOption("pico");
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Comenzar el taller", exact: true })

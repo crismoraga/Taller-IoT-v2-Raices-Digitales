@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   mkdtemp,
   mkdir,
@@ -15,6 +15,10 @@ import type { Config } from "./config.ts";
 import { AVR_BOARD_PROFILES, type ArduinoBoard } from "../shared/boards.ts";
 import { CompileQueue, type CompileWorkContext } from "./compile-queue.ts";
 
+export const COMPILE_BUDGET_MS = 60000;
+export const COMPILE_DEADLINE_HEADER = "x-raices-compile-deadline";
+type CompileOptions = { signal?: AbortSignal; deadline?: number };
+
 export class CompileError extends Error {
   constructor(
     message: string,
@@ -28,8 +32,16 @@ function run(
   args: string[],
   timeout: number,
   env?: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+  cleanupTerminated?: () => Promise<void>,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(
+        new CompileError("Se canceló la compilación de este programa.", 499),
+      );
+      return;
+    }
     const child = spawn(executable, args, {
       shell: false,
       windowsHide: true,
@@ -39,6 +51,8 @@ function run(
     });
     let output = "";
     let done = false;
+    let terminationError: Error | undefined;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
     const terminate = () => {
       if (!child.pid) return;
       if (process.platform === "win32") {
@@ -56,28 +70,53 @@ function run(
         }
       }
     };
-    const finish = (error?: Error) => {
+    const finish = async (error?: Error) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      clearTimeout(killTimer);
+      signal?.removeEventListener("abort", abort);
+      if (terminationError && cleanupTerminated) {
+        try {
+          await cleanupTerminated();
+        } catch {
+          error = new CompileError(
+            "No se pudo cerrar el proceso del compilador aislado. Vuelve a intentarlo.",
+            503,
+          );
+        }
+      }
       if (error) reject(error);
       else resolve(output);
     };
-    const timer = setTimeout(() => {
+    const stop = (error: Error) => {
+      if (done || terminationError) return;
+      terminationError = error;
       terminate();
-      finish(
-        new CompileError(
-          "La operación del compilador superó su plazo permitido.",
-          408,
-        ),
+      // Do not release the queue or delete its files while the compiler tree
+      // is still closing. The fallback also covers a broken child-process pipe.
+      killTimer = setTimeout(() => void finish(terminationError), 1000);
+    };
+    const abort = () =>
+      stop(
+        new CompileError("Se canceló la compilación de este programa.", 499),
       );
-    }, timeout);
+    signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(
+      () =>
+        stop(
+          new CompileError(
+            "La compilación superó su plazo. Tu código sigue guardado; vuelve a ejecutarlo.",
+            408,
+          ),
+        ),
+      timeout,
+    );
     const append = (chunk: Buffer) => {
-      if (done) return;
+      if (done || terminationError) return;
       output += chunk.toString();
       if (output.length > 300000) {
-        terminate();
-        finish(
+        stop(
           new CompileError(
             "La salida del compilador superó el límite permitido.",
           ),
@@ -86,32 +125,39 @@ function run(
     };
     child.stdout.on("data", append);
     child.stderr.on("data", append);
-    child.on("error", () =>
-      finish(
-        new CompileError(
-          "Arduino CLI no está disponible. Ejecuta el instalador documentado o configura ARDUINO_CLI_PATH.",
-          503,
+    child.on(
+      "error",
+      () =>
+        void finish(
+          new CompileError(
+            "Arduino CLI no está disponible. Ejecuta el instalador documentado o configura ARDUINO_CLI_PATH.",
+            503,
+          ),
         ),
-      ),
     );
-    child.on("close", (code) =>
-      finish(
-        code === 0
-          ? undefined
-          : new CompileError(output.slice(-30000) || "La compilación falló."),
-      ),
+    child.on(
+      "close",
+      (code) =>
+        void finish(
+          terminationError ||
+            (code === 0
+              ? undefined
+              : new CompileError(
+                  output.slice(-30000) || "La compilación falló.",
+                )),
+        ),
     );
   });
 }
 
 export class ArduinoCompiler {
   private queue: CompileQueue<
-    { code: string; board: ArduinoBoard },
+    { code: string; board: ArduinoBoard; deadline: number },
     { hex: string; output: string }
   >;
   constructor(private config: Config) {
     this.queue = new CompileQueue((input, context) =>
-      this.compileNow(input.code, input.board, context),
+      this.compileNow(input.code, input.board, input.deadline, context),
     );
   }
   private environment(directory?: string) {
@@ -170,57 +216,133 @@ export class ArduinoCompiler {
       return false;
     }
   }
-  async compile(code: string, board: ArduinoBoard) {
+  async compile(
+    code: string,
+    board: ArduinoBoard,
+    options: CompileOptions = {},
+  ) {
     if (!AVR_BOARD_PROFILES[board])
       throw new CompileError("La configuración de placa no es válida.", 400);
     if (!code.trim() || code.length > 60000 || code.includes("\0"))
       throw new CompileError("Código vacío, demasiado largo o inválido.", 400);
+    const deadline = Math.min(
+      Date.now() + COMPILE_BUDGET_MS,
+      options.deadline ?? Infinity,
+    );
+    if (!Number.isFinite(deadline) || deadline <= Date.now())
+      throw new CompileError(
+        "El plazo de compilación terminó antes de comenzar. Vuelve a ejecutar tu programa.",
+        408,
+      );
     const key = createHash("sha256")
       .update(AVR_BOARD_PROFILES[board].fqbn)
       .update("\0")
       .update(code)
       .digest("hex");
-    return this.queue.run(key, { code, board });
+    const budgetSignal = AbortSignal.timeout(
+      Math.max(1, Math.floor(deadline - Date.now())),
+    );
+    const signal = options.signal
+      ? AbortSignal.any([budgetSignal, options.signal])
+      : budgetSignal;
+    try {
+      return await this.queue.run(key, { code, board, deadline }, signal);
+    } catch (error) {
+      // Each HTTP consumer keeps its own deadline even when it joins an
+      // existing build. Its timeout must not cancel the other groups.
+      if (budgetSignal.aborted && !options.signal?.aborted)
+        throw new CompileError(
+          "La compilación superó su plazo. Tu código sigue guardado; vuelve a ejecutarlo.",
+          408,
+        );
+      throw error;
+    }
   }
   private async compileNow(
     code: string,
     board: ArduinoBoard,
+    requestedDeadline: number,
     context: CompileWorkContext,
   ) {
     // Waiting consumes the same request budget: never leave a CLI process
     // compiling long after the browser's 65-second request has expired.
-    const timeout = Math.max(
-      1,
-      Math.min(60000, 60000 - (Date.now() - context.enqueuedAt)),
+    const deadline = Math.min(
+      requestedDeadline,
+      context.enqueuedAt + COMPILE_BUDGET_MS,
     );
-    if (this.config.arduinoServiceUrl) {
-      const response = await fetch(`${this.config.arduinoServiceUrl}/compile`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.config.arduinoServiceToken || ""}`,
-        },
-        body: JSON.stringify({ code, board }),
-        signal: AbortSignal.timeout(timeout),
-      }).catch(() => {
+    const remaining = () => {
+      const timeout = deadline - Date.now();
+      if (timeout <= 0)
         throw new CompileError(
-          "El servicio de compilación no está disponible.",
-          503,
+          "La compilación superó su plazo. Tu código sigue guardado; vuelve a ejecutarlo.",
+          408,
         );
-      });
-      const result = (await response.json()) as {
+      return timeout;
+    };
+    if (this.config.arduinoServiceUrl) {
+      const timeoutSignal = AbortSignal.timeout(remaining());
+      let response: Response;
+      let result: {
         hex?: string;
         output?: string;
         error?: string;
       };
+      try {
+        response = await fetch(`${this.config.arduinoServiceUrl}/compile`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${this.config.arduinoServiceToken || ""}`,
+            [COMPILE_DEADLINE_HEADER]: String(deadline),
+          },
+          body: JSON.stringify({ code, board }),
+          signal: AbortSignal.any([timeoutSignal, context.signal]),
+        });
+        result = await response.json();
+      } catch (error) {
+        if (context.signal.aborted)
+          throw new CompileError(
+            "Se canceló la compilación de este programa.",
+            499,
+          );
+        if (timeoutSignal.aborted)
+          throw new CompileError(
+            "La compilación superó su plazo. Tu código sigue guardado; vuelve a ejecutarlo.",
+            408,
+          );
+        if (error instanceof SyntaxError)
+          throw new CompileError(
+            "El servicio de compilación devolvió una respuesta incompleta. Vuelve a ejecutar tu programa.",
+            502,
+          );
+        throw new CompileError(
+          "El servicio de compilación no está disponible. Vuelve a ejecutar tu programa.",
+          503,
+        );
+      }
+      if (!result || typeof result !== "object" || Array.isArray(result))
+        throw new CompileError(
+          "El servicio de compilación devolvió una respuesta inválida.",
+          502,
+        );
       if (!response.ok)
         throw new CompileError(
-          result.error || "La compilación falló.",
+          typeof result.error === "string"
+            ? result.error
+            : "La compilación falló.",
           response.status,
         );
-      if (typeof result.hex !== "string" || !result.hex.startsWith(":"))
+      if (
+        typeof result.hex !== "string" ||
+        result.hex.length > 150000 ||
+        !result.hex.startsWith(":")
+      )
         throw new CompileError("El servicio devolvió firmware inválido.", 502);
-      return { hex: result.hex, output: result.output || "" };
+      return {
+        hex: result.hex,
+        output:
+          typeof result.output === "string" ? result.output.slice(-30000) : "",
+      };
     }
     if (code.length > 60000 || code.includes("\0"))
       throw new CompileError("Código demasiado largo o inválido.", 400);
@@ -273,12 +395,15 @@ export class ArduinoCompiler {
       }
       const fqbn = AVR_BOARD_PROFILES[board].fqbn;
       const env = this.environment(directory);
+      const containerName = `raices-compile-${randomUUID()}`;
       const result = this.config.arduinoSandbox
         ? await run(
             "docker",
             [
               "run",
               "--rm",
+              "--name",
+              containerName,
               "--network",
               "none",
               "--read-only",
@@ -308,8 +433,26 @@ export class ArduinoCompiler {
               "/work/output",
               "/work/Raices",
             ],
-            timeout,
+            remaining(),
             env,
+            context.signal,
+            async () => {
+              try {
+                await run(
+                  "docker",
+                  ["rm", "--force", containerName],
+                  3000,
+                  env,
+                );
+              } catch (error) {
+                // --rm may already have removed this exact container.
+                if (
+                  !(error instanceof CompileError) ||
+                  !/No such (container|object)/i.test(error.message)
+                )
+                  throw error;
+              }
+            },
           )
         : await run(
             this.config.arduinoCli,
@@ -323,8 +466,9 @@ export class ArduinoCompiler {
               output,
               sketch,
             ],
-            timeout,
+            remaining(),
             env,
+            context.signal,
           );
       const files = await readdir(output);
       const hexFile = files.find(

@@ -1,13 +1,20 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { BreadboardView } from "../circuit/BreadboardView";
 import type { Circuit } from "../circuit/model";
 import { Segmented } from "../ui/Card";
 import { readLocal, writeLocal } from "../lib/theme";
+import { configureDhtPinOrder } from "./assembly";
+import { useDhtPinOrder } from "./dhtLayout";
 
 const CircuitExperience = lazy(() => import("../experience/CircuitExperience"));
 
 /** A touchable model is the lesson's first explanation, rather than a materials checklist. */
-export function BoardDiscovery({ circuit }: { circuit: Circuit }) {
+export function BoardDiscovery({ circuit: source }: { circuit: Circuit }) {
+  const [dhtPinOrder] = useDhtPinOrder();
+  const circuit = useMemo(
+    () => configureDhtPinOrder(source, dhtPinOrder),
+    [source, dhtPinOrder],
+  );
   // Board variants share the same preference: choosing Uno must not silently
   // replace a learner's 2D plan with a different viewing mode.
   const baseId = circuit.id.replace(/-(?:uno|nano(?:-old|-168)?)$/, "");

@@ -214,7 +214,7 @@ async function protocolPeer(page: Page) {
   });
 }
 
-async function openUsbLesson(page: Page, board?: "uno") {
+async function openUsbLesson(page: Page, board: "pico" | "uno" = "pico") {
   await protocolPeer(page);
   await page.goto("/");
   await page
@@ -222,7 +222,8 @@ async function openUsbLesson(page: Page, board?: "uno") {
     .click();
   await page.getByLabel("Nombre del equipo").fill("USB protocolo QA");
   await page.getByLabel("Número de estación").selectOption("9");
-  if (board) await page.getByLabel("Placa del equipo").selectOption(board);
+  // The protocol peer implements MicroPython; Uno is explicit for USB discovery.
+  await page.getByLabel("Placa del equipo").selectOption(board);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Comenzar el taller", exact: true })

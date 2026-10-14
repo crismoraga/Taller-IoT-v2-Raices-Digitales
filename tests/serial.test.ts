@@ -12,6 +12,7 @@ import {
   type USBPort,
 } from "../web/lib/serial";
 import { arduinoStationSketch } from "../web/lib/arduino";
+import { SerialTextBuffer } from "../web/lib/serial-text";
 
 const enc = new TextEncoder();
 const usbIdentity = (vendor?: number, product?: number) =>
@@ -217,6 +218,91 @@ function pico(
 }
 
 describe("USB port ownership", () => {
+  it("bounds a stalled driver write, releases locks and reconnects without replaying it", async () => {
+    vi.useFakeTimers();
+    const transport = new TestLink(),
+      peer = pico(),
+      replacement = pico();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sent: string[] = [];
+    const aborted: string[] = [];
+    peer.port.writable = new WritableStream<Uint8Array>({
+      write(bytes) {
+        sent.push(new TextDecoder().decode(bytes));
+        return gate;
+      },
+      abort() {
+        aborted.push("aborted");
+      },
+    });
+    await transport.attach(peer.port);
+    const result = Promise.allSettled([transport.write("one command")]);
+    try {
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(transport.connected).toBe(false);
+      await vi.advanceTimersByTimeAsync(1500);
+      const failure = (await result)[0];
+      expect(failure.status).toBe("rejected");
+      if (failure.status === "rejected")
+        expect(failure.reason.message).toContain("6 segundos");
+      expect(peer.port.readable!.locked).toBe(false);
+      expect(peer.port.writable!.locked).toBe(false);
+      expect(peer.closed).toBe(true);
+      // abort() cannot settle while the sink write remains pending.
+      expect(aborted).toEqual([]);
+      await transport.attach(replacement.port);
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(aborted).toEqual(["aborted"]);
+      expect(transport.connected).toBe(true);
+      expect(sent).toEqual(["one command"]);
+      await transport.write("new command");
+      expect(replacement.writes).toEqual([[...enc.encode("new command")]]);
+    } finally {
+      release();
+      await transport.disconnect();
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a pending write promptly when the participant disconnects", async () => {
+    vi.useFakeTimers();
+    const transport = new TestLink(),
+      peer = pico();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    peer.port.writable = new WritableStream<Uint8Array>({
+      write() {
+        writes++;
+        return gate;
+      },
+    });
+    await transport.attach(peer.port);
+    const result = Promise.allSettled([transport.write("pending")]);
+    await vi.advanceTimersByTimeAsync(0);
+    const closing = transport.disconnect();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect((await result)[0].status).toBe("rejected");
+      expect(transport.connected).toBe(false);
+      await vi.advanceTimersByTimeAsync(1500);
+      await closing;
+      expect(peer.port.readable!.locked).toBe(false);
+      expect(peer.port.writable!.locked).toBe(false);
+      expect(writes).toBe(1);
+    } finally {
+      release();
+      await transport.disconnect();
+      vi.useRealTimers();
+    }
+  });
+
   it("does not reopen a Nano port when disconnect is requested during a baud change", async () => {
     const transport = new TestLink(),
       peer = avr();
@@ -603,9 +689,59 @@ function avr(corrupt = false, bootloaderRate?: number) {
     async close() {},
     async setSignals() {},
   };
-  return { port, memory, commands, rates };
+  return {
+    port,
+    memory,
+    commands,
+    rates,
+    emit: (bytes: Uint8Array) => controller.enqueue(bytes),
+  };
 }
 describe("real AVR protocol peer", () => {
+  it.each(["uno", "nano-old"] as const)(
+    "restores %s sensor output at 115200 and ignores fragmented blank traffic after flash verification",
+    async (board) => {
+      const peer = avr(false, board === "nano-old" ? 57600 : 115200);
+      const transport = new TestArduino();
+      const buffer = new SerialTextBuffer();
+      let visible = "";
+      const lines: string[] = [];
+      transport.onOutput = (text) => {
+        const output = buffer.push(text);
+        visible += output.display;
+        lines.push(...output.lines);
+      };
+      await transport.attach(peer.port, board);
+      try {
+        await transport.upload(":0400100001020304E2\n:00000001FF");
+        expect(peer.rates.at(-1)).toBe(115200);
+        expect(visible).toContain("Programa Arduino grabado y verificado");
+        expect(visible).not.toContain("Grabando y verificando");
+        const before = visible;
+        for (const blank of ["\r", "\n", "  \t\r", "\n\r\n"])
+          peer.emit(enc.encode(blank));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(visible).toBe(before);
+        const reading = {
+          sensor: "air_temperature",
+          value: 22.5,
+          unit: "°C",
+          status: "READING",
+        };
+        const bytes = enc.encode(JSON.stringify(reading) + "\r\n");
+        // Including the two bytes of ° in separate reads exercises the actual
+        // streaming UTF-8 decoder, not just string concatenation in the helper.
+        for (const byte of bytes) peer.emit(Uint8Array.of(byte));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(visible).toContain(JSON.stringify(reading) + "\n");
+        expect(JSON.parse(lines.at(-1)!)).toEqual(reading);
+        expect(transport.connected).toBe(true);
+      } finally {
+        await transport.disconnect();
+      }
+    },
+  );
+
   it("programs flash, reads every page back, and leaves programming mode", async () => {
     const peer = avr(),
       transport = new TestArduino();

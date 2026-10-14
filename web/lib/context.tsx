@@ -10,8 +10,11 @@ export type UploadStatus = {
   stage: "compile" | "sync" | "write" | "verify" | "complete" | "error";
   percent?: number;
   message?: string;
+  /** Compiler HTTP status, retained without relying only on translated error text. */
+  httpStatus?: number;
+  /** Last actual phase, so a compiler timeout is never reported as a USB failure. */
+  failedStage?: "compile" | "sync" | "write" | "verify";
 };
-
 
 /** Lo que el servidor informa sobre sí mismo en /api/health. */
 export interface Health {

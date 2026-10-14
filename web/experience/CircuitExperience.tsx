@@ -25,10 +25,12 @@ import {
   COLUMNS,
   LETTERS,
   RAIL_COLUMNS,
+  RAIL_INFO,
   RAIL_SPLIT_AFTER,
   describePoint,
   isPoint,
   pointXY,
+  parsePoint,
   shortPoint,
   stripOf,
   holesOfStrip,
@@ -39,6 +41,7 @@ import { layoutCallouts } from "../circuit/calloutLayout";
 import {
   bodyOutline,
   endpointXY,
+  moduleBounds,
   moduleBox,
   type XY,
 } from "../circuit/geometry";
@@ -82,7 +85,11 @@ import {
   useSceneActive,
   type CameraAction,
   type SceneBounds,
+  fittedCameraDistance,
 } from "./SceneSupport";
+import { partSceneBounds } from "./circuitFocus";
+import { ClimateSensor } from "./sensors/ClimateModels";
+import { AnalogSensor } from "./sensors/AnalogProximityModels";
 import "./experience.css";
 
 const U = 0.13;
@@ -104,6 +111,7 @@ const atEndpoint = (circuit: Circuit, endpoint: string, height = 0.15) =>
         : 0.36,
   );
 interface Selection {
+  partId?: string;
   title: string;
   text: string;
   detail?: string;
@@ -906,265 +914,87 @@ function SensorBody({
         ? "#e7c239"
         : "#e25842";
   if (part.type === "resistor") return <Resistor part={part} dim={dim} />;
+  const specialized = ["dht11", "ds18b20", "lm35"].includes(part.type) ? (
+    <ClimateSensor part={part} dim={dim} flow={flow} unit={U} />
+  ) : ["soil", "rain", "water", "hcsr04", "pir", "ldr"].includes(part.type) ? (
+    <AnalogSensor part={part} dim={dim} flow={flow} unit={U} />
+  ) : part.type === "led" ? (
+    <LedLens part={part} color={ledColor} dim={dim} flow={flow} />
+  ) : part.type === "button" ? (
+    <>
+      <HardwareBody
+        size={[0.54, 0.17, 0.54]}
+        color="#727c74"
+        radius={0.04}
+        metalness={0.48}
+        roughness={0.41}
+      />
+      <mesh position={[0, 0.13, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 0.13, 16]} />
+        <meshStandardMaterial color="#243d32" />
+      </mesh>
+    </>
+  ) : part.type === "buzzer" ? (
+    <>
+      <mesh position={[0, 0.13, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.43, 30]} />
+        <meshStandardMaterial color="#26382e" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 0.35, 0]}>
+        <cylinderGeometry args={[0.075, 0.075, 0.003, 16]} />
+        <meshBasicMaterial color="#071b16" />
+      </mesh>
+      <BoardText position={[0.16, 0.351, 0]} size={0.12} color="#f2edce">
+        +
+      </BoardText>
+    </>
+  ) : part.type === "potentiometer" ? (
+    <>
+      <HardwareBody
+        size={[0.39, 0.16, 0.32]}
+        color="#336d95"
+        radius={0.026}
+        roughness={0.56}
+      />
+      <mesh position={[0, 0.18, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 0.26, 16]} />
+        <meshStandardMaterial
+          color="#b8c9ba"
+          metalness={0.6}
+          roughness={0.35}
+        />
+      </mesh>
+      <mesh position={[0, 0.32, 0]}>
+        <boxGeometry args={[0.15, 0.005, 0.025]} />
+        <meshStandardMaterial color="#526e60" />
+      </mesh>
+    </>
+  ) : part.type === "tilt" ? (
+    <mesh position={[0, 0.14, 0]}>
+      <cylinderGeometry args={[0.08, 0.08, 0.42, 20]} />
+      <meshStandardMaterial color="#b7bb76" metalness={0.45} />
+    </mesh>
+  ) : (
+    <HardwareBody
+      size={[box.w * U, 0.09, box.h * U]}
+      color={color}
+      radius={0.035}
+      roughness={0.55}
+    />
+  );
   return (
     <>
-      {Object.entries(part.holes ?? {}).map(([pin, hole]) => (
-        <CylinderBetween
-          key={pin}
-          from={atHole(hole, 0.12)}
-          to={[atHole(hole)[0], 0.3, atHole(hole)[2]]}
-          radius={0.015}
-          color="#b5bdb7"
-        />
-      ))}
-      <group position={pos}>
-        {part.type === "led" ? (
-          <LedLens part={part} color={ledColor} dim={dim} flow={flow} />
-        ) : part.type === "ldr" ? (
-          <>
-            <mesh position={[0, 0.09, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.15, 0.15, 0.055, 22]} />
-              <meshStandardMaterial color="#b77c49" roughness={0.8} />
-            </mesh>
-            {[-2, -1, 0, 1, 2].map((index) => (
-              <mesh key={index} position={[index * 0.045, 0.09, 0.03]}>
-                <boxGeometry
-                  args={[0.018, 0.2 - Math.abs(index) * 0.025, 0.01]}
-                />
-                <meshStandardMaterial color="#e3be85" />
-              </mesh>
-            ))}
-          </>
-        ) : part.type === "button" ? (
-          <>
-            <HardwareBody
-              size={[0.54, 0.17, 0.54]}
-              color="#727c74"
-              radius={0.04}
-              metalness={0.48}
-              roughness={0.41}
-            />
-            <mesh position={[0, 0.13, 0]}>
-              <cylinderGeometry args={[0.1, 0.1, 0.13, 16]} />
-              <meshStandardMaterial color="#243d32" />
-            </mesh>
-          </>
-        ) : part.type === "buzzer" ? (
-          <>
-            <mesh position={[0, 0.13, 0]}>
-              <cylinderGeometry args={[0.3, 0.3, 0.43, 30]} />
-              <meshStandardMaterial color="#26382e" roughness={0.6} />
-            </mesh>
-            <mesh position={[0, 0.35, 0]}>
-              <cylinderGeometry args={[0.075, 0.075, 0.003, 16]} />
-              <meshBasicMaterial color="#071b16" />
-            </mesh>
-            <BoardText position={[0.16, 0.351, 0]} size={0.12} color="#f2edce">
-              +
-            </BoardText>
-          </>
-        ) : part.type === "potentiometer" ? (
-          <>
-            <HardwareBody
-              size={[0.39, 0.16, 0.32]}
-              color="#336d95"
-              radius={0.026}
-              roughness={0.56}
-            />
-            <mesh position={[0, 0.18, 0]}>
-              <cylinderGeometry args={[0.1, 0.1, 0.26, 16]} />
-              <meshStandardMaterial
-                color="#b8c9ba"
-                metalness={0.6}
-                roughness={0.35}
-              />
-            </mesh>
-            <mesh position={[0, 0.32, 0]}>
-              <boxGeometry args={[0.15, 0.005, 0.025]} />
-              <meshStandardMaterial color="#526e60" />
-            </mesh>
-          </>
-        ) : part.type === "hcsr04" ? (
-          <>
-            <HardwareBody
-              position={[0, 0.05, center.y > 8.5 ? 0.26 : -0.26]}
-              size={[2.15, 0.12, 0.6]}
-              color="#267b8b"
-              radius={0.045}
-              roughness={0.53}
-            />
-            {[-0.66, 0.66].map((x) => (
-              <group key={x} position={[x, 0.26, center.y > 8.5 ? 0.4 : -0.4]}>
-                <mesh rotation={[Math.PI / 2, 0, 0]}>
-                  <cylinderGeometry args={[0.32, 0.32, 0.38, 30]} />
-                  <meshStandardMaterial
-                    color="#c8d2c9"
-                    metalness={0.72}
-                    roughness={0.25}
-                  />
-                </mesh>
-                <mesh
-                  position={[0, 0, center.y > 8.5 ? 0.197 : -0.197]}
-                  rotation={[Math.PI / 2, 0, 0]}
-                >
-                  <cylinderGeometry args={[0.24, 0.24, 0.004, 24]} />
-                  <meshStandardMaterial
-                    color="#2e4843"
-                    metalness={0.5}
-                    roughness={0.6}
-                  />
-                </mesh>
-              </group>
-            ))}
-          </>
-        ) : part.type === "dht11" ? (
-          <>
-            <HardwareBody
-              position={[0, 0.2, center.y > 8.5 ? 0.2 : -0.2]}
-              size={[0.68, 0.58, 0.34]}
-              color={dim ? "#829ea6" : "#4295b5"}
-              radius={0.035}
-              bevel={0.01}
-              roughness={0.67}
-            />
-            {Array.from({ length: 6 }, (_, index) => (
-              <mesh
-                key={index}
-                position={[
-                  -0.25 + index * 0.1,
-                  0.28,
-                  center.y > 8.5 ? 0.375 : -0.375,
-                ]}
-              >
-                <boxGeometry args={[0.045, 0.33, 0.015]} />
-                <meshStandardMaterial color="#234c61" />
-              </mesh>
-            ))}
-          </>
-        ) : part.type === "lm35" || part.type === "tilt" ? (
-          <mesh position={[0, 0.14, 0]}>
-            <boxGeometry args={[0.3, 0.42, 0.14]} />
-            <meshStandardMaterial
-              color={part.type === "tilt" ? "#b7bb76" : "#253930"}
-              metalness={0.2}
-            />
-          </mesh>
-        ) : (
-          <>
-            {part.type !== "ds18b20" && (
-              <HardwareBody
-                size={[box.w * U, 0.09, box.h * U]}
-                color={part.type === "soil" ? "#283f2c" : color}
-                radius={0.035}
-                roughness={0.55}
-              />
-            )}
-            {part.type === "pir" ? (
-              <mesh position={[0, 0.2, 0]}>
-                <sphereGeometry
-                  args={[0.27, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]}
-                />
-                <meshStandardMaterial color="#f7f5df" roughness={0.75} />
-              </mesh>
-            ) : part.type === "ds18b20" ? (
-              <>
-                <mesh
-                  position={[-0.02, 0.08, -0.02]}
-                  rotation={[0, 0, Math.PI / 2]}
-                >
-                  <cylinderGeometry args={[0.075, 0.075, 0.6, 20]} />
-                  <meshStandardMaterial
-                    color="#ced8d0"
-                    metalness={0.8}
-                    roughness={0.24}
-                  />
-                </mesh>
-                <mesh position={[-0.32, 0.08, -0.02]}>
-                  <sphereGeometry args={[0.075, 16, 12]} />
-                  <meshStandardMaterial
-                    color="#ced8d0"
-                    metalness={0.8}
-                    roughness={0.24}
-                  />
-                </mesh>
-                <HardwareBody
-                  position={[0.31, 0.08, -0.02]}
-                  size={[0.17, 0.14, 0.14]}
-                  color="#24392e"
-                  radius={0.026}
-                  roughness={0.54}
-                />
-              </>
-            ) : part.type === "soil" ? (
-              <>
-                <HardwareBody
-                  position={[0, 0.081, 0.015]}
-                  size={[0.18, 0.072, 0.15]}
-                  color="#22372d"
-                  radius={0.012}
-                  bevel={0.002}
-                  roughness={0.69}
-                />
-                {/* Capacitive copper follows one continuous perimeter;
-                    exposed parallel fingers belong to resistive probes. */}
-                {[
-                  [
-                    [-0.33, 0.05, -0.19],
-                    [0.33, 0.05, -0.19],
-                  ],
-                  [
-                    [-0.33, 0.05, -0.19],
-                    [-0.33, 0.05, 0.16],
-                  ],
-                  [
-                    [0.33, 0.05, -0.19],
-                    [0.33, 0.05, 0.16],
-                  ],
-                  [
-                    [-0.33, 0.05, 0.16],
-                    [0.33, 0.05, 0.16],
-                  ],
-                ].map(([from, to], index) => (
-                  <CylinderBetween
-                    key={index}
-                    from={from as V3}
-                    to={to as V3}
-                    radius={0.007}
-                    color="#c4b87a"
-                  />
-                ))}
-              </>
-            ) : (
-              <>
-                <mesh position={[-0.15, 0.095, 0]}>
-                  <boxGeometry args={[0.19, 0.1, 0.2]} />
-                  <meshStandardMaterial color="#22372d" />
-                </mesh>
-                {Array.from({ length: 5 }, (_, index) => (
-                  <mesh
-                    key={index}
-                    position={[0.1 + index * 0.055, 0.053, 0.01]}
-                  >
-                    <boxGeometry args={[0.022, 0.008, 0.35]} />
-                    <meshStandardMaterial
-                      color={part.type === "water" ? "#d3a66b" : "#c9c098"}
-                      metalness={0.55}
-                    />
-                  </mesh>
-                ))}
-              </>
-            )}
-            <BoardText
-              position={[0, 0.058, part.type === "soil" ? -0.12 : -0.18]}
-              size={0.08}
-              color="#ebf3db"
-              width={box.w * U * 0.85}
-            >
-              {part.type === "soil" ? "Capacitiva" : part.type.toUpperCase()}
-            </BoardText>
-          </>
-        )}
-      </group>
+      {part.type !== "dht11" &&
+        Object.entries(part.holes ?? {}).map(([pin, hole]) => (
+          <CylinderBetween
+            key={pin}
+            from={atHole(hole, 0.12)}
+            to={[atHole(hole)[0], 0.3, atHole(hole)[2]]}
+            radius={0.015}
+            color="#b5bdb7"
+          />
+        ))}
+      <group position={pos}>{specialized}</group>
       {!part.holes &&
         definition.pins.map((pin) => {
           const point = endpointXY(
@@ -1173,33 +1003,20 @@ function SensorBody({
           );
           return (
             <group key={pin.id}>
-              {part.type === "ds18b20" ? (
-                <CylinderBetween
-                  from={position({ x: center.x + 2.1, y: center.y }, 0.26)}
-                  to={position(point, 0.36)}
-                  radius={0.017}
-                  color={
-                    pin.role === "vcc"
-                      ? "#cb5343"
-                      : pin.id === "GND"
-                        ? "#2c3f31"
-                        : "#e2be58"
-                  }
-                />
-              ) : part.type !== "soil" ? (
+              {part.type !== "ds18b20" && part.type !== "soil" && (
                 <mesh position={position(point, 0.25)}>
                   <boxGeometry args={[0.045, 0.22, 0.045]} />
                   <meshStandardMaterial color="#cfb273" metalness={0.72} />
                 </mesh>
-              ) : null}
+              )}
               <BoardText
                 position={position(
                   { x: point.x, y: point.y + (box.y < 0 ? 0.7 : -0.7) },
                   0.135,
                 )}
-                size={0.076}
+                size={U * 0.4}
                 color="#4f6657"
-                width={0.27}
+                width={U * 0.85}
               >
                 {pin.label}
               </BoardText>
@@ -1212,7 +1029,7 @@ function SensorBody({
             { x: center.x, y: box.y < 0 ? box.y + box.h : box.y },
             0.29,
           )}
-          size={[box.w * U * 0.62, 0.13, 0.14]}
+          size={[3.4 * U, 0.13, 0.14]}
           color="#f1efda"
           radius={0.017}
           bevel={0.003}
@@ -1369,11 +1186,13 @@ function TerminalMarker({
   endpoint,
   circuit,
   selected = false,
+  compact = false,
   activate,
 }: {
   endpoint: string;
   circuit: Circuit;
   selected?: boolean;
+  compact?: boolean;
   activate?: () => void;
 }) {
   const pos = atEndpoint(circuit, endpoint, 0.18);
@@ -1389,7 +1208,11 @@ function TerminalMarker({
         }}
       >
         <ringGeometry
-          args={[selected ? 0.065 : 0.056, selected ? 0.13 : 0.1, 32]}
+          args={[
+            compact ? U * 0.22 : selected ? 0.065 : 0.056,
+            compact ? U * 0.39 : selected ? 0.13 : 0.1,
+            32,
+          ]}
         />
         <meshBasicMaterial
           color={selected ? "#e3fb79" : "#42d49b"}
@@ -1422,14 +1245,27 @@ function TerminalLabels({
   const points = useMemo(
     () =>
       endpoints.map((endpoint, index) => {
-        const at = endpointXY(circuit, endpoint);
+        const [partId, pinId] = endpoint.split(".");
+        const part = circuit.parts.find((candidate) => candidate.id === partId);
+        const modulePin =
+          part && partDef(part).pins.find((pin) => pin.id === pinId);
         const pin =
           isPoint(endpoint) && (!circuit.board || circuit.board === "pico")
             ? picoPinForStrip(stripOf(endpoint))
             : undefined;
         const label = isPoint(endpoint)
           ? shortPoint(endpoint)
-          : (endpoint.split(".").at(-1) ?? endpoint);
+          : partId === "controller"
+            ? controllerPin(circuit.board, pinId).label
+            : (modulePin?.label ?? pinId);
+        const hole = isPoint(endpoint) ? parsePoint(endpoint) : undefined;
+        const owner =
+          partId === "controller"
+            ? `Arduino ${circuit.board === "uno" ? "Uno" : "Nano"}`
+            : (part?.label ??
+              (hole?.kind === "rail"
+                ? `${RAIL_INFO[hole.rail].label}`
+                : undefined));
         return {
           endpoint,
           badge: index === 0 ? "a" : "b",
@@ -1437,7 +1273,7 @@ function TerminalLabels({
           label: cable ? `${index === 0 ? "A" : "B"} · ${label}` : label,
           sub:
             terminalNotes?.[endpoint] ??
-            (pin ? `${pin.name} · pin ${pin.physical}` : undefined),
+            (pin ? `${pin.name} · pin ${pin.physical}` : owner),
         };
       }),
     [endpoints.join("|"), circuit, cable, terminalNotes],
@@ -1473,7 +1309,10 @@ function TerminalLabels({
     );
   });
   const labels = points.flatMap((point, index) =>
-    screen[index]?.visible ? [{ ...point, ...screen[index] }] : [],
+    screen[index]?.visible &&
+    (!cable || !activeEndpoint || point.badge === activeEndpoint)
+      ? [{ ...point, ...screen[index] }]
+      : [],
   );
   const boxes = layoutCallouts(
     labels.map((label) => ({
@@ -1683,6 +1522,21 @@ function CircuitWorld({
   const currentWire = circuit.wires.find(
     (wire) => step?.wires?.length === 1 && step.wires[0] === wire.id,
   );
+  const targetParts = new Set(activeParts);
+  if (currentWire)
+    for (const part of visibleParts)
+      if (
+        [currentWire.from, currentWire.to].some(
+          (end) =>
+            end.startsWith(`${part.id}.`) ||
+            (isPoint(end) &&
+              parsePoint(end).kind === "hole" &&
+              Object.values(part.holes ?? {}).some(
+                (hole) => stripOf(hole) === stripOf(end),
+              )),
+        )
+      )
+        targetParts.add(part.id);
   const activateEndpoint = (endpoint: string) => {
     if (mode !== "step" || !currentWire || !onEndpointActivate) return false;
     if (endpoint === currentWire.from) {
@@ -1760,6 +1614,7 @@ function CircuitWorld({
             event.stopPropagation();
             const definition = partDef(part);
             select({
+              partId: part.id,
               title: part.label,
               text: definition.about,
               detail: definition.orientation,
@@ -1769,7 +1624,7 @@ function CircuitWorld({
         >
           <SensorBody
             part={part}
-            dim={mode !== "all" && !activeParts.has(part.id)}
+            dim={mode !== "all" && !targetParts.has(part.id)}
             flow={flow}
           />
         </group>
@@ -1789,20 +1644,30 @@ function CircuitWorld({
         />
       ))}
       {mode === "step" &&
-        terminals.map((endpoint) => (
-          <TerminalMarker
-            key={endpoint}
-            endpoint={endpoint}
-            circuit={circuit}
-            selected={
-              endpoint === focusedPartHole ||
-              (!!currentWire &&
-                endpoint ===
-                  (activeEndpoint === "b" ? currentWire.to : currentWire.from))
-            }
-            activate={() => activateEndpoint(endpoint)}
-          />
-        ))}
+        terminals
+          .filter(
+            (endpoint) =>
+              !currentWire ||
+              !activeEndpoint ||
+              endpoint ===
+                (activeEndpoint === "a" ? currentWire.from : currentWire.to),
+          )
+          .map((endpoint) => (
+            <TerminalMarker
+              key={endpoint}
+              endpoint={endpoint}
+              circuit={circuit}
+              selected={
+                endpoint === focusedPartHole ||
+                (!!currentWire &&
+                  endpoint ===
+                    (activeEndpoint === "b"
+                      ? currentWire.to
+                      : currentWire.from))
+              }
+              activate={() => activateEndpoint(endpoint)}
+            />
+          ))}
       {mode === "step" && (
         <TerminalLabels
           endpoints={terminals}
@@ -1819,6 +1684,7 @@ function CircuitWorld({
           endpoint={terminal}
           circuit={circuit}
           selected
+          compact={(selection?.terminals?.length ?? 0) > 1}
         />
       ))}
       <SceneCamera
@@ -1887,7 +1753,7 @@ export function CircuitExperience({
     // Bounds also cover modules placed outside the board, throughout all steps.
     const points: V3[] = [
       [(-BOARD.width * U) / 2 - 0.12, -0.13, (-19.5 * U) / 2 - 0.1],
-      [(BOARD.width * U) / 2 + 0.12, 1.1, (19.5 * U) / 2 + 0.1],
+      [(BOARD.width * U) / 2 + 0.12, 1.8, (19.5 * U) / 2 + 0.1],
     ];
     if (circuit.board && circuit.board !== "pico") {
       const box = controllerBox(circuit.board);
@@ -1898,7 +1764,7 @@ export function CircuitExperience({
     }
     for (const part of circuit.parts) {
       if (!part.holes) {
-        const box = moduleBox(part);
+        const box = moduleBounds(part);
         points.push(
           position({ x: box.x - 0.6, y: box.y - 0.6 }, 0.7),
           position({ x: box.x + box.w + 0.6, y: box.y + box.h + 0.6 }, 0.7),
@@ -1925,7 +1791,7 @@ export function CircuitExperience({
       ],
       max: [
         Math.max(...points.map((point) => point[0])),
-        1.1,
+        1.8,
         Math.max(...points.map((point) => point[2])),
       ],
     };
@@ -1945,7 +1811,7 @@ export function CircuitExperience({
     )) {
       for (const hole of Object.values(part.holes ?? {}))
         points.push(atHole(hole));
-      const box = moduleBox(part);
+      const box = moduleBounds(part);
       if (!part.holes)
         points.push(
           position({ x: box.x, y: box.y }),
@@ -1975,7 +1841,7 @@ export function CircuitExperience({
       ],
       max: [
         Math.max(...points.map((point) => point[0])) + 0.65,
-        1.1,
+        1.8,
         Math.max(...points.map((point) => point[2])) + 0.55,
       ],
     };
@@ -2043,6 +1909,34 @@ export function CircuitExperience({
     },
     [circuit],
   );
+  const focusSelectedPart = () => {
+    const part = circuit.parts.find(
+      (candidate) => candidate.id === selection?.partId,
+    );
+    if (!part) return;
+    const bounds = partSceneBounds(part, U);
+    const target = new THREE.Vector3(...bounds.min)
+      .add(new THREE.Vector3(...bounds.max))
+      .multiplyScalar(0.5);
+    const outward = new THREE.Vector3(0.22, 1, 0.65).normalize();
+    const viewport = reference.current
+      ?.querySelector(".rdx-circuit-canvas")
+      ?.getBoundingClientRect();
+    const distance = fittedCameraDistance(
+      bounds,
+      target,
+      outward,
+      40,
+      viewport && viewport.height > 0 ? viewport.width / viewport.height : 1.5,
+    );
+    const cameraPosition = target.clone().add(outward.multiplyScalar(distance));
+    setAction((current) => ({
+      type: "focus",
+      sequence: current.sequence + 1,
+      focusTarget: target.toArray() as V3,
+      focusPosition: cameraPosition.toArray() as V3,
+    }));
+  };
   useEffect(() => {
     if (requestFocusPartPin)
       focusPartPin(requestFocusPartPin.partId, requestFocusPartPin.pinId);
@@ -2259,6 +2153,7 @@ export function CircuitExperience({
               if (part) {
                 const definition = partDef(part);
                 setSelection({
+                  partId: part.id,
                   title: part.label,
                   text: definition.about,
                   detail: definition.orientation,
@@ -2307,6 +2202,16 @@ export function CircuitExperience({
                   : "Gira el montaje y selecciona cualquier pieza. Todas las conexiones provienen del mismo plano que la vista 2D.")}
             </p>
             {selection?.detail && <p>{selection.detail}</p>}
+            {selection?.partId && (
+              <button
+                type="button"
+                className="focus-ring mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-border-strong bg-accent-soft px-3 py-2 text-sm font-bold text-primary"
+                aria-label={`Ver pieza de cerca: ${selection.title}`}
+                onClick={focusSelectedPart}
+              >
+                <Crosshair size={16} /> Ver pieza de cerca
+              </button>
+            )}
             {selection?.terminals && (
               <div className="rdx-terminal-list">
                 {selection.terminals.map((terminal) => (

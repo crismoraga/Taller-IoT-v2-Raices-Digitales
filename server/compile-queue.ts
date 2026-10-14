@@ -12,6 +12,7 @@ export class CompileQueueError extends Error {
 export interface CompileWorkContext {
   enqueuedAt: number;
   startedAt: number;
+  signal: AbortSignal;
 }
 
 interface QueueOptions {
@@ -29,6 +30,9 @@ interface Job<Input, Result> {
   promise: Promise<Result>;
   resolve: (result: Result) => void;
   reject: (error: unknown) => void;
+  controller: AbortController;
+  consumers: Set<symbol>;
+  persistentConsumer: boolean;
   timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -57,7 +61,8 @@ export class CompileQueue<Input, Result> {
     this.now = options.now ?? Date.now;
   }
 
-  run(key: string, input: Input): Promise<Result> {
+  run(key: string, input: Input, signal?: AbortSignal): Promise<Result> {
+    if (signal?.aborted) return Promise.reject(this.cancelledError());
     this.expireCache();
     const cached = this.cache.get(key);
     if (cached) {
@@ -67,7 +72,7 @@ export class CompileQueue<Input, Result> {
       return Promise.resolve(cached.value);
     }
     const existing = this.jobs.get(key);
-    if (existing) return existing.promise;
+    if (existing) return this.subscribe(existing, signal);
     if (this.active && this.waiting.length >= this.maxQueued)
       return Promise.reject(
         new CompileQueueError(
@@ -89,14 +94,76 @@ export class CompileQueue<Input, Result> {
       resolve,
       reject,
       enqueuedAt: this.now(),
+      controller: new AbortController(),
+      consumers: new Set(),
+      persistentConsumer: false,
     };
     this.jobs.set(key, job);
+    const result = this.subscribe(job, signal);
     if (!this.active) void this.execute(job);
     else {
       this.waiting.push(job);
       job.timer = setTimeout(() => this.expireJob(job), this.maxWaitMs);
     }
-    return promise;
+    return result;
+  }
+
+  private cancelledError() {
+    return new CompileQueueError(
+      "Se canceló la compilación de este programa.",
+      499,
+    );
+  }
+
+  private subscribe(
+    job: Job<Input, Result>,
+    signal?: AbortSignal,
+  ): Promise<Result> {
+    // A disconnected browser must not cancel a build shared by other groups.
+    if (!signal) {
+      job.persistentConsumer = true;
+      return job.promise;
+    }
+    const consumer = Symbol();
+    job.consumers.add(consumer);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const release = () => {
+        settled = true;
+        signal.removeEventListener("abort", abort);
+        job.consumers.delete(consumer);
+      };
+      const abort = () => {
+        if (settled) return;
+        release();
+        reject(this.cancelledError());
+        if (!job.consumers.size && !job.persistentConsumer) {
+          job.controller.abort();
+          // Release the key immediately so a fresh attempt can queue while
+          // the active worker finishes terminating its process.
+          if (this.jobs.get(job.key) === job) this.jobs.delete(job.key);
+          const index = this.waiting.indexOf(job);
+          if (index >= 0) {
+            this.waiting.splice(index, 1);
+            if (job.timer) clearTimeout(job.timer);
+            job.reject(this.cancelledError());
+          }
+        }
+      };
+      signal.addEventListener("abort", abort, { once: true });
+      job.promise.then(
+        (value) => {
+          if (settled) return;
+          release();
+          resolve(value);
+        },
+        (error) => {
+          if (settled) return;
+          release();
+          reject(error);
+        },
+      );
+    });
   }
 
   private expireCache() {
@@ -139,7 +206,9 @@ export class CompileQueue<Input, Result> {
       const value = await this.worker(job.input, {
         enqueuedAt: job.enqueuedAt,
         startedAt: this.now(),
+        signal: job.controller.signal,
       });
+      if (job.controller.signal.aborted) throw this.cancelledError();
       this.expireCache();
       if (this.maxCached > 0 && this.cacheTtlMs > 0) {
         this.cache.set(job.key, {
@@ -153,7 +222,7 @@ export class CompileQueue<Input, Result> {
     } catch (error) {
       job.reject(error);
     } finally {
-      this.jobs.delete(job.key);
+      if (this.jobs.get(job.key) === job) this.jobs.delete(job.key);
       this.active = false;
       this.drain();
     }

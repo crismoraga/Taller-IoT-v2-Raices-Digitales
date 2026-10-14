@@ -20,6 +20,8 @@ async function createGroup(page: Page, name: string) {
   const dialog = page.getByRole("dialog", { name: "Armen su equipo" });
   await dialog.getByLabel("Nombre del equipo").fill(name);
   await dialog.getByLabel("Número de estación").selectOption("6");
+  // Draft and backup cases below intentionally exercise the Pico/Python branch.
+  await dialog.getByLabel("Placa del equipo").selectOption("pico");
   await expectFitsScreen(page);
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })

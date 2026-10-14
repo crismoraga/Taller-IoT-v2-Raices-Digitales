@@ -87,8 +87,10 @@ export default function Home() {
             </span>
           </div>
           <p className="solar-kit-note">
-            <Icon name="usb" size={17} /> Raspberry Pi Pico o Arduino · desde tu
-            PC
+            <Icon name="usb" size={17} /> Arduino Uno y Nano · USB desde tu PC
+            <span className="sr-only">
+              . También compatible con Raspberry Pi Pico.
+            </span>
           </p>
         </div>
         <div className="solar-hero-world">

@@ -4,7 +4,9 @@ import {
   parsePoint,
   shortPoint,
   stripOf,
+  pointXY,
 } from "../circuit/breadboard";
+import type { PointId } from "../circuit/breadboard";
 import {
   resistorBandNames,
   type Circuit,
@@ -16,6 +18,92 @@ import { controllerPin } from "../circuit/boards";
 import { partDef } from "../circuit/parts";
 import { picoPinForStrip } from "../circuit/pico";
 import type { PinRow } from "../content/types";
+
+export const DHT_PIN_ORDERS = {
+  "vcc-data-gnd": { label: "+ · S · −", pins: ["VCC", "DATA", "GND"] },
+  "data-vcc-gnd": { label: "S · + · −", pins: ["DATA", "VCC", "GND"] },
+  "gnd-data-vcc": { label: "− · S · +", pins: ["GND", "DATA", "VCC"] },
+} as const;
+export type DhtPinOrder = keyof typeof DHT_PIN_ORDERS;
+
+/** Adapt a three-pin DHT module to its printed order. Only its own strips
+ * move: the opposite breadboard half, rails and other sensor pins stay put. */
+export function configureDhtPinOrder(
+  circuit: Circuit,
+  order: DhtPinOrder,
+): Circuit {
+  const part = circuit.parts.find(
+    (candidate) => candidate.type === "dht11" && candidate.holes,
+  );
+  if (!part?.holes) return circuit;
+  const ids = DHT_PIN_ORDERS[order].pins;
+  if (["VCC", "DATA", "GND"].some((id) => !part.holes?.[id])) return circuit;
+  const locations = Object.values(part.holes).sort(
+    (a, b) => pointXY(a).x - pointXY(b).x,
+  );
+  if (locations.length !== 3) return circuit;
+  const holes = Object.fromEntries(
+    ids.map((id, index) => [id, locations[index]]),
+  );
+  if (ids.every((id) => holes[id] === part.holes![id])) return circuit;
+  const strips = new Map(
+    Object.entries(part.holes).map(([id, hole]) => [stripOf(hole), holes[id]]),
+  );
+  const move = (end: string) => {
+    if (!isPoint(end)) return end;
+    const destination = strips.get(stripOf(end));
+    if (!destination) return end;
+    const point = parsePoint(end),
+      target = parsePoint(destination);
+    return point.kind === "hole" && target.kind === "hole"
+      ? (`${point.letter}${target.column}` as PointId)
+      : end;
+  };
+  const wires = circuit.wires.map((wire) => ({
+    ...wire,
+    from: move(wire.from) as Wire["from"],
+    to: move(wire.to) as Wire["to"],
+  }));
+  const next: Circuit = {
+    ...circuit,
+    parts: circuit.parts.map((candidate) =>
+      candidate.id === part.id
+        ? {
+            ...candidate,
+            holes,
+            props: { ...candidate.props, variant: `dht11:${order}` },
+          }
+        : candidate,
+    ),
+    wires,
+  };
+  next.steps = circuit.steps.map((step) => {
+    if (step.parts?.includes(part.id))
+      return {
+        ...step,
+        title: `Coloca el DHT11: ${ids.map((id) => `${id} en ${holes[id]}`).join(" · ")}`,
+        detail: `Con la rejilla mirando hacia afuera, sigue las marcas ${DHT_PIN_ORDERS[order].label} de izquierda a derecha. Alinea cada pata con el agujero que muestra el modelo.`,
+      };
+    const connected = wires.find((wire) => step.wires?.includes(wire.id));
+    const previous =
+      connected && circuit.wires.find((wire) => wire.id === connected.id);
+    if (
+      !connected ||
+      !previous ||
+      (previous.from === connected.from && previous.to === connected.to)
+    )
+      return step;
+    const from = assemblyEndpointLabel(next, connected.from),
+      to = assemblyEndpointLabel(next, connected.to);
+    return {
+      ...step,
+      title: `Cable ${connected.color}: de ${from} a ${to}`,
+      detail: `Conecta primero ${from}; luego ${to}. Sigue la marca del sensor y los extremos A y B del modelo.`,
+      verify: step.verify ? `Conecté ${from} con ${to}.` : undefined,
+    };
+  });
+  return next;
+}
 
 /** Coordinates are labels, never inferred from a different board's pinout. */
 export function endpointInfo(

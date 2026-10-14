@@ -18,6 +18,19 @@ function searchText(value: string) {
     .replace(/\s+/g, " ");
 }
 
+// Start with three-wire analog readings, then digital protocols and timing.
+const sensorOrder = [
+  "soil",
+  "water_level",
+  "ldr",
+  "lm35",
+  "rain",
+  "motion",
+  "dht11",
+  "ds18b20",
+  "distance",
+];
+
 export default function Lab() {
   const app = useApp(),
     progress = useProgress();
@@ -51,6 +64,14 @@ export default function Lab() {
         (category === "sensors" ? Boolean(sensor) : !sensor))
     );
   });
+  if (category === "sensors")
+    visible.sort((a, b) => {
+      const rank = (id: string) => {
+        const index = sensorOrder.indexOf(id);
+        return index < 0 ? sensorOrder.length : index;
+      };
+      return rank(a.id) - rank(b.id);
+    });
   return (
     <Page>
       <PageHeader

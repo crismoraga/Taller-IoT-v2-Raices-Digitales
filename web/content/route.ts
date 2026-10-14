@@ -81,7 +81,7 @@ export const stages: Stage[] = [
     id: 8,
     label: "Etapa 8",
     title: "IoT",
-    summary: "Conecta la Pico W al Wi-Fi y envía telemetría.",
+    summary: "Envía telemetría por USB desde tu PC o por Wi-Fi en una Pico W.",
     icon: "wifi",
     glyph: "wifi",
     lessons: ["cloud"],

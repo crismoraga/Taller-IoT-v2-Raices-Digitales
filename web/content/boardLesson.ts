@@ -78,6 +78,36 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
     })),
   };
 
+  if (lesson.id === "welcome") {
+    adapted.summary =
+      "Reconoce tu Arduino, conecta USB y envíale tu primer programa.";
+    adapted.objective =
+      "Encontrar D2, A0 y GND en tu Arduino y recibir su primer mensaje por USB.";
+    adapted.expected =
+      "Selecciona tu Uno o Nano, conecta USB y pulsa Cargar en Arduino. La carga verifica el programa en la memoria de la placa; después verás su saludo en la terminal a 115200 baudios. Toca D2, A0 y GND en el modelo para reconocer salida, entrada y retorno.";
+    adapted.experiment = [
+      lesson.experiment[0],
+      "Localiza D2, A0 y GND en Arduino. D2 sirve como salida digital; A0 mide una señal analógica; GND completa el circuito. Toca sus nombres en el modelo para encontrarlos.",
+      lesson.experiment[2],
+    ];
+    adapted.modify = lesson.modify.map((task) => ({
+      ...task,
+      instruction:
+        'Agrega Serial.println("Hola, somos el grupo Raíces"); dentro de setup(). Cambia el nombre y vuelve a cargar para recibir tu saludo en la terminal.',
+    }));
+    adapted.troubleshooting = adapted.troubleshooting.map((trouble) =>
+      trouble.symptom.includes("significa un pin")
+        ? {
+            ...trouble,
+            checks: [
+              "Toca D2, A0 y GND en el explorador. La etiqueta resalta su conector físico en Arduino.",
+              "Busca la misma marca impresa en tu Uno o Nano antes de conectar el cable.",
+            ],
+          }
+        : trouble,
+    );
+  }
+
   if (lesson.id === "led") {
     adapted = {
       ...adapted,
@@ -348,6 +378,10 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
     }));
   }
   if (lesson.id === "cloud") {
+    adapted.summary =
+      "Envía las lecturas de Arduino al servidor mediante USB y observa tu planta en vivo.";
+    adapted.objective =
+      "Instalar el programa de estación y recibir dos lecturas reales en Mi planta usando el puente USB del computador.";
     adapted.concept = {
       ...adapted.concept,
       body: [

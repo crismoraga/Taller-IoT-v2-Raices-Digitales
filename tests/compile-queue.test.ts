@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CompileQueue, CompileQueueError } from "../server/compile-queue";
+import {
+  CompileQueue,
+  CompileQueueError,
+  type CompileWorkContext,
+} from "../server/compile-queue";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -200,5 +204,91 @@ describe("compilación compartida durante un taller", () => {
     );
     expect(await queue.run("led", "led")).toBe("led HEX");
     expect(attempts).toBe(2);
+  });
+
+  it("closing one group preserves a build still needed by another group", async () => {
+    const build = deferred<string>();
+    let workerSignal!: AbortSignal;
+    const worker = vi.fn((_input: string, context: CompileWorkContext) => {
+      workerSignal = context.signal;
+      return build.promise;
+    });
+    const queue = new CompileQueue(worker);
+    const left = new AbortController();
+    const right = new AbortController();
+    const first = queue
+      .run("shared", "led", left.signal)
+      .catch((error) => error);
+    const second = queue.run("shared", "led", right.signal);
+    left.abort();
+    expect(await first).toMatchObject({ statusCode: 499 });
+    expect(workerSignal.aborted).toBe(false);
+    build.resolve("LED HEX");
+    expect(await second).toBe("LED HEX");
+    expect(worker).toHaveBeenCalledTimes(1);
+  });
+
+  it("a disconnected queued group releases its slot and can retry with the same key", async () => {
+    const build = deferred<string>();
+    const worker = vi.fn((input: string) =>
+      input === "first" ? build.promise : Promise.resolve(input),
+    );
+    const queue = new CompileQueue(worker, { maxQueued: 1 });
+    const first = queue.run("first", "first");
+    const controller = new AbortController();
+    const abandoned = queue
+      .run("later", "later", controller.signal)
+      .catch((error) => error);
+    controller.abort();
+    expect(await abandoned).toMatchObject({ statusCode: 499 });
+    const retry = queue.run("later", "retry");
+    build.resolve("first HEX");
+    expect(await first).toBe("first HEX");
+    expect(await retry).toBe("retry");
+    expect(worker).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for the cancelled process to close before running a fresh attempt", async () => {
+    const processClosed = deferred<string>();
+    let workerSignal!: AbortSignal;
+    const worker = vi.fn((input: string, context: CompileWorkContext) => {
+      if (input === "abandoned") {
+        workerSignal = context.signal;
+        return processClosed.promise;
+      }
+      return Promise.resolve("fresh HEX");
+    });
+    const queue = new CompileQueue(worker);
+    const controller = new AbortController();
+    const cancelled = queue
+      .run("same", "abandoned", controller.signal)
+      .catch((error) => error);
+    controller.abort();
+    expect(await cancelled).toMatchObject({ statusCode: 499 });
+    expect(workerSignal.aborted).toBe(true);
+    const retry = queue.run("same", "fresh");
+    const duplicate = queue.run("same", "fresh");
+    expect(retry).toBe(duplicate);
+    expect(worker).toHaveBeenCalledTimes(1);
+    processClosed.resolve("abandoned result must never be cached");
+    expect(await retry).toBe("fresh HEX");
+    expect(await duplicate).toBe("fresh HEX");
+    expect(await queue.run("same", "fresh")).toBe("fresh HEX");
+    expect(worker).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cancel an existing build for an already disconnected consumer", async () => {
+    const build = deferred<string>();
+    const worker = vi.fn(() => build.promise);
+    const queue = new CompileQueue(worker);
+    const existing = queue.run("same", "led");
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      queue.run("same", "led", controller.signal),
+    ).rejects.toMatchObject({ statusCode: 499 });
+    build.resolve("HEX");
+    expect(await existing).toBe("HEX");
+    expect(worker).toHaveBeenCalledTimes(1);
   });
 });

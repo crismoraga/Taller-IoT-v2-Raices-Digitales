@@ -9,10 +9,11 @@ import {
 } from "react";
 import { Icon } from "./brand/Graphics";
 import { normalizeProgress } from "./content";
-import { api, post, type Reading, type Session } from "./lib/api";
+import { api, ApiError, post, type Reading, type Session } from "./lib/api";
 import { arduinoStationSketch } from "./lib/arduino";
 import { filterCalibrations } from "./lib/calibration";
 import { browserUSBCompatibility } from "./lib/usb-support";
+import { SerialTextBuffer } from "./lib/serial-text";
 import { isBoard, nanoUSBChoice } from "../shared/boards";
 import {
   AppContext,
@@ -78,9 +79,13 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const usbSupport = useMemo(browserUSBCompatibility, []);
   const [board, setBoardState] = useState<Board>(() => {
-    const stored = readLocal<Board>("raices.board", "pico");
-    return isBoard(stored) ? stored : "pico";
+    const stored = readLocal<unknown>("raices.board", null);
+    const lastBoard = offlineStore.session()?.lastRun?.board;
+    return isBoard(stored) ? stored : isBoard(lastBoard) ? lastBoard : "uno";
   });
+  const boardPreferenceEstablished = useRef(
+    isBoard(readLocal<unknown>("raices.board", null)),
+  );
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [usbChoice, setUSBChoice] = useState<string | null>(null);
@@ -88,6 +93,9 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [uploadStatus, setUploadStatus] =
     useState<AppContextType["uploadStatus"]>(null);
+  const uploadPhase = useRef<"compile" | "sync" | "write" | "verify">(
+    "compile",
+  );
   const [terminal, setTerminal] = useState("");
   const [localReadings, setLocalReadings] = useState<Reading[]>([]);
   const [lastDiagnostics, setLastDiagnostics] = useState<
@@ -118,7 +126,7 @@ export default function App() {
   const rememberedUSBPort = useRef<USBPort | null>(null);
   const rememberedUSBBoard = useRef<Board | undefined>(undefined);
   const automaticUSBPaused = useRef(false);
-  const stream = useRef("");
+  const stream = useRef(new SerialTextBuffer());
   const pendingUSB = useRef(new Map<string, Reading>());
   const pendingDiagnostics = useRef<Record<string, unknown>>({});
   const lastForward = useRef(0);
@@ -128,7 +136,7 @@ export default function App() {
   const toastId = useRef(0);
   const drawerRef = useRef<HTMLDivElement>(null);
   const resetUSBReadings = useCallback(() => {
-    stream.current = "";
+    stream.current.reset();
     pendingUSB.current.clear();
     pendingDiagnostics.current = {};
     lastForward.current = 0;
@@ -220,6 +228,15 @@ export default function App() {
   /* ── Sesión ─────────────────────────────────────────────────── */
   const adopt = useCallback((next: Session) => {
     const clean = { ...next, progress: normalizeProgress(next.progress) };
+    // New visits start with Uno. Existing groups keep their last programmed
+    // board when browser preferences were cleared or a backup was imported.
+    if (!boardPreferenceEstablished.current && isBoard(next.lastRun?.board)) {
+      const selected = next.lastRun.board;
+      boardPreferenceEstablished.current = true;
+      boardRef.current = selected;
+      setBoardState(selected);
+      writeLocal("raices.board", selected);
+    }
     sessionRef.current = clean;
     setSession(clean);
     offlineStore.remember(clean);
@@ -401,10 +418,9 @@ export default function App() {
       });
     };
     const output = (text: string) => {
-      setTerminal((previous) => (previous + text).slice(-60000));
-      stream.current += text;
-      const lines = stream.current.split("\n");
-      stream.current = lines.pop()?.slice(-15000) ?? "";
+      const { display, lines } = stream.current.push(text);
+      if (display)
+        setTerminal((previous) => (previous + display).slice(-60000));
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith("{")) continue;
@@ -473,8 +489,12 @@ export default function App() {
     };
     serial.onOutput = output;
     ArduinoSerial.onOutput = output;
-    ArduinoSerial.onUploadProgress = (progress) => setUploadStatus(progress);
+    ArduinoSerial.onUploadProgress = (progress) => {
+      if (progress.stage !== "complete") uploadPhase.current = progress.stage;
+      setUploadStatus(progress);
+    };
     ArduinoSerial.onBootloaderDetected = (detected) => {
+      boardPreferenceEstablished.current = true;
       boardRef.current = detected;
       setBoardState(detected);
       writeLocal("raices.board", detected);
@@ -561,7 +581,7 @@ export default function App() {
         const current =
           chosenBoard === "nano"
             ? nanoUSBChoice(boardRef.current)
-            : chosenBoard ?? detected.board;
+            : (chosenBoard ?? detected.board);
         if (!current) {
           pendingUSBPort.current = port;
           setUSBChoice(detected.label);
@@ -572,7 +592,8 @@ export default function App() {
           setBoardState(current);
           writeLocal("raices.board", current);
         }
-        stream.current = "";
+        boardPreferenceEstablished.current = true;
+        stream.current.reset();
         if (current === "pico") await serial.connect(port);
         else await ArduinoSerial.connect(current, port);
         if (generation !== usbGeneration.current) {
@@ -608,7 +629,7 @@ export default function App() {
         if (!cancelled)
           notify(
             problem instanceof DOMException && problem.name === "NetworkError"
-              ? "El puerto está ocupado por otro programa (¿Thonny o el IDE de Arduino?). Ciérralo e inténtalo otra vez."
+              ? "No se pudo abrir el puerto. Cierra el monitor serial de Arduino IDE y otras pestañas que usen la placa, y vuelve a conectar USB."
               : problem instanceof Error
                 ? problem.message
                 : "No se pudo abrir el puerto USB.",
@@ -711,6 +732,7 @@ export default function App() {
       // USB port must not silently replace it on the next discovery event.
       automaticUSBPaused.current = true;
       usbGeneration.current += 1;
+      boardPreferenceEstablished.current = true;
       boardRef.current = value;
       setBoardState(value);
       writeLocal("raices.board", value);
@@ -720,6 +742,7 @@ export default function App() {
   );
   const compileAndUpload = useCallback(async (code: string, target: Board) => {
     const generation = usbGeneration.current;
+    uploadPhase.current = "compile";
     setUploadStatus({ stage: "compile" });
     setTerminal(
       (previous) =>
@@ -730,6 +753,7 @@ export default function App() {
         "/arduino/compile",
         { code, board: target },
       );
+      uploadPhase.current = "sync";
       if (
         generation !== usbGeneration.current ||
         target !== boardRef.current ||
@@ -749,11 +773,24 @@ export default function App() {
     } catch (problem) {
       const message =
         problem instanceof Error ? problem.message : String(problem);
-      setUploadStatus({ stage: "error", message });
+      setUploadStatus({
+        stage: "error",
+        failedStage: uploadPhase.current,
+        message,
+        ...(problem instanceof ApiError ? { httpStatus: problem.status } : {}),
+      });
+      setRunning(false);
       setTerminal(
         (previous) => `${previous}\nNo se completó la carga: ${message}\n`,
       );
-      throw problem;
+      // Diagnostics stay beside the editor and in the terminal; a long C++
+      // compiler output must not expand the temporary toast over the lesson.
+      const notice = new Error(
+        "La carga no se completó. Revisa el mensaje de carga para continuar.",
+        { cause: problem },
+      );
+      notice.name = "ArduinoUploadError";
+      throw notice;
     }
   }, []);
   const runCode = useCallback(
@@ -772,6 +809,7 @@ export default function App() {
           }
         } else {
           await compileAndUpload(code, current);
+          setRunning(true);
           notify("Programa compilado y cargado en la placa.");
         }
         if (lessonId)
@@ -800,6 +838,7 @@ export default function App() {
           const idle =
             'void setup(){for(byte p=2;p<=13;p++){digitalWrite(p,LOW);pinMode(p,INPUT);}Serial.begin(115200);Serial.println("Programa detenido. Pines en alta impedancia.");}void loop(){}';
           await compileAndUpload(idle, current);
+          setRunning(false);
           notify("Programa detenido: la placa quedó en reposo.");
         }
       }),
@@ -818,6 +857,7 @@ export default function App() {
           );
         } else {
           await compileAndUpload(code, current);
+          setRunning(true);
           notify("Programa cargado: queda grabado en la placa.");
         }
       }),
@@ -838,6 +878,7 @@ export default function App() {
             arduinoStationSketch(calibrations, active?.sensorEnabled ?? {}),
             current,
           );
+          setRunning(true);
           notify(
             "Estación cargada. Mantén esta pestaña abierta: los datos viajan por USB.",
           );

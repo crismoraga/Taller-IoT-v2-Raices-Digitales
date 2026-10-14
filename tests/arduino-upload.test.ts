@@ -119,6 +119,9 @@ function bootloader(
     rejectWrite?: boolean;
     missFirstEnter?: boolean;
     deafFor?: number;
+    loseFirstWriteReply?: boolean;
+    stallWrite?: boolean;
+    truncateReadback?: boolean;
   } = {},
 ) {
   let incoming: ReadableStreamDefaultController<Uint8Array>;
@@ -127,6 +130,11 @@ function bootloader(
     resets = 0,
     boots = 0;
   let enterRequests = 0;
+  let writeRequests = 0;
+  let releaseWrite!: () => void;
+  const blockedWrite = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
   let phase: "sketch" | "reset" | "deaf" | "flashing" | "listening" = "sketch";
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   let held: number[] = [],
@@ -169,11 +177,17 @@ function bootloader(
         return;
       }
       memory.set(packet.slice(4, 4 + ((packet[1] << 8) | packet[2])), address);
+      if (options.loseFirstWriteReply && ++writeRequests === 1) return;
     } else if (command === 0x74) {
       reply = [
         ...memory.slice(address, address + ((packet[1] << 8) | packet[2])),
       ];
       if (options.corruptReadback) reply[0] ^= 1;
+      if (options.truncateReadback) {
+        // A USB bridge delivered only part of the binary frame before stalling.
+        emit([0x14, ...reply.slice(0, 37)]);
+        return;
+      }
     }
     // INSYNC, data, and OK may arrive as separate Web Serial reads.
     emit([0x14]);
@@ -240,6 +254,7 @@ function bootloader(
         write(bytes) {
           const packet = [...bytes];
           packets.push(packet);
+          if (options.stallWrite && packet[0] === 0x64) return blockedWrite;
           if (options.bootRate && baudRate !== options.bootRate) return;
           if (phase === "flashing")
             held.push(...packet.slice(0, 3 - held.length));
@@ -267,10 +282,98 @@ function bootloader(
       if (resets && resetAsserted !== Boolean(options.releaseRequired)) boot();
     },
   };
-  return { port, packets, rates, signals, memory };
+  return { port, packets, rates, signals, memory, releaseWrite };
 }
 
 describe("Arduino upload with a real bootloader lifecycle", () => {
+  it("times out a stalled Windows-style write with its stage and permits a clean new connection", async () => {
+    const peer = bootloader({ stallWrite: true });
+    const next = bootloader();
+    const transport = new ArduinoUSBSerial();
+    const progress: ArduinoUploadProgress[] = [];
+    transport.onUploadProgress = (event) => progress.push(event);
+    await transport.connect("uno", peer.port);
+    try {
+      await expect(transport.upload(HEX)).rejects.toThrow(
+        /grabación de la página.*6 segundos.*STK500v1.*uno.*115200/,
+      );
+      expect(transport.connected).toBe(false);
+      expect(peer.port.readable!.locked).toBe(false);
+      expect(peer.port.writable!.locked).toBe(false);
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect(peer.packets.some((packet) => packet[0] === 0x51)).toBe(false);
+      expect(progress.some((event) => event.stage === "complete")).toBe(false);
+      await transport.connect("uno", next.port);
+      peer.releaseWrite();
+      await transport.upload(HEX);
+      expect([...next.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(next.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect(progress.at(-1)).toEqual({ stage: "complete", percent: 100 });
+    } finally {
+      peer.releaseWrite();
+      await transport.disconnect();
+    }
+  });
+
+  it("never replays a page after a missing ACK and accepts only an explicit fresh retry", async () => {
+    const peer = bootloader({ loseFirstWriteReply: true });
+    const transport = new ArduinoUSBSerial();
+    const progress: ArduinoUploadProgress[] = [];
+    transport.onUploadProgress = (event) => progress.push(event);
+    await transport.connect("uno", peer.port);
+    try {
+      await expect(transport.upload(HEX)).rejects.toThrow(
+        /grabación de la página.*no respondió a tiempo.*STK500v1/,
+      );
+      // The board did write the page, but its acknowledgement never reached PC.
+      expect([...peer.memory.slice(16, 20)]).toEqual([1, 2, 3, 4]);
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect(peer.packets.some((packet) => packet[0] === 0x74)).toBe(false);
+      expect(peer.rates).toEqual([115200]);
+      expect(progress.some((event) => event.stage === "complete")).toBe(false);
+      await transport.upload(HEX);
+      expect(peer.signals.filter(Boolean)).toHaveLength(2);
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        2,
+      );
+      expect(peer.packets.filter((packet) => packet[0] === 0x74)).toHaveLength(
+        1,
+      );
+      expect(progress.at(-1)).toEqual({ stage: "complete", percent: 100 });
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
+  it("ends a truncated binary readback on its original deadline without reporting success", async () => {
+    const peer = bootloader({ truncateReadback: true });
+    const transport = new ArduinoUSBSerial();
+    const progress: ArduinoUploadProgress[] = [];
+    transport.onUploadProgress = (event) => progress.push(event);
+    await transport.connect("uno", peer.port);
+    try {
+      await expect(transport.upload(HEX)).rejects.toThrow(
+        /verificación de la página.*no respondió a tiempo.*STK500v1/,
+      );
+      expect(peer.packets.filter((packet) => packet[0] === 0x64)).toHaveLength(
+        1,
+      );
+      expect(peer.packets.filter((packet) => packet[0] === 0x74)).toHaveLength(
+        1,
+      );
+      expect(peer.packets.some((packet) => packet[0] === 0x51)).toBe(false);
+      expect(progress.some((event) => event.stage === "complete")).toBe(false);
+    } finally {
+      await transport.disconnect();
+    }
+  });
+
   it("programs and verifies a Nano ATmega168 at 19200 without changing its MCU selection", async () => {
     const peer = bootloader({
       bootRate: 19200,

@@ -9,8 +9,11 @@ import { Segmented } from "../ui/Card";
 import { Disclosure } from "../ui/Layout";
 import { SegmentedProgress } from "../ui/Progress";
 import { cx } from "../ui/cx";
+import { useDhtPinOrder } from "./dhtLayout";
 import {
   circuitProgressSignature,
+  configureDhtPinOrder,
+  DHT_PIN_ORDERS,
   assemblyEndpointLabel,
   assemblyPartPins,
   endpointInfo,
@@ -22,6 +25,7 @@ import {
   restoreAssemblyProgress,
   wireItemInfo,
   type AssemblyAction,
+  type DhtPinOrder,
 } from "./assembly";
 const CircuitExperience = lazy(() => import("../experience/CircuitExperience"));
 
@@ -37,26 +41,70 @@ export function WiringGuide({ circuit: source, storageKey, onDone }: Props) {
     readLocal<string>("raices.wiring.view", "3d") === "2d" ? "2d" : "3d",
   );
   const [view, setView] = useState<"step" | "all">("step");
-  const circuit = useMemo(() => normalizeCircuitSteps(source), [source]);
+  const [dhtPinOrder, setDhtPinOrder] = useDhtPinOrder();
+  const hasDht = source.parts.some((part) => part.type === "dht11");
+  const circuit = useMemo(
+    () => normalizeCircuitSteps(configureDhtPinOrder(source, dhtPinOrder)),
+    [source, dhtPinOrder],
+  );
+  const journeyKey =
+    hasDht && dhtPinOrder !== "vcc-data-gnd"
+      ? `${storageKey}:dht:${dhtPinOrder}`
+      : storageKey;
   const signature = useMemo(
     () => circuitProgressSignature(app.board, circuit),
     [app.board, circuit],
   );
   return (
-    <WiringSession
-      key={`${storageKey}:${signature}`}
-      circuit={circuit}
-      storageKey={storageKey}
-      signature={signature}
-      onDone={onDone}
-      dimension={dimension}
-      onDimensionChange={(value) => {
-        setDimension(value);
-        writeLocal("raices.wiring.view", value);
-      }}
-      view={view}
-      onViewChange={setView}
-    />
+    <div className="min-w-0 space-y-3">
+      {hasDht && (
+        <Disclosure
+          title="Mi DHT11 tiene otras marcas"
+          icon="layers"
+          tone="alt"
+        >
+          <p className="mb-3">
+            Mira la rejilla de frente y lee las tres marcas de izquierda a
+            derecha. El modelo y cada cable se adaptarán a tu módulo.
+          </p>
+          <label className="block text-sm font-bold text-ink">
+            Marcas de mi DHT11
+            <select
+              aria-label="Marcas de mi DHT11"
+              className="focus-ring mt-2 block min-h-11 w-full rounded-md border border-border bg-surface px-3 text-ink"
+              value={dhtPinOrder}
+              onChange={(event) => {
+                const value = event.target.value as DhtPinOrder;
+                setDhtPinOrder(value);
+              }}
+            >
+              {Object.entries(DHT_PIN_ORDERS).map(([value, item]) => (
+                <option key={value} value={value}>
+                  {item.label} · {item.pins.join(" / ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-ink-soft">
+            Cada orden conserva su propio avance del montaje.
+          </p>
+        </Disclosure>
+      )}
+      <WiringSession
+        key={`${journeyKey}:${signature}`}
+        circuit={circuit}
+        storageKey={journeyKey}
+        signature={signature}
+        onDone={onDone}
+        dimension={dimension}
+        onDimensionChange={(value) => {
+          setDimension(value);
+          writeLocal("raices.wiring.view", value);
+        }}
+        view={view}
+        onViewChange={setView}
+      />
+    </div>
   );
 }
 

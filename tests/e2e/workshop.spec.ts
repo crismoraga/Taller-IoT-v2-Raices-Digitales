@@ -14,6 +14,8 @@ async function createGroup(page: Page, name = "Raíces QA", number = 1) {
   const dialog = page.getByRole("dialog", { name: "Armen su equipo" });
   await dialog.getByLabel("Nombre del equipo").fill(name);
   await dialog.getByLabel("Número de estación").selectOption(String(number));
+  // These scenarios exercise MicroPython, its 16-bit ADC and Pico hole map.
+  await dialog.getByLabel("Placa del equipo").selectOption("pico");
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
@@ -76,7 +78,7 @@ test("living 3D home, six-step 60-minute journey, theme and narrow screens", asy
   await expect(
     page.locator(".rdx-living").getByText("LED · encendido", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Pico", exact: true }).click();
+  await page.getByRole("button", { name: "Arduino Uno", exact: true }).click();
   await page
     .getByRole("button", { name: "Enviar una señal", exact: true })
     .click();
@@ -772,6 +774,7 @@ test("explicit practice telemetry crosses and recovers alerts, chart and CSV", a
 test("diagnostics honestly checks browser and disconnected hardware", async ({
   page,
 }) => {
+  await createGroup(page, "Diagnóstico Pico QA");
   await page.goto("/diagnostico");
   await expect(page.locator(".diagnostic-card")).toHaveCount(6);
   await expect(
@@ -880,6 +883,8 @@ test("WebGL unavailable keeps accessible explanations and real 2D wiring", async
     "De humedad a señal",
   );
   await page.goto("/taller/led");
+  // The fallback assertion below intentionally checks Pico's GND hole a3.
+  await page.getByLabel("Tu placa").selectOption("pico");
   await phase(page, "Conecta");
   await expect(
     page.getByRole("radio", { name: "3D interactivo", exact: true }),

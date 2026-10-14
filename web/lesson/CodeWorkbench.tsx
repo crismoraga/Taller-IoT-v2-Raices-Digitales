@@ -146,6 +146,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     const [dark, setDark] = useState(() => resolveTheme(app.theme) === "dark");
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pending = useRef<string | null>(null);
+    const draftRevision = useRef(0);
     const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
     const wrapper = useRef<HTMLDivElement>(null);
     const terminal = useRef<HTMLPreElement>(null);
@@ -162,20 +163,26 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     }, [app.theme]);
 
     const persist = (text: string) => {
-      pending.current = null;
+      const revision = draftRevision.current;
+      if (pending.current === text) pending.current = null;
       if (!app.session) return;
       void app
         .updateSession({ drafts: { ...drafts.current, [key]: text } })
-        .then(() => setSaved(true))
-        .catch(() =>
-          app.notify(
-            "No se pudo guardar el borrador. Descárgalo para no perderlo.",
-            "error",
-          ),
-        );
+        .then(() => {
+          // A response for an older edit must not label the current text as saved.
+          if (revision === draftRevision.current) setSaved(true);
+        })
+        .catch(() => {
+          if (revision === draftRevision.current)
+            app.notify(
+              "El borrador sigue en este equipo. Puedes descargarlo desde Opciones del editor.",
+              "info",
+            );
+        });
     };
     // Al cambiar de actividad o de placa: se guarda lo pendiente y se carga el borrador nuevo.
     useEffect(() => {
+      draftRevision.current += 1;
       setValue(cachedDraft());
       setSaved(true);
       return () => {
@@ -198,6 +205,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     }, []);
 
     const change = (text: string) => {
+      draftRevision.current += 1;
       setValue(text);
       setSaved(false);
       pending.current = text;
@@ -273,7 +281,16 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
     const noCompiler =
       arduino && app.health !== null && !app.health.arduinoAvailable;
     const canRun = app.connected && Boolean(value.trim()) && !unavailable;
-    const run = (text: string) => void app.runCode(text, lessonId);
+    const run = (text: string) => {
+      // Flush the pending draft before starting a potentially long compilation.
+      // The local copy was already written on each edit and survives USB errors.
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      if (pending.current !== null) persist(text);
+      void app.runCode(text, lessonId);
+    };
     latest.current = { value, run };
 
     const toggleFull = () => {
@@ -471,7 +488,7 @@ export const CodeWorkbench = forwardRef<WorkbenchHandle, Props>(
           </div>
         </div>
 
-        <UploadFeedback />
+        <UploadFeedback preserveDraft />
 
         {!app.connected && !unavailable && (
           <div className="flex flex-wrap items-center gap-3 border-t border-border bg-highlight px-3.5 py-3">

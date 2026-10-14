@@ -33,6 +33,7 @@ import {
 import {
   boundsOf,
   endpointXY,
+  moduleBounds,
   moduleBox,
   modulePinXY,
   type XY,
@@ -46,6 +47,7 @@ import {
   type Wire,
 } from "./model";
 import { partDef } from "./parts";
+import { ModuleShape } from "./ModuleShapes";
 import { layoutCallouts, type CalloutBox } from "./calloutLayout";
 import { controllerBox, controllerPins, controllerPin } from "./boards";
 import type { Board } from "../lib/context";
@@ -974,7 +976,7 @@ function PartShape({ part, lit }: { part: PartInstance; lit?: boolean }) {
     }
     case "dht11": {
       const data = at("DATA");
-      const cx = px(data.x);
+      const cx = px((at("VCC").x + data.x + at("GND").x) / 3);
       const outward = data.y > 8.5 ? 1 : -1;
       const y = outward > 0 ? px(data.y) + px(0.35) : px(data.y) - px(3.1);
       return (
@@ -1088,32 +1090,20 @@ function PartShape({ part, lit }: { part: PartInstance; lit?: boolean }) {
   }
 }
 
-const MODULE_STYLE: Record<
-  string,
-  { fill: string; edge: string; ink: string }
-> = {
-  soil: { fill: "#1f2a33", edge: "#0d151b", ink: "#f4ecd7" },
-  ds18b20: { fill: "#8d99a3", edge: "#5f6b75", ink: "#0b2d45" },
-  rain: { fill: "#2f7fc4", edge: "#1c5388", ink: "#f4ecd7" },
-  water: { fill: "#c9463d", edge: "#8e2b2b", ink: "#f4ecd7" },
-  pir: { fill: "#2e7d5b", edge: "#1f5e43", ink: "#f4ecd7" },
-  generic: { fill: "#1e5b7f", edge: "#123d5c", ink: "#f4ecd7" },
-};
-
 function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
   const box = moduleBox(part);
+  const outline = moduleBounds(part);
   const def = partDef(part);
-  const style = MODULE_STYLE[part.type] ?? MODULE_STYLE.generic;
   const above = box.y < 0;
   const ownLeads = part.type === "soil" || part.type === "ds18b20";
   return (
     <g>
       {active && (
         <rect
-          x={px(box.x) - 6}
-          y={px(box.y) - 6}
-          width={px(box.w) + 12}
-          height={px(box.h) + 12}
+          x={px(outline.x) - 6}
+          y={px(outline.y) - 6}
+          width={px(outline.w) + 12}
+          height={px(outline.h) + 12}
           rx={16}
           fill="none"
           stroke="#f4ecd7"
@@ -1122,57 +1112,15 @@ function ModuleCard({ part, active }: { part: PartInstance; active: boolean }) {
           className="animate-dash"
         />
       )}
-      <rect
-        x={px(box.x)}
-        y={px(box.y)}
-        width={px(box.w)}
-        height={px(box.h)}
-        rx={11}
-        fill={style.fill}
-        stroke={style.edge}
-        strokeWidth={2}
-      />
-      <text
-        x={px(box.x + box.w / 2)}
-        y={px(box.y) + (above ? 28 : px(box.h) - 16)}
-        textAnchor="middle"
-        fontSize={12}
-        fontWeight={800}
-        fill={style.ink}
-        fontFamily="var(--font-display)"
-      >
-        {part.label}
-      </text>
-      {part.type === "pir" && (
-        <circle
-          cx={px(box.x + box.w / 2)}
-          cy={px(box.y + box.h / 2) + (above ? 4 : -4)}
-          r={15}
-          fill="#f1f4f6"
-          stroke="#b9c3ca"
-          strokeWidth={1.5}
-        />
-      )}
-      {part.type === "soil" && (
-        <rect
-          x={px(box.x + box.w * 0.18)}
-          y={px(above ? box.y + box.h : box.y) - 7}
-          width={px(box.w * 0.64)}
-          height={14}
-          rx={3}
-          fill="#f1efda"
-          stroke="#c5cbb4"
-          strokeWidth={1.5}
-        />
-      )}
+      <ModuleShape part={part} unit={U} />
       {def.pins.map((pin) => {
         const at = modulePinXY(part, pin.id);
         return (
           <g key={pin.id}>
             <rect
-              x={px(at.x) - 15}
+              x={px(at.x) - 11}
               y={px(at.y) + (above ? -21 : 5)}
-              width={30}
+              width={22}
               height={16}
               rx={5}
               fill="#f4ecd7"
@@ -1489,6 +1437,7 @@ export function BreadboardView({
   const [viewport, setViewport] = useState({ width: 660, height: 300 });
   const [follow, setFollow] = useState(true);
   const [inspect, setInspect] = useState<Inspect | null>(null);
+  const partInspectorOpener = useRef<SVGGElement | null>(null);
   const [hoverStrip, setHoverStrip] = useState<string | null>(null);
 
   const stepOf = useMemo(() => {
@@ -1562,7 +1511,7 @@ export function BreadboardView({
           points.push({ at: pointXY(hole), id: hole, note: named });
         }
       else {
-        const box = moduleBox(part);
+        const box = moduleBounds(part);
         points.push(
           { at: { x: box.x, y: box.y }, id: "" },
           { at: { x: box.x + box.w, y: box.y + box.h }, id: "" },
@@ -1588,7 +1537,7 @@ export function BreadboardView({
       { x: BOARD.x0 + to + 1.6, y: 19 },
     ];
     for (const part of modules) {
-      const box = moduleBox(part);
+      const box = moduleBounds(part);
       points.push(
         { x: box.x - 0.6, y: box.y - 0.8 },
         { x: box.x + box.w + 0.6, y: box.y + box.h + 0.8 },
@@ -1613,20 +1562,16 @@ export function BreadboardView({
 
   const target = useMemo<Box>(() => {
     if (!focus.length) return alignLeft(fit(whole, aspect, 30), whole);
-    // Se encuadra a lo ancho; el alto siempre muestra la protoboard completa (y los módulos
-    // del montaje), para no perder la orientación entre un paso y el siguiente.
+    // Frame the pending gesture, not all previously placed tall sensors. A
+    // 98 mm soil probe must not turn a two-pin connection into a tiny overview.
     const box = boundsOf(
-      [
-        ...focus.map((point) => point.at),
-        { x: focus[0].at.x, y: whole.y },
-        { x: focus[0].at.x, y: whole.y + whole.h },
-      ],
+      focus.map((point) => point.at),
       0,
     );
     const framed = fit(
-      { x: box.x - 4, y: box.y, w: box.w + 8, h: box.h },
+      { x: box.x - 4, y: box.y - 3.5, w: box.w + 8, h: box.h + 7 },
       aspect,
-      0,
+      14,
     );
     // Sin salirse del montaje por los lados.
     const min = whole.x - 1;
@@ -1868,6 +1813,73 @@ export function BreadboardView({
     if (hole) inspectHole(hole);
     else setInspect(null);
   };
+  const inspectPart = (part: PartInstance, opener: SVGGElement) => {
+    partInspectorOpener.current = opener;
+    const definition = partDef(part);
+    setInspect({
+      title: part.label,
+      lines: [
+        definition.about,
+        ...definition.pins.map(
+          (pin) =>
+            `${pin.label}${pin.aka?.length ? ` (${pin.aka.join(" / ")})` : ""}${part.holes?.[pin.id] ? ` → ${part.holes[pin.id]}` : ""}`,
+        ),
+      ],
+    });
+  };
+  const closeInspect = () => {
+    setInspect(null);
+    partInspectorOpener.current?.focus();
+  };
+  const partInteraction = (part: PartInstance) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-label": `Inspeccionar ${part.label}`,
+    "data-part": part.id,
+    className: "group pointer-events-auto cursor-pointer outline-none",
+    onClick: (event: ReactMouseEvent<SVGGElement>) => {
+      event.stopPropagation();
+      if (moved.current) return;
+      // Body inspection must not replace the pending cable's physical hotspot.
+      const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
+      const box = viewRef.current;
+      const x = box.x + ((event.clientX - rect.left) / rect.width) * box.w;
+      const y = box.y + ((event.clientY - rect.top) / rect.height) * box.h;
+      const end =
+        activeWire &&
+        [activeWire.from, activeWire.to].findIndex((endpoint) => {
+          const point = endpointXY(circuit, endpoint);
+          return Math.hypot(point.x - x, point.y - y) < 0.6;
+        });
+      if (typeof end === "number" && end >= 0)
+        onEndpointActivate?.(end === 0 ? "a" : "b");
+      else inspectPart(part, event.currentTarget);
+    },
+    onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      inspectPart(part, event.currentTarget);
+    },
+  });
+  const partFocusRing = (part: PartInstance) => {
+    const box = part.holes
+      ? boundsOf(Object.values(part.holes).map(pointXY), 3)
+      : moduleBounds(part);
+    return (
+      <rect
+        x={px(box.x) - 7}
+        y={px(box.y) - 7}
+        width={px(box.w) + 14}
+        height={px(box.h) + 14}
+        rx={12}
+        fill="none"
+        stroke="#dfff80"
+        strokeWidth={3}
+        className="pointer-events-none opacity-0 group-focus-visible:opacity-100"
+      />
+    );
+  };
   const onHover = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (pointers.current.size) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1912,7 +1924,22 @@ export function BreadboardView({
         return {
           ...point,
           label: point.badge ? `${point.badge} · ${label}` : label,
-          sub: pin ? `${pin.name} · pin ${pin.physical}` : point.note,
+          sub: pin
+            ? `${pin.name} · pin ${pin.physical}`
+            : (point.note ??
+              (point.id.startsWith("controller.")
+                ? `Arduino ${circuit.board === "uno" ? "Uno" : "Nano"}`
+                : (part?.label ??
+                  (isHole && parsePoint(point.id).kind === "rail"
+                    ? RAIL_INFO[
+                        (
+                          parsePoint(point.id) as {
+                            kind: "rail";
+                            rail: RailName;
+                          }
+                        ).rail
+                      ].label
+                    : undefined)))),
           side,
         };
       });
@@ -1921,6 +1948,9 @@ export function BreadboardView({
   const labelScale = px(view.w) / viewport.width;
   const visibleCallouts = callouts.filter(
     (callout) =>
+      (!activeEndpoint ||
+        !callout.badge ||
+        callout.badge.toLowerCase() === activeEndpoint) &&
       callout.at.x >= view.x &&
       callout.at.x <= view.x + view.w &&
       callout.at.y >= view.y &&
@@ -2004,7 +2034,7 @@ export function BreadboardView({
             setFollow(true);
             setView(target);
           }
-          if (event.key === "Escape") setInspect(null);
+          if (event.key === "Escape") closeInspect();
         }}
         onPointerDown={onPointerDown}
         onPointerMove={(event) => {
@@ -2067,9 +2097,10 @@ export function BreadboardView({
             <g
               key={part.id}
               opacity={state === "done" ? 0.72 : 1}
-              className="pointer-events-none"
+              {...partInteraction(part)}
             >
               <PartShape part={part} lit={lit?.[part.id]} />
+              {partFocusRing(part)}
             </g>
           ))}
         <g className="pointer-events-none">
@@ -2088,8 +2119,13 @@ export function BreadboardView({
           {parts
             .filter((entry) => !entry.part.holes)
             .map(({ part, state }) => (
-              <g key={part.id} opacity={state === "done" ? 0.8 : 1}>
+              <g
+                key={part.id}
+                opacity={state === "done" ? 0.8 : 1}
+                {...partInteraction(part)}
+              >
                 <ModuleCard part={part} active={state === "active"} />
+                {partFocusRing(part)}
               </g>
             ))}
           {wires
@@ -2224,6 +2260,7 @@ export function BreadboardView({
               }}
               className="focus-ring flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-cream/25 bg-primary-deep px-2 py-2 text-sm font-extrabold text-cream shadow-lifted"
               aria-label={`Acercar extremo ${index === 0 ? "A" : "B"}: ${endpoint}`}
+              aria-pressed={activeEndpoint === (index === 0 ? "a" : "b")}
             >
               <span className="grid size-6 shrink-0 place-items-center rounded-full bg-cream text-xs text-primary">
                 {index === 0 ? "A" : "B"}
@@ -2240,7 +2277,18 @@ export function BreadboardView({
       )}
 
       {inspect ? (
-        <div className="absolute inset-x-2.5 bottom-2.5 flex animate-rise items-start gap-3 rounded-md bg-cream p-3 text-primary shadow-lifted sm:right-auto sm:max-w-sm">
+        <div
+          role="region"
+          aria-label={`Ficha de ${inspect.title}`}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              closeInspect();
+            }
+          }}
+          className="absolute inset-x-2.5 bottom-2.5 flex animate-rise items-start gap-3 rounded-md bg-cream p-3 text-primary shadow-lifted sm:right-auto sm:max-w-sm"
+        >
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-extrabold">
               {inspect.title}
@@ -2263,7 +2311,7 @@ export function BreadboardView({
           <button
             type="button"
             aria-label="Cerrar ficha"
-            onClick={() => setInspect(null)}
+            onClick={closeInspect}
             className="focus-ring -m-1 flex size-8 shrink-0 items-center justify-center rounded-sm text-secondary hover:bg-cream-shade"
           >
             <Icon name="close" size={16} />

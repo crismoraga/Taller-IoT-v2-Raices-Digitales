@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BOARD_NAMES, useApp, type Board } from "../lib/context";
+import { ARDUINO_BOARDS } from "../../shared/boards";
 import { Button } from "../ui/Button";
 import { Callout } from "../ui/Feedback";
 import { Field, Input, Select } from "../ui/Form";
@@ -96,7 +97,9 @@ export function Onboarding({
             hint={
               app.connected
                 ? `USB conectado: ${BOARD_NAMES[app.board]}.`
-                : "Puedes explorar este modelo ahora. Al conectar USB reconoceremos la placa compatible."
+                : app.board === "uno"
+                  ? "Uno clásico · conecta USB, programa y comprueba cada paso."
+                  : "Elige el modelo escrito en tu placa. Al conectar USB reconoceremos el adaptador compatible."
             }
           >
             {(props) => (
@@ -106,7 +109,7 @@ export function Onboarding({
                 disabled={saving || app.connected || app.connecting || app.busy}
                 onChange={(event) => app.setBoard(event.target.value as Board)}
               >
-                {(Object.keys(BOARD_NAMES) as Board[]).map((board) => (
+                {([...ARDUINO_BOARDS, "pico"] as Board[]).map((board) => (
                   <option key={board} value={board}>
                     {BOARD_NAMES[board]}
                   </option>
@@ -171,10 +174,13 @@ export function Onboarding({
           </Callout>
         )}
         {app.board !== "pico" && app.health && !app.health.arduinoAvailable && (
-          <Callout tone="info" title="Carga del código Arduino" compact>
-            En esta instalación, descarga el sketch y cárgalo con Arduino IDE.
-            Después puedes conectar USB para ver y enviar las lecturas de tu
-            placa.
+          <Callout
+            tone="info"
+            title="La compilación se comprueba al cargar"
+            compact
+          >
+            Puedes comenzar ahora. Al pulsar «Compilar y cargar» intentaremos
+            preparar el programa y enviarlo a tu Arduino desde esta página.
           </Callout>
         )}
       </form>

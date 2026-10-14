@@ -13,6 +13,7 @@ import { configuration, type Config } from "./config.ts";
 import { Store, hash, token, type Session, type Row } from "./database.ts";
 import { Alerts, Telegram } from "./alerts.ts";
 import { ArduinoCompiler, CompileError } from "./arduino.ts";
+import { compileRequestCancellation } from "./compile-request.ts";
 import { ARDUINO_BOARDS } from "../shared/boards.ts";
 import {
   sessionCreateSchema,
@@ -773,7 +774,7 @@ export async function buildApp(
   app.post(
     "/api/arduino/compile",
     { config: { rateLimit: { max: 6, timeWindow: 60000 } } },
-    async (request) => {
+    async (request, reply) => {
       const body = z
         .object({
           code: z.string().min(1).max(60000),
@@ -790,7 +791,14 @@ export async function buildApp(
           "La compilación en producción requiere un servicio aislado o ARDUINO_SANDBOX=docker. El administrador debe habilitar el compilador aislado.",
           503,
         );
-      return compiler.compile(body.code, body.board);
+      const cancellation = compileRequestCancellation(request.raw, reply.raw);
+      try {
+        return await compiler.compile(body.code, body.board, {
+          signal: cancellation.signal,
+        });
+      } finally {
+        cancellation.dispose();
+      }
     },
   );
   app.get("/api/firmware", async () => {

@@ -1,7 +1,12 @@
 import Fastify from "fastify";
 import { timingSafeEqual } from "node:crypto";
 import { z, ZodError } from "zod";
-import { ArduinoCompiler } from "./arduino.ts";
+import {
+  ArduinoCompiler,
+  CompileError,
+  COMPILE_DEADLINE_HEADER,
+} from "./arduino.ts";
+import { compileRequestCancellation } from "./compile-request.ts";
 import { configuration } from "./config.ts";
 import { hash } from "./database.ts";
 import { ARDUINO_BOARDS } from "../shared/boards.ts";
@@ -21,6 +26,7 @@ const compiler = new ArduinoCompiler(
 const app = Fastify({
   bodyLimit: 700000,
   requestTimeout: 65000,
+  connectionTimeout: 65000,
   logger: false,
 });
 app.addHook("onRequest", async (request, reply) => {
@@ -34,18 +40,16 @@ app.addHook("onRequest", async (request, reply) => {
     return reply.code(401).send({ error: "No autorizado." });
 });
 app.setErrorHandler((error: Error & { statusCode?: number }, _request, reply) =>
-  reply
-    .code(error instanceof ZodError ? 400 : error.statusCode || 500)
-    .send({
-      error:
-        error instanceof ZodError ? "Código o placa inválidos." : error.message,
-    }),
+  reply.code(error instanceof ZodError ? 400 : error.statusCode || 500).send({
+    error:
+      error instanceof ZodError ? "Código o placa inválidos." : error.message,
+  }),
 );
 app.get("/health", async () => {
   const ok = await compiler.available();
   return { ok };
 });
-app.post("/compile", async (request) => {
+app.post("/compile", async (request, reply) => {
   const body = z
     .object({
       code: z.string().min(1).max(60000),
@@ -53,7 +57,24 @@ app.post("/compile", async (request) => {
     })
     .strict()
     .parse(request.body);
-  return compiler.compile(body.code, body.board);
+  const deadlineHeader = request.headers[COMPILE_DEADLINE_HEADER];
+  if (
+    deadlineHeader !== undefined &&
+    (typeof deadlineHeader !== "string" ||
+      !/^\d{1,16}$/.test(deadlineHeader) ||
+      !Number.isSafeInteger(Number(deadlineHeader)))
+  )
+    throw new CompileError("El plazo de compilación no es válido.", 400);
+  const cancellation = compileRequestCancellation(request.raw, reply.raw);
+  try {
+    return await compiler.compile(body.code, body.board, {
+      signal: cancellation.signal,
+      deadline:
+        deadlineHeader === undefined ? undefined : Number(deadlineHeader),
+    });
+  } finally {
+    cancellation.dispose();
+  }
 });
 process.once("SIGTERM", async () => {
   await app.close();

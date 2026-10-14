@@ -172,6 +172,10 @@ async function avrPeer(page: Page, config: AVRPeerConfig) {
       });
       Object.assign(window, {
         __avrPeer: {
+          emit: (chunks: string[]) => {
+            for (const chunk of chunks)
+              controller.enqueue(new TextEncoder().encode(chunk));
+          },
           result: () => ({
             flash: [...flash],
             writes,
@@ -192,7 +196,11 @@ async function avrPeer(page: Page, config: AVRPeerConfig) {
   );
 }
 
-async function openFirstLed(page: Page, config: AVRPeerConfig = {}) {
+async function openFirstLed(
+  page: Page,
+  config: AVRPeerConfig = {},
+  lesson: "led_onboard" | "soil" = "led_onboard",
+) {
   await avrPeer(page, config);
   // A failed readiness probe must never permanently disable a working compiler.
   await page.route("**/api/health", (route) =>
@@ -209,7 +217,9 @@ async function openFirstLed(page: Page, config: AVRPeerConfig = {}) {
   await page.route("**/api/arduino/compile", async (route) => {
     const body = route.request().postDataJSON();
     expect(body.board).toBe(config.board || "uno");
-    expect(body.code).toContain("digitalWrite(LED_BUILTIN, HIGH)");
+    expect(body.code).toContain(
+      lesson === "soil" ? "analogRead(A0)" : "digitalWrite(LED_BUILTIN, HIGH)",
+    );
     expect(body.code).not.toContain("from machine import");
     const response = await fetch(`${COMPILER}/api/arduino/compile`, {
       method: "POST",
@@ -239,13 +249,13 @@ async function openFirstLed(page: Page, config: AVRPeerConfig = {}) {
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
   await expect(page).toHaveURL(/taller\/welcome/);
-  await page.goto("/taller/led_onboard");
+  await page.goto(`/taller/${lesson}`);
   await page
     .getByRole("navigation", { name: "Partes de la actividad" })
     .getByRole("button", { name: /Programa/ })
     .click();
   await expect(page.locator(".monaco-editor").first()).toContainText(
-    "LED_BUILTIN",
+    lesson === "soil" ? "analogRead(A0)" : "LED_BUILTIN",
   );
   await page
     .getByRole("button", { name: "Conectar placa", exact: true })
@@ -281,6 +291,57 @@ async function peerResult(page: Page): Promise<AVRPeerResult> {
     ).__avrPeer.result(),
   );
 }
+
+test("a verified Arduino sensor upload displays fragmented JSON without empty serial scrolling", async ({
+  page,
+}) => {
+  test.setTimeout(100000);
+  await openFirstLed(page, {}, "soil");
+  await expect(
+    page.getByRole("status", { name: "Estado de carga del programa" }),
+  ).toContainText("Programa grabado y verificado", { timeout: 80000 });
+  const terminal = page.getByRole("log", { name: "Salida de la placa" });
+  await expect(terminal).toContainText("Programa Arduino grabado y verificado");
+  await expect(terminal).not.toContainText("Grabando y verificando");
+  const baseline = await terminal.textContent();
+  await page.evaluate(() => {
+    (
+      window as unknown as { __avrPeer: { emit: (chunks: string[]) => void } }
+    ).__avrPeer.emit(["\r", "\n", " \t\r", "\n", "\r\n".repeat(100)]);
+  });
+  // Wait for the peer's queued reads, then compare exact text: Playwright's
+  // usual text matcher collapses whitespace and would miss blank scrolling.
+  await page.waitForTimeout(100);
+  expect(await terminal.textContent()).toBe(baseline);
+  await page.evaluate(() => {
+    (
+      window as unknown as { __avrPeer: { emit: (chunks: string[]) => void } }
+    ).__avrPeer.emit([
+      '{"sensor":"soil",',
+      '"value":null,"raw":567,"unit":"%",',
+      '"status":"NEEDS_CALIBRATION"}',
+      "\r",
+      "\n",
+    ]);
+  });
+  await expect(terminal).toContainText('"raw":567');
+  await expect
+    .poll(async () => {
+      const data = await (await page.request.get("/api/dashboard")).json();
+      return data.latest.find(
+        (reading: { sensor: string; source: string }) =>
+          reading.sensor === "soil" && reading.source === "hardware",
+      );
+    })
+    .toMatchObject({
+      sensor: "soil",
+      source: "hardware",
+      raw: 567,
+      value: null,
+      status: "NEEDS_CALIBRATION",
+    });
+  expect((await peerResult(page)).speeds.at(-1)).toBe(115200);
+});
 
 const successCases: {
   label: string;

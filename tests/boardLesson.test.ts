@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { lessonForBoard } from "../web/content/boardLesson";
 import { led } from "../web/content/lessons/led";
 import { potentiometer } from "../web/content/lessons/potentiometer";
-import { onboard, blink, buttonLed } from "../web/content/lessons/foundations";
+import { welcome, onboard, blink, buttonLed } from "../web/content/lessons/foundations";
 import {
   calibration,
   station,
@@ -21,6 +21,7 @@ import {
 } from "../web/content/lessons/sensors";
 
 const lessons = [
+  welcome,
   led,
   potentiometer,
   onboard,
@@ -43,6 +44,15 @@ const answerText = (lesson: typeof led, index: number) =>
 
 describe("Teaching content follows the selected physical board", () => {
   for (const board of ["uno", "nano", "nano-old", "nano-168"] as const) {
+    it(`${board}: welcome teaches its headers and real USB upload instead of Pico GPIO`, () => {
+      const result = lessonForBoard(welcome, board);
+      expect(result.expected).toContain("Cargar en Arduino");
+      expect(result.expected).toContain("memoria de la placa");
+      expect(result.experiment.join(" ")).toContain("D2, A0 y GND");
+      expect(result.experiment.join(" ")).not.toContain("GP2");
+      expect(result.modify[0].instruction).toContain("Serial.println");
+      expect(result.troubleshooting.flatMap((item) => item.checks).join(" ")).not.toContain("GP, GND");
+    });
     it(`${board}: LED explanations name D2/5 V and the sketch instruction`, () => {
       const result = lessonForBoard(led, board);
       expect(result.concept.facts).toContainEqual({

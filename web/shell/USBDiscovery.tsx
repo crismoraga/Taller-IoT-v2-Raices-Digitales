@@ -93,13 +93,13 @@ export function USBDiscovery() {
       <div className="grid gap-3">
         {(
           [
+            ["uno", "Arduino Uno", "Uno clásico · USB grande y placa ancha"],
+            ["nano", "Arduino Nano", "Nano clásico · placa azul y alargada"],
             [
               "pico",
               "Raspberry Pi Pico",
               "Pico / Pico W / Pico 2 / Pico 2 W · MicroPython",
             ],
-            ["uno", "Arduino Uno", "Uno clásico · USB grande y placa ancha"],
-            ["nano", "Arduino Nano", "Nano clásico · placa azul y alargada"],
           ] as const
         ).map(([model, label, description]) => (
           <Button
