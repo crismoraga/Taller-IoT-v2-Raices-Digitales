@@ -22,7 +22,7 @@ async function group(page: Page, board = "pico") {
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/led/);
+  await expect(page).toHaveURL(/taller\/welcome/);
 }
 
 async function phase(page: Page, name: string) {

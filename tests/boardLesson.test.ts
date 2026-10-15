@@ -53,12 +53,20 @@ describe("Teaching content follows the selected physical board", () => {
       const result = lessonForBoard(welcome, board);
       expect(result.expected).toContain("Cargar en Arduino");
       expect(result.expected).toContain("memoria de la placa");
+      expect(result.objective).toContain("tira de cinco agujeros");
+      expect(result.expected).toContain("a26 y e26");
       expect(result.experiment.join(" ")).toContain("D2, A0 y GND");
       expect(result.experiment.join(" ")).not.toContain("GP2");
       expect(result.modify[0].instruction).toContain("Serial.println");
       expect(
         result.troubleshooting.flatMap((item) => item.checks).join(" "),
       ).not.toContain("GP, GND");
+    });
+    it(`${board}: DHT11 explicitly frees the button's D4 while preserving the first sensors`, () => {
+      const result = lessonForBoard(dht11, board);
+      expect(result.objective).toContain("retira el pulsador y su cable de D4");
+      expect(result.objective).toContain("Conserva LED y LDR");
+      expect(result.arduino?.notes?.join(" ")).toContain("LED en D2 y la LDR en A1");
     });
     it(`${board}: LED explanations name D2/5 V and the sketch instruction`, () => {
       const result = lessonForBoard(led, board);
@@ -87,7 +95,7 @@ describe("Teaching content follows the selected physical board", () => {
       expect(result.checkpoint[1].explain).not.toContain("GP28");
       expect(
         lessonForBoard(station, board).concept.facts?.map((fact) => fact.value),
-      ).toEqual(["Suelo A0", "Luz A1", "DHT11 D4", "Luz, aire y suelo"]);
+      ).toEqual(["Luz A1", "DHT11 D4", "Luz y aire", "Suelo y expansiones"]);
     });
     it(`${board}: HC-SR04 teaches direct D8 instead of the Pico divider`, () => {
       const result = lessonForBoard(distance, board);

@@ -47,7 +47,7 @@ export const calibration = activity("calibration", {
   },
   why: "El ADC mide voltaje, no humedad. Dos condiciones físicas registradas crean una escala para ese montaje. Capturar en Pico promedia veinte muestras; guardar conserva las referencias del grupo, y reinstalar la estación las incorpora al programa que calcula los porcentajes.",
   expected:
-    "Selecciona Suelo. La herramienta guarda seco y húmedo si difieren al menos 500 unidades en Pico. En Uno/Nano escribe los raw observados en la terminal; deben diferir al menos 8. La captura de Pico detiene el programa actual. Guarda y después instala o reinstala la estación para aplicar las referencias; el ejemplo individual sigue mostrando raw.",
+    "Selecciona Suelo y guarda una referencia seca y otra húmeda. En Arduino toma un RAW reciente por USB o escribe el de la terminal: rango 0–1023 y separación mínima 8. En Pico la captura promedia veinte muestras: rango 0–65535 y separación mínima 500. Guarda y reinstala la estación para aplicar tus referencias.",
   codeNotes: [
     {
       line: '"status": "NEEDS_CALIBRATION"',
@@ -63,7 +63,7 @@ export const calibration = activity("calibration", {
         "Aparecen dos números de tu montaje y la calibración queda guardada solo para tu grupo.",
       arduino: {
         instruction:
-          "Ejecuta el ejemplo de suelo y anota raw en tierra seca y húmeda, con la misma profundidad. Escribe ambos números en Seco y Húmedo y pulsa Guardar calibración. En Uno/Nano Capturar 20 muestras permanece desactivado; la captura automática usa MicroPython.",
+          "Con la estación ejecutándose, coloca la sonda en tierra seca y toma el RAW USB. Repite en tierra húmeda con la misma profundidad. También puedes escribir los dos RAW del ejemplo individual. Pulsa Guardar calibración y reinstala la estación.",
         observe:
           "Guardas dos referencias de 0–1023 tomadas en tu propia placa, sin copiar las de otro grupo.",
       },
@@ -115,7 +115,7 @@ export const calibration = activity("calibration", {
       symptom: "Capturar está desactivado o la consola dejó de imprimir",
       checks: [
         "Capturar requiere Pico conectada y sin otra operación en curso. La captura detiene el bucle anterior; vuelve a ejecutar si necesitas observarlo.",
-        "En Uno/Nano ejecuta el ejemplo de suelo y escribe manualmente cada raw. No cambies de placa para capturar: las referencias pertenecen al montaje original.",
+        "En Uno/Nano ejecuta la estación para tomar un RAW USB reciente, o escribe los RAW del ejemplo de suelo. Conserva la misma placa y sonda para ambas referencias.",
       ],
     },
     {
@@ -141,15 +141,15 @@ export const station: Lesson = {
   essential: true,
   title: "Tu planta reúne al equipo",
   summary:
-    "Integra los sensores que ya probaste sin cruzar sus señales ni inventar lecturas.",
+    "Lleva luz y aire a tu maceta; empieza a monitorear y amplía un sensor a la vez.",
   duration: 15,
   icon: "board",
   circuit: "station_basic",
   tool: "station",
   objective:
-    "Reunir luz, temperatura, humedad del aire y suelo en un programa y recibir sus lecturas reales por USB.",
+    "Colocar luz y DHT11 junto a la planta, recibir sus lecturas juntas y añadir después los sensores del suelo y el agua.",
   materials: [
-    { name: "Pico W con USB de datos", qty: 1 },
+    { name: "Arduino Uno o placa seleccionada con USB de datos", qty: 1 },
     { name: "LED, 220 Ω y sensores ya probados" },
     { name: "Planta con suelo y protoboard", qty: 1 },
     {
@@ -160,15 +160,15 @@ export const station: Lesson = {
   concept: {
     title: "Integrar no es empezar de nuevo",
     body: [
-      "Cada sensor conserva su lugar y su señal. La estación reúne sus drivers: pequeñas piezas de programa que saben leer cada modelo y comunicar valor, unidad y estado.",
-      "Ya probaste el LED, la luz, el DHT11 y el suelo por separado. Reúne esos montajes, conserva sus pines y comprueba cada lectura. Los sensores de agua, movimiento y distancia pueden añadirse después.",
-      "Pulsa Instalar sensores conectados para reunir luz, DHT11 y suelo en un programa. Tus referencias de calibración se incluyen en esta carga. Mantén la página abierta para enviar las lecturas por USB.",
+      "Tu estación ya empieza con los dos sensores que conoces: la LDR y el DHT11. Conserva sus conexiones y coloca la protoboard junto a la maceta. Deja la LDR orientada hacia la luz y el DHT11 al aire, fuera de la tierra.",
+      "Selecciona solo lo que acabas de montar y pulsa Instalar sensores conectados. Un único programa reúne sus lecturas; Mi planta empieza a mostrar luz, temperatura y humedad del aire en vivo. Mantén USB y esta página abiertos.",
+      "En la siguiente actividad añadirás la sonda de suelo. Después puedes incorporar la sonda DS18B20, lluvia, nivel de agua, distancia y movimiento desde esta misma estación. Cada incorporación tiene su guía; no necesitas conectar todo para empezar.",
     ],
     facts: [
-      { label: "ADC0", value: "Suelo GP26" },
       { label: "ADC1", value: "Luz GP27" },
       { label: "Digital", value: "DHT11 GP15" },
-      { label: "Lecturas", value: "Luz, aire y suelo" },
+      { label: "Primera estación", value: "Luz y aire" },
+      { label: "Después", value: "Suelo y expansiones" },
     ],
   },
   safety: [
@@ -177,25 +177,24 @@ export const station: Lesson = {
   ],
   arduino: {
     rows: [
-      { from: "Sonda AOUT", to: "A0" },
       { from: "Nodo LDR + 10 kΩ", to: "A1" },
       { from: "DHT11 DATA", to: "D4" },
       { from: "LED mediante 220 Ω", to: "D2" },
       { from: "GND de todos los módulos", to: "GND" },
     ],
     notes: [
-      "Usa además la alimentación y notas de seguridad de la actividad de cada modelo; la tabla resume señales, no sustituye esas conexiones.",
+      "Conserva las conexiones de luz y DHT11. La tabla resume las señales; el montaje interactivo muestra cada alimentación y cada extremo del cable.",
       "DHT11 usa alimentación compatible con lógica de 5 V. Los analógicos pueden conservar 3,3 V con su calibración propia. Uno/Nano envía datos mediante el puente USB de esta página.",
     ],
   },
-  why: "Dos entradas analógicas leen suelo y luz. El DHT11 envía temperatura y humedad por una sola línea digital. Todos comparten GND, pero cada señal conserva su pin. El programa lee cada sensor por separado y muestra su estado sin inventar valores.",
+  why: "Una entrada analógica lee la luz y una digital recibe las dos medidas del DHT11. Comparten GND, pero cada señal conserva su pin. La estación lee únicamente los sensores seleccionados y conserva sus estados reales.",
   expected:
-    "Comprueba los montajes de luz, DHT11 y suelo, conecta USB y pulsa Instalar sensores conectados. La terminal muestra sus lecturas y Mi planta las recibe de tu dispositivo. Mantén USB y esta página abiertos. Los sensores extra que tu grupo ya habilitó se conservan.",
+    "Coloca luz y DHT11 junto a la maceta, confirma su selección y pulsa Instalar sensores conectados. La terminal y Mi planta muestran sus lecturas reales. Después sigue con la sonda de suelo o elige otra expansión. Al añadir un sensor, vuelve a instalar para incorporarlo al mismo programa.",
   modify: [
     {
       title: "Crece de uno en uno",
       instruction:
-        "Con la estación instalada, tapa la LDR y después mueve la sonda entre tus referencias. Observa la lectura correspondiente a cada cambio.",
+        "Con la estación instalada, tapa la LDR y observa Luz en Mi planta. Destápala y acerca la mano al DHT11 sin cubrirlo: espera varias lecturas y compara el aire.",
       observe:
         "Puedes atribuir cada nueva lectura a una conexión que acabas de comprobar.",
     },
@@ -208,7 +207,7 @@ export const station: Lesson = {
     },
   ],
   experiment: [
-    "Señala las entradas de suelo y luz y el pin del DHT11. Explica por qué las dos medidas del aire comparten un solo cable de datos.",
+    "Señala la entrada de luz y el pin del DHT11. Explica por qué las dos medidas del aire comparten un solo cable de datos.",
     "Haz una prueba física de cada sensor habilitado y registra valor, unidad y estado. Un bit constante requiere más evidencia que una identidad digital encontrada.",
   ],
   challenge: {

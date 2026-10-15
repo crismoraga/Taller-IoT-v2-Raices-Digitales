@@ -141,7 +141,7 @@ export function Onboarding({
         <Disclosure title="Opciones de la actividad" icon="route" tone="plain">
           <Field
             label="Cómo ver las actividades"
-            hint="El recorrido recomendado empieza con el LED. Puedes cambiar la vista durante el taller."
+            hint="Primero descubre las conexiones; después enciende tu LED. Puedes cambiar la vista durante el taller."
           >
             {(props) => (
               <Select
@@ -164,9 +164,9 @@ export function Onboarding({
           </Callout>
         )}
         <p className="text-sm leading-6 text-ink-soft">
-          Empieza con el LED. Después mide luz, temperatura, humedad y suelo; al
-          final monitorea tu planta. {essentials.length} actividades, una a la
-          vez.
+          Entiende las conexiones y controla un LED. Prueba luz y aire; con esos
+          dos sensores ya empiezas tu estación. Después añade el suelo y amplía
+          tu maceta. {essentials.length} actividades, una a la vez.
         </p>
         {!app.serialSupported && (
           <Callout tone="warning" title="Programación por USB" compact>

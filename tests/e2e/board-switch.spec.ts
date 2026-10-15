@@ -26,7 +26,7 @@ test("the controller updates in the real 3D scene and keeps the selected 2D plan
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/led/);
+  await expect(page).toHaveURL(/taller\/welcome/);
   await page.goto("/taller/led");
   const explorer = page.getByRole("region", {
     name: "Explorador interactivo de la placa",

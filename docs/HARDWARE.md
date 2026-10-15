@@ -10,9 +10,11 @@ Cada kit incluye Pico W, protoboard 830 puntos, USB Micro-B, jumpers/ribbon, LED
 
 La Pico W sin sufijo H puede venir sin headers soldados. El docente debe montar los headers antes del taller: no es una actividad de soldadura para estudiantes dentro de la hora.
 
-## Montaje mínimo para la ruta de una hora
+## Montaje incremental del taller
 
-Por mesa prepara **una placa, USB de datos, protoboard, LED rojo, 220 Ω, sonda capacitiva, jumpers y tierra seca/húmeda**. Primero prueba LED y suelo por separado; después instala la estación con solo Suelo habilitado. No hace falta ocupar todos los rieles ni montar los ocho modelos para comprobar el recorrido completo.
+Arduino Uno es la placa principal. Primero se exploran las conexiones internas de la protoboard; después se enciende, hace parpadear y controla un LED con pulsador. Al pasar al DHT11, se retira el pulsador y su cable de D4: ese pin pasa a DATA del DHT11.
+
+Después de probar LDR y DHT11, se inicia la estación junto a la maceta, conservando el LED en D2, la luz en A1 y el DHT11 en D4. La sonda capacitiva se añade en A0 y se calibra. DS18B20, lluvia, nivel de agua, distancia y movimiento se añaden individualmente desde la estación; el plano y el programa incluyen únicamente los sensores seleccionados. La LDR queda expuesta a la luz, el DHT11 al aire y la zona sensora de la sonda entra en la tierra. Los módulos, conectores y protoboard quedan fuera de la maceta.
 
 | Comprobación antes de conectar USB | Pico W                                                   | Uno/Nano clásicos                 |
 | ---------------------------------- | -------------------------------------------------------- | --------------------------------- |

@@ -8,6 +8,7 @@ import {
   type Wire,
   type WiringStep,
 } from "./model";
+import { PLANT_SENSORS, type PlantSensorId } from "./plantStation";
 
 /**
  * Plano maestro de la protoboard del taller.
@@ -93,7 +94,8 @@ const v33Top = fragment(
       warning:
         "Cuenta bien: es j5, no j1. En j1 está VBUS, que entrega 5 V y puede dañar los pines GP.",
       why: "3V3 es la salida regulada de la Pico. Sus pines GP trabajan a ese mismo voltaje, así que es la alimentación segura para los sensores.",
-      verify: "El cable rojo sale de j5: el quinto agujero contando desde el USB.",
+      verify:
+        "El cable rojo sale de j5: el quinto agujero contando desde el USB.",
       shared: true,
     },
   ],
@@ -126,7 +128,15 @@ const bridge = (rail: "tn" | "bp" | "bn"): Fragment => {
   }[rail];
   return fragment(
     [],
-    [jumper(`w_bridge_${rail}`, `${rail}:31`, `${rail}:33`, info.color, info.carries)],
+    [
+      jumper(
+        `w_bridge_${rail}`,
+        `${rail}:31`,
+        `${rail}:33`,
+        info.color,
+        info.carries,
+      ),
+    ],
     [
       {
         id: `bridge-${rail}`,
@@ -335,7 +345,8 @@ const tilt = fragment(
       id: "tilt-place",
       kind: "place",
       title: "Coloca el SW520D: una pata en c38 y la otra en c40",
-      detail: "Déjalo parado, con el cilindro metálico hacia arriba. No tiene polaridad.",
+      detail:
+        "Déjalo parado, con el cilindro metálico hacia arriba. No tiene polaridad.",
       parts: ["tilt"],
       tip: "Si antes armaste el pulsador en este lugar, retíralo primero: ambos usan GP4.",
     },
@@ -400,7 +411,8 @@ const ldr = fragment(
       title: "Cable rojo: de j28 al riel rojo de arriba",
       detail: "Alimenta la primera pata de la LDR con 3,3 V.",
       wires: ["w_ldr_3v3"],
-      warning: "Usa el riel rojo (3,3 V). Las entradas analógicas no soportan 5 V.",
+      warning:
+        "Usa el riel rojo (3,3 V). Las entradas analógicas no soportan 5 V.",
     },
     {
       id: "ldr-signal",
@@ -409,7 +421,8 @@ const ldr = fragment(
       detail:
         "j30 es el punto donde se unen la LDR y la resistencia. j9 está unido al pin GP27 (pin 32), la entrada analógica ADC1.",
       wires: ["w_ldr_sig"],
-      verify: "El camino es: 3,3 V → LDR → punto de medida (GP27) → 10 kΩ → GND.",
+      verify:
+        "El camino es: 3,3 V → LDR → punto de medida (GP27) → 10 kΩ → GND.",
     },
   ],
   [
@@ -449,7 +462,8 @@ const lm35 = fragment(
       id: "lm35-5v",
       kind: "wire",
       title: "Cable naranja: de j33 a j1 (VBUS, 5 V)",
-      detail: "El LM35 necesita al menos 4 V. Los toma de VBUS, los 5 V del USB.",
+      detail:
+        "El LM35 necesita al menos 4 V. Los toma de VBUS, los 5 V del USB.",
       wires: ["w_lm35_5v"],
       warning:
         "Este es el único cable de 5 V. Va solo a la pata +VS del LM35, nunca a un pin GP.",
@@ -506,7 +520,8 @@ const potentiometer = fragment(
       title: "Cable rojo: de j37 al riel rojo de arriba",
       detail: "Un extremo del potenciómetro recibe 3,3 V.",
       wires: ["w_pot_3v3"],
-      warning: "Usa 3,3 V, no 5 V: el cursor llega directo a una entrada analógica.",
+      warning:
+        "Usa 3,3 V, no 5 V: el cursor llega directo a una entrada analógica.",
     },
     {
       id: "pot-gnd",
@@ -558,7 +573,8 @@ const dht11 = fragment(
       parts: ["dht"],
       warning:
         "El orden de las patas cambia entre fabricantes. Lee las marcas de TU módulo (+ o VCC, S o DATA, − o GND) y conecta cada cable según la marca, no según la posición.",
-      verify: "Identifiqué cuál pata es VCC, cuál es DATA y cuál es GND en mi módulo.",
+      verify:
+        "Identifiqué cuál pata es VCC, cuál es DATA y cuál es GND en mi módulo.",
     },
     {
       id: "dht-3v3",
@@ -566,7 +582,8 @@ const dht11 = fragment(
       title: "Cable rojo: de la tira de VCC (c44) al riel rojo de abajo",
       detail: "Alimenta el sensor con 3,3 V, frente al número 41.",
       wires: ["w_dht_3v3"],
-      warning: "Usa el riel rojo (3,3 V). Con 5 V, la señal DATA dañaría el pin GP15.",
+      warning:
+        "Usa el riel rojo (3,3 V). Con 5 V, la señal DATA dañaría el pin GP15.",
     },
     {
       id: "dht-gnd",
@@ -579,7 +596,8 @@ const dht11 = fragment(
       id: "dht-signal",
       kind: "wire",
       title: "Cable amarillo: de la tira de DATA (c45) a b20 (GP15)",
-      detail: "b20 está unido al pin GP15 (pin 20), el último de la fila de abajo.",
+      detail:
+        "b20 está unido al pin GP15 (pin 20), el último de la fila de abajo.",
       wires: ["w_dht_sig"],
       tip: "El módulo de 3 patas ya trae su resistencia de 10 kΩ. Si tu DHT11 es el sensor suelto de 4 patas, agrega una resistencia de 10 kΩ entre DATA y 3,3 V.",
     },
@@ -592,7 +610,14 @@ const dht11 = fragment(
 );
 
 const soil = fragment(
-  [{ id: "soil", type: "soil", label: "Sonda de humedad de suelo", at: { x: 9, y: -9.5 } }],
+  [
+    {
+      id: "soil",
+      type: "soil",
+      label: "Sonda de humedad de suelo",
+      at: { x: 9, y: -9.5 },
+    },
+  ],
   [
     cable("c_soil_3v3", "soil.VCC", "tp:11", "rojo", "3V3"),
     cable("c_soil_gnd", "soil.GND", "tn:12", "negro", "GND"),
@@ -606,7 +631,8 @@ const soil = fragment(
       detail:
         "El conector blanco entra en una sola posición. Si las puntas del cable son hembra, ponles un pin macho de la tira del kit para poder enchufarlas en la protoboard.",
       parts: ["soil"],
-      verify: "Miré las letras de la sonda: sé qué hilo es VCC, cuál es GND y cuál es AOUT.",
+      verify:
+        "Miré las letras de la sonda: sé qué hilo es VCC, cuál es GND y cuál es AOUT.",
     },
     {
       id: "soil-3v3",
@@ -643,7 +669,12 @@ const soil = fragment(
 
 const ds18b20 = fragment(
   [
-    { id: "ds", type: "ds18b20", label: "Termómetro DS18B20", at: { x: 25, y: -9.5 } },
+    {
+      id: "ds",
+      type: "ds18b20",
+      label: "Termómetro DS18B20",
+      at: { x: 25, y: -9.5 },
+    },
     resistor("r_ds1", 10000, "h24", "tp:24"),
     resistor("r_ds2", 10000, "g24", "tp:25"),
   ],
@@ -658,7 +689,8 @@ const ds18b20 = fragment(
       id: "ds-3v3",
       kind: "wire",
       title: "Hilo rojo (VDD): al riel rojo de arriba",
-      detail: "Enchufa la punta pelada del hilo rojo en el riel rojo, frente al número 22.",
+      detail:
+        "Enchufa la punta pelada del hilo rojo en el riel rojo, frente al número 22.",
       parts: ["ds"],
       wires: ["c_ds_3v3"],
       tip: "Lo habitual es rojo = VDD, negro = GND y amarillo = DATA. Si tu cable trae otros colores, pregunta antes de dar energía.",
@@ -674,14 +706,16 @@ const ds18b20 = fragment(
       id: "ds-data",
       kind: "wire",
       title: "Hilo amarillo (DATA): a j24",
-      detail: "La tira f–j del número 24 será el punto de datos del termómetro.",
+      detail:
+        "La tira f–j del número 24 será el punto de datos del termómetro.",
       wires: ["c_ds_sig"],
     },
     {
       id: "ds-pullup-1",
       kind: "place",
       title: "Primera resistencia de 10 kΩ: de h24 al riel rojo",
-      detail: "Una pata en h24 y la otra en el riel rojo de arriba, frente al número 24.",
+      detail:
+        "Una pata en h24 y la otra en el riel rojo de arriba, frente al número 24.",
       parts: ["r_ds1"],
       why: "El bus 1-Wire necesita una resistencia «pull-up» de unos 4,7 kΩ entre DATA y 3,3 V. El kit no trae ese valor, así que lo armamos con dos de 10 kΩ.",
     },
@@ -693,13 +727,15 @@ const ds18b20 = fragment(
         "Igual que la anterior, pero desde g24 hasta el riel rojo frente al número 25. Las dos quedan en paralelo.",
       parts: ["r_ds2"],
       why: "Dos resistencias de 10 kΩ en paralelo equivalen a 5 kΩ. Una detrás de la otra sumarían 20 kΩ y el termómetro no respondería.",
-      verify: "Las dos resistencias salen de la tira del número 24 y llegan al riel rojo.",
+      verify:
+        "Las dos resistencias salen de la tira del número 24 y llegan al riel rojo.",
     },
     {
       id: "ds-signal",
       kind: "wire",
       title: "Cable amarillo: de i24 a i20 (GP16)",
-      detail: "i20 está unido al pin GP16 (pin 21), el último de la fila de arriba.",
+      detail:
+        "i20 está unido al pin GP16 (pin 21), el último de la fila de arriba.",
       wires: ["w_ds_sig"],
     },
   ],
@@ -711,7 +747,14 @@ const ds18b20 = fragment(
 );
 
 const rain = fragment(
-  [{ id: "rain", type: "rain", label: "Módulo de lluvia LM393", at: { x: 10, y: 20.5 } }],
+  [
+    {
+      id: "rain",
+      type: "rain",
+      label: "Módulo de lluvia LM393",
+      at: { x: 10, y: 20.5 },
+    },
+  ],
   [
     cable("c_rain_3v3", "rain.VCC", "bp:15", "rojo", "3V3"),
     cable("c_rain_gnd", "rain.GND", "bn:16", "negro", "GND"),
@@ -730,9 +773,11 @@ const rain = fragment(
       id: "rain-3v3",
       kind: "wire",
       title: "Cable rojo: del pin VCC del módulo al riel rojo de abajo",
-      detail: "Usa un cable hembra-macho. Llega al riel rojo frente al número 15.",
+      detail:
+        "Usa un cable hembra-macho. Llega al riel rojo frente al número 15.",
       wires: ["c_rain_3v3"],
-      warning: "Aliméntalo con 3,3 V. Con 5 V, su salida DO dañaría el pin GP14.",
+      warning:
+        "Aliméntalo con 3,3 V. Con 5 V, su salida DO dañaría el pin GP14.",
     },
     {
       id: "rain-gnd",
@@ -759,7 +804,14 @@ const rain = fragment(
 );
 
 const water = fragment(
-  [{ id: "water", type: "water", label: "Sensor de nivel de agua", at: { x: 1, y: -9.5 } }],
+  [
+    {
+      id: "water",
+      type: "water",
+      label: "Sensor de nivel de agua",
+      at: { x: 1, y: -9.5 },
+    },
+  ],
   [
     cable("c_water_3v3", "water.VCC", "tp:9", "rojo", "3V3"),
     cable("c_water_gnd", "water.GND", "tn:10", "negro", "GND"),
@@ -770,7 +822,8 @@ const water = fragment(
       id: "water-3v3",
       kind: "wire",
       title: "Cable rojo: del pin + del sensor al riel rojo de arriba",
-      detail: "Usa un cable hembra-macho. Llega al riel rojo frente al número 9.",
+      detail:
+        "Usa un cable hembra-macho. Llega al riel rojo frente al número 9.",
       parts: ["water"],
       wires: ["c_water_3v3"],
       warning: "Usa 3,3 V: la señal S llega directo a una entrada analógica.",
@@ -828,7 +881,8 @@ const hcsr04 = fragment(
       detail:
         "Con los dos «ojos» mirando hacia afuera, sus patas quedan así: VCC (57), Trig (58), Echo (59) y GND (60).",
       parts: ["hc"],
-      verify: "Leí las marcas del sensor: VCC quedó en el número 57 y GND en el 60.",
+      verify:
+        "Leí las marcas del sensor: VCC quedó en el número 57 y GND en el 60.",
     },
     {
       id: "hc-gnd",
@@ -860,7 +914,8 @@ const hcsr04 = fragment(
       id: "hc-div-2",
       kind: "place",
       title: "Segunda resistencia de 1 kΩ: de g59 a g55",
-      detail: "Sigue la cadena hacia la izquierda. Termina en la tira del número 55.",
+      detail:
+        "Sigue la cadena hacia la izquierda. Termina en la tira del número 55.",
       parts: ["r_echo2"],
     },
     {
@@ -883,7 +938,8 @@ const hcsr04 = fragment(
       title: "Quinta resistencia de 1 kΩ: de h47 a h43",
       detail: "Es la última de la cadena. Termina en la tira del número 43.",
       parts: ["r_echo5"],
-      verify: "Las cinco resistencias forman una sola fila en zigzag: 59 → 55 → 51 → 47 → 43.",
+      verify:
+        "Las cinco resistencias forman una sola fila en zigzag: 59 → 55 → 51 → 47 → 43.",
     },
     {
       id: "hc-div-gnd",
@@ -904,7 +960,8 @@ const hcsr04 = fragment(
       warning:
         "Sale del número 55, no del 59. En el 59 está Echo directo, con 5 V, y eso daña el pin GP18.",
       why: "Divisor de voltaje: 5 V × 3 kΩ ÷ (2 kΩ + 3 kΩ) = 3 V.",
-      verify: "El cable azul sale de la tira 55, entre la segunda y la tercera resistencia.",
+      verify:
+        "El cable azul sale de la tira 55, entre la segunda y la tercera resistencia.",
     },
     {
       id: "hc-5v",
@@ -931,7 +988,14 @@ const hcsr04 = fragment(
 );
 
 const pir = fragment(
-  [{ id: "pir", type: "pir", label: "Sensor de movimiento PIR", at: { x: 17, y: -9.5 } }],
+  [
+    {
+      id: "pir",
+      type: "pir",
+      label: "Sensor de movimiento PIR",
+      at: { x: 17, y: -9.5 },
+    },
+  ],
   [
     cable("c_pir_gnd", "pir.GND", "tn:17", "negro", "GND"),
     cable("c_pir_sig", "pir.OUT", "j16", "blanco", "señal GP19"),
@@ -984,17 +1048,32 @@ const make = (
 ): Circuit => compose(id, title, fragments, view);
 
 export const circuits = {
-  led: make("led", "LED con resistencia en GP2", [gndBottom, led], { from: 1, to: 32 }),
-  buzzer: make("buzzer", "Buzzer pasivo en GP3", [gndBottom, buzzer], { from: 1, to: 40 }),
-  button: make("button", "Pulsador en GP4", [gndTop, button], { from: 1, to: 44 }),
+  led: make("led", "LED con resistencia en GP2", [gndBottom, led], {
+    from: 1,
+    to: 32,
+  }),
+  buzzer: make("buzzer", "Buzzer pasivo en GP3", [gndBottom, buzzer], {
+    from: 1,
+    to: 40,
+  }),
+  button: make("button", "Pulsador en GP4", [gndTop, button], {
+    from: 1,
+    to: 44,
+  }),
   buttonLed: make(
     "button-led",
     "LED controlado por un pulsador",
     [gndBottom, gndTop, led, button],
     { from: 1, to: 44 },
   ),
-  tilt: make("tilt", "Sensor de inclinación en GP4", [gndBottom, tilt], { from: 1, to: 44 }),
-  ldr: make("ldr", "LDR con divisor en GP27", [v33Top, gndTop, ldr], { from: 1, to: 34 }),
+  tilt: make("tilt", "Sensor de inclinación en GP4", [gndBottom, tilt], {
+    from: 1,
+    to: 44,
+  }),
+  ldr: make("ldr", "LDR con divisor en GP27", [v33Top, gndTop, ldr], {
+    from: 1,
+    to: 34,
+  }),
   lm35: make("lm35", "LM35 en GP26", [gndTop, lm35], { from: 1, to: 38 }),
   potentiometer: make(
     "potentiometer",
@@ -1002,19 +1081,33 @@ export const circuits = {
     [v33Top, gndTop, potentiometer],
     { from: 1, to: 44 },
   ),
-  soil: make("soil", "Sonda de suelo en GP26", [v33Top, gndTop, soil], { from: 1, to: 24 }),
-  ds18b20: make("ds18b20", "DS18B20 en GP16", [v33Top, gndTop, ds18b20], { from: 1, to: 32 }),
+  soil: make("soil", "Sonda de suelo en GP26", [v33Top, gndTop, soil], {
+    from: 1,
+    to: 24,
+  }),
+  ds18b20: make("ds18b20", "DS18B20 en GP16", [v33Top, gndTop, ds18b20], {
+    from: 1,
+    to: 32,
+  }),
   dht11: make(
     "dht11",
     "DHT11 en GP15",
     [v33Top, v33Bottom, bridge("bp"), gndBottom, bridge("bn"), dht11],
     { from: 1, to: 52 },
   ),
-  rain: make("rain", "Sensor de lluvia en GP14", [v33Top, v33Bottom, gndBottom, rain], {
+  rain: make(
+    "rain",
+    "Sensor de lluvia en GP14",
+    [v33Top, v33Bottom, gndBottom, rain],
+    {
+      from: 1,
+      to: 26,
+    },
+  ),
+  water: make("water", "Sensor de nivel en GP28", [v33Top, gndTop, water], {
     from: 1,
-    to: 26,
+    to: 20,
   }),
-  water: make("water", "Sensor de nivel en GP28", [v33Top, gndTop, water], { from: 1, to: 20 }),
   hcsr04: make(
     "hcsr04",
     "HC-SR04 con divisor en GP17 y GP18",
@@ -1068,3 +1161,43 @@ export const circuits = {
 } satisfies Record<string, Circuit>;
 
 export type CircuitId = keyof typeof circuits;
+
+/** Compose only the sensors the group actually mounted, without moving any pin. */
+export function plantStationCircuit(
+  selected: readonly PlantSensorId[],
+): Circuit {
+  const chosen = new Set(selected);
+  const fragments: Fragment[] = [gndBottom];
+  if (selected.length) fragments.push(v33Top, gndTop);
+  if (chosen.has("climate") || chosen.has("rain")) fragments.push(v33Bottom);
+  if (chosen.has("climate")) fragments.push(bridge("bp"));
+  if (chosen.has("climate") || chosen.has("distance"))
+    fragments.push(bridge("bn"));
+  if (chosen.has("distance")) fragments.push(bridge("tn"));
+  fragments.push(led);
+  const models: Record<PlantSensorId, Fragment> = {
+    light: ldr,
+    climate: dht11,
+    soil,
+    soil_temperature: ds18b20,
+    rain,
+    water_level: water,
+    distance: hcsr04,
+    motion: pir,
+  };
+  for (const sensor of PLANT_SENSORS)
+    if (chosen.has(sensor.id)) fragments.push(models[sensor.id]);
+  return make(
+    `plant_station-${
+      PLANT_SENSORS.filter((sensor) => chosen.has(sensor.id))
+        .map((sensor) => sensor.id)
+        .join("-") || "led"
+    }`,
+    "Mi estación · sólo los sensores montados",
+    fragments,
+    {
+      from: 1,
+      to: chosen.has("distance") ? 63 : chosen.has("climate") ? 52 : 38,
+    },
+  );
+}

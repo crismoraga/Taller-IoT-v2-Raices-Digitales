@@ -71,7 +71,7 @@ export default function Home() {
               ? finished
                 ? `${app.session.name}, ya completaron la ruta. Es momento de ver qué cuenta su planta.`
                 : `${app.session.name}, continuemos. Conecta, programa y comprueba una cosa a la vez.`
-              : "Empieza encendiendo un LED. Añade luz, temperatura y humedad, un sensor a la vez. Después reúne tus lecturas y descubre qué cuenta tu planta."}
+              : "Descubre las conexiones, enciende un LED y toma el control. Prueba luz y aire; después lleva tus sensores a la maceta y haz crecer tu estación."}
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Button
@@ -83,7 +83,7 @@ export default function Home() {
                 app.setGuided(true);
                 app.session
                   ? app.navigate(resume ? `/taller/${resume.id}` : "/planta")
-                  : app.openOnboarding("/taller/led");
+                  : app.openOnboarding("/taller/welcome");
               }}
             >
               {!app.session || done === 0
@@ -131,11 +131,11 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="ruta" className="t-heading text-ink">
-              LED → sensores → tu planta
+              Conexiones → LED → sensores → tu planta
             </h2>
             <p className="mt-1 text-sm text-ink-soft">
-              Sigue los pasos en orden. En cada uno conecta, programa y
-              comprueba.
+              Un paso a la vez. Con dos sensores ya comienzas a monitorear tu
+              maceta; después añades los demás.
             </p>
           </div>
           <span className="text-xs text-ink-soft">
@@ -158,11 +158,20 @@ export default function Home() {
           </div>
         )}
         <ol
-          className="home-route mt-4"
+          className="home-route home-stage-route mt-4 overflow-hidden rounded-lg border border-border"
           aria-label="Actividades de la ruta guiada"
         >
           {essentials.map((lesson, index) => (
             <li key={lesson.id}>
+              {index === 0 || index === 4 || index === 7 ? (
+                <p className="bg-surface-alt px-4 py-3 text-xs font-bold tracking-wide text-ink-accent">
+                  {index === 0
+                    ? "1 · Entiende y controla"
+                    : index === 4
+                      ? "2 · Siente y empieza tu estación"
+                      : "3 · Cuida tu planta y amplía"}
+                </p>
+              ) : null}
               <LessonRow
                 lesson={lesson}
                 number={index + 1}

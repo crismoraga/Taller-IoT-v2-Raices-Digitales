@@ -5,21 +5,27 @@ test.use({ reducedMotion: "reduce" });
 
 const ORIGIN = "http://127.0.0.1:5173";
 const ESSENTIALS = [
+  "welcome",
   "led",
+  "blink",
+  "button_led",
   "ldr",
   "dht11",
+  "station",
   "soil",
   "calibration",
-  "station",
   "dashboard",
 ];
 const ROUTE_TITLES = [
+  "Entiende las conexiones",
   "Enciende un LED",
+  "Hazlo parpadear",
+  "Controla el LED",
   "Mide la luz",
   "Mide temperatura y humedad",
-  "Mide la humedad del suelo",
+  "Empieza tu estación",
+  "Añade la sonda de suelo",
   "Calibra tu sonda",
-  "Conecta los sensores de tu planta",
   "Monitorea tu planta",
 ];
 
@@ -43,7 +49,7 @@ async function createGroup(page: Page, name: string) {
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/led/);
+  await expect(page).toHaveURL(/taller\/welcome/);
 }
 
 async function seedProgress(page: Page, progress: string[]) {
@@ -91,7 +97,7 @@ async function routeStoryWithoutGpu(page: Page) {
   });
 }
 
-test("seven incremental activities close at the plant and keep extras collapsed on Home", async ({
+test("ten incremental activities begin with connections and close at the plant while extras stay collapsed", async ({
   page,
 }) => {
   await routeStoryWithoutGpu(page);
@@ -116,7 +122,7 @@ test("seven incremental activities close at the plant and keep extras collapsed 
     name: "¡Tu ruta guiada está completa!",
   });
   await expect(celebration).toBeVisible();
-  await expect(celebration).toContainText("7 de 7");
+  await expect(celebration).toContainText("10 de 10");
   await celebration
     .getByRole("button", { name: "Ver mi planta", exact: true })
     .click();
@@ -130,7 +136,7 @@ test("seven incremental activities close at the plant and keep extras collapsed 
   const activities = page.getByRole("list", {
     name: "Actividades de la ruta guiada",
   });
-  await expect(activities.getByRole("listitem")).toHaveCount(7);
+  await expect(activities.getByRole("listitem")).toHaveCount(10);
   for (const [index, title] of ROUTE_TITLES.entries())
     await expect(activities.getByRole("listitem").nth(index)).toContainText(
       title,
@@ -161,14 +167,14 @@ test("seven incremental activities close at the plant and keep extras collapsed 
   await expect(page).toHaveURL(/\/planta$/);
 });
 
-test("free mode keeps the same LED, light, climate, soil and monitoring sequence after reload", async ({
+test("free mode preserves connections, LED control, two sensors, early station and monitoring after reload", async ({
   page,
 }) => {
   test.setTimeout(150000);
   await routeStoryWithoutGpu(page);
   await createGroup(page, "Ruta libre QA");
   await seedProgress(page, ESSENTIALS);
-  await page.goto("/taller/led");
+  await page.goto("/taller/welcome");
   await page.getByRole("radio", { name: "Libre", exact: true }).click();
   await page.reload();
   await expect(
@@ -226,14 +232,14 @@ test("both activity views close at monitoring and optional legacy lessons retain
     .click();
   await expect(page).toHaveURL(/\/planta$/);
 
-  await page.goto("/taller/welcome");
+  await page.goto("/taller/led_onboard");
   await page
     .getByRole("button", {
-      name: "Siguiente: Una luz que ya está en tu placa",
+      name: "Siguiente: Una decisión con un dedo",
       exact: true,
     })
     .click();
-  await expect(page).toHaveURL(/\/taller\/led_onboard$/);
+  await expect(page).toHaveURL(/\/taller\/button$/);
   await page.goto("/taller/cloud");
   await page
     .getByRole("button", {
@@ -372,7 +378,7 @@ test("mobile station, diagnostics and teacher controls remain usable at 320 and 
   expect(errors).toEqual([]);
 });
 
-test("mobile onboarding starts with the LED and preserves Arduino and free view in optional board and cloud tools", async ({
+test("mobile onboarding starts with connections and preserves Arduino and free view in board and optional cloud tools", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -394,7 +400,7 @@ test("mobile onboarding starts with the LED and preserves Arduino and free view 
   await onboarding
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/led$/);
+  await expect(page).toHaveURL(/\/taller\/welcome$/);
   await expect(page.getByLabel("Tu placa")).toHaveValue("uno");
   await expect(
     page.getByRole("radio", { name: "Libre", exact: true }),
@@ -402,7 +408,7 @@ test("mobile onboarding starts with the LED and preserves Arduino and free view 
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Enciende un LED",
+      name: "Entiende las conexiones",
       exact: true,
     }),
   ).toBeVisible();
@@ -417,8 +423,9 @@ test("mobile onboarding starts with the LED and preserves Arduino and free view 
     }),
   ).toBeVisible();
   await expect(
-    connect.getByRole("radio", { name: "Explorar en 3D", exact: true }),
+    connect.getByRole("radio", { name: "Aprender conexiones", exact: true }),
   ).toBeChecked();
+  await connect.getByRole("radio", { name: "Ver en 3D", exact: true }).click();
   await expect(connect.locator(".rdx-circuit canvas")).toBeVisible();
   await expectFitsScreen(page);
   await page.goto("/taller/cloud");

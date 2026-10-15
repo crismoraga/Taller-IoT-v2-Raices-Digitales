@@ -80,11 +80,11 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
 
   if (lesson.id === "welcome") {
     adapted.summary =
-      "Reconoce tu Arduino, conecta USB y envíale tu primer programa.";
+      "Descubre las filas de la protoboard y cómo un jumper las conecta con Arduino.";
     adapted.objective =
-      "Encontrar D2, A0 y GND en tu Arduino y recibir su primer mensaje por USB.";
+      "Reconocer una tira de cinco agujeros y encontrar D2, A0 y GND antes de conectar el LED.";
     adapted.expected =
-      "Selecciona tu Uno o Nano, conecta USB y pulsa Cargar en Arduino. La carga verifica el programa en la memoria de la placa; después verás su saludo en la terminal a 115200 baudios. Toca D2, A0 y GND en el modelo para reconocer salida, entrada y retorno.";
+      "Toca a26 y e26: comparten la misma tira. f26 pertenece al otro lado del canal. Localiza D2, A0 y GND en Arduino y sigue el recorrido de un jumper hasta una fila. Si quieres probar USB ahora, pulsa Cargar en Arduino: el programa se verifica en la memoria de la placa y escribe su saludo en la terminal. La siguiente actividad enciende el LED.";
     adapted.experiment = [
       lesson.experiment[0],
       "Localiza D2, A0 y GND en Arduino. D2 sirve como salida digital; A0 mide una señal analógica; GND completa el circuito. Toca sus nombres en el modelo para encontrarlos.",
@@ -106,6 +106,11 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
           }
         : trouble,
     );
+  }
+
+  if (lesson.id === "dht11") {
+    adapted.objective =
+      "Primero retira el pulsador y su cable de D4. Conserva LED y LDR; conecta el DHT11 para leer temperatura y humedad del aire.";
   }
 
   if (lesson.id === "led") {
@@ -253,7 +258,7 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
       adapted.why =
         "A0 convierte el voltaje de la sonda en un número de 0 a 1023, con la referencia de 5 V del Uno/Nano. La sonda conserva su alimentación de 3,3 V; su rango útil se aprende con dos referencias físicas propias.";
       adapted.expected =
-        "Una línea JSON por segundo con raw entre 0 y 1023. El porcentaje queda vacío hasta calibrar e instalar la estación.";
+        "Este ejemplo imprime solo suelo: una línea JSON por segundo con raw de 0 a 1023. Conserva la LDR y el DHT11 conectados. Compara tierra seca y húmeda a la misma profundidad; el porcentaje queda vacío hasta calibrar y reinstalar la estación con la nueva sonda.";
     }
   }
   if (lesson.id === "potentiometer") {
@@ -420,7 +425,7 @@ export function lessonForBoard(lesson: Lesson, board: Board): Lesson {
   }
   if (lesson.id === "station") {
     adapted.expected =
-      "En Estación conecta Arduino por USB, activa los sensores montados y compila e instala su programa. Deja esta página abierta para que el puente del PC envíe sus lecturas a Mi planta. Cada sensor conserva su entrada y su estado.";
+      "Coloca la LDR hacia la luz y el DHT11 al aire junto a la maceta. Confirma los sensores montados y pulsa Instalar sensores conectados. La terminal y Mi planta reciben las lecturas de Arduino por USB; mantén esta página abierta. Añade la sonda de suelo en la siguiente actividad y reinstala al incorporar cada sensor.";
   }
   if (lesson.id === "calibration") {
     adapted.expected =

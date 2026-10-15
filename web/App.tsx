@@ -103,7 +103,7 @@ export default function App() {
     Record<string, unknown>
   >({});
   const [onboarding, setOnboarding] = useState(false);
-  const onboardingDestination = useRef("/taller/led");
+  const onboardingDestination = useRef("/taller/welcome");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(() =>
@@ -974,13 +974,13 @@ export default function App() {
     }
   }, []);
   const clearTerminal = useCallback(() => setTerminal(""), []);
-  const openOnboarding = useCallback((destination = "/taller/led") => {
+  const openOnboarding = useCallback((destination = "/taller/welcome") => {
     onboardingDestination.current =
       typeof destination === "string" &&
       destination.startsWith("/") &&
       !destination.startsWith("//")
         ? destination
-        : "/taller/led";
+        : "/taller/welcome";
     setOnboarding(true);
   }, []);
 

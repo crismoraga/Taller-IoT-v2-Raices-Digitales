@@ -128,7 +128,7 @@ export function Sidebar({
       {!collapsed && app.session && (
         <div className="mx-3.5 mt-5 shrink-0 border-t border-accent-soft/20 px-2 pt-5">
           <p className="text-xs font-semibold text-accent-soft">
-            Tu avance · LED → sensores → planta
+            Tu avance · conexiones → LED → planta
           </p>
           <p className="mt-1 font-display text-[15px] font-bold leading-5 text-cream">
             {app.session

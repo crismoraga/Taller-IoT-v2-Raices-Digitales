@@ -7,7 +7,7 @@
   <a href="https://github.com/crismoraga/Taller-IoT-v2-Raices-Digitales/issues"><img src="https://img.shields.io/github/issues/crismoraga/Taller-IoT-v2-Raices-Digitales" alt="Incidencias abiertas"></a>
 </p>
 
-**Descripción corta para GitHub:** Plataforma educativa de IoT para Telemática USM: taller guiado de Raspberry Pi Pico y Arduino, cableado 2D/3D, programación USB y telemetría.
+**Descripción corta para GitHub:** Plataforma educativa de IoT para Telemática USM: taller guiado con Arduino Uno, protoboard 2D/3D, sensores de plantas y telemetría USB en vivo.
 
 **Plataforma en línea:** [telematica-iot-usm.vercel.app](https://telematica-iot-usm.vercel.app) · **Interfaz:** español · **Licencia:** no declarada todavía.
 
@@ -15,11 +15,12 @@ Raíces Digitales es un taller práctico para conectar electrónica, programaci�
 
 ## Qué incluye
 
-- Ruta guiada de 60 minutos y biblioteca de actividades de LED, entradas, sensores, calibración, actuadores y telemetría.
+- Recorrido incremental: conexiones de protoboard → LED encendido, parpadeo y pulsador → luz y DHT11 → estación en la maceta → suelo y calibración → dashboard. Los sensores adicionales se incorporan uno a uno.
 - Modelos 3D interactivos y plano 2D con las mismas coordenadas, patas y conexiones; montaje paso a paso y progreso guardado.
 - Editor de MicroPython y Arduino, terminal USB, instalación de estación y diagnóstico visible.
 - Compatibilidad declarada con Raspberry Pi Pico, Pico W, Pico 2 y Pico 2 W usando MicroPython; Arduino Uno, Nano ATmega328P, Nano ATmega328P con bootloader antiguo y Nano ATmega168.
 - Transporte de datos: Wi-Fi opcional en modelos Pico W y puente USB desde el computador en Pico y Arduino.
+- Comprobación opcional de sensores por GPIO en Raspberry Pi 3/4 con Linux, separada del taller principal Arduino; sensores analógicos requieren un ADC externo.
 - API Fastify, almacenamiento SQLite persistente, panel docente, alertas configurables, exportación CSV/JSON y compilación Arduino real.
 - Interfaz en español, identidad visual propia, temas claro/oscuro, movimiento reducido y alternativa 2D/textual si WebGL no está disponible.
 

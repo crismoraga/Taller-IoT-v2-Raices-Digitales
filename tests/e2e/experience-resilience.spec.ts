@@ -69,13 +69,13 @@ async function expectCompletedSoil(
   tone: "success" | "accent",
 ) {
   await expect(progress).toHaveAttribute("aria-valuenow", "1");
-  await expect(progress).toHaveAttribute("aria-valuetext", "1 de 7");
+  await expect(progress).toHaveAttribute("aria-valuetext", "1 de 10");
   const segments = progress.locator(":scope > span");
-  await expect(segments).toHaveCount(7);
-  // The fourth activity is complete; coloring the first segment would falsely
+  await expect(segments).toHaveCount(10);
+  // The eighth activity is complete; coloring the first segment would falsely
   // claim that the skipped LED activity had already been completed.
-  await expect(segments.nth(3)).toHaveClass(new RegExp(`\\bbg-${tone}\\b`));
-  for (const index of [0, 1, 2, 4, 5, 6])
+  await expect(segments.nth(7)).toHaveClass(new RegExp(`\\bbg-${tone}\\b`));
+  for (const index of [0, 1, 2, 3, 4, 5, 6, 8, 9])
     await expect(segments.nth(index)).not.toHaveClass(
       new RegExp(`\\bbg-${tone}\\b`),
     );
@@ -114,7 +114,7 @@ test("team creation focuses the name, keeps keyboard focus inside and returns to
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/led$/);
+  await expect(page).toHaveURL(/\/taller\/welcome$/);
   const response = await page.request.get("/api/session");
   expect(response.ok()).toBe(true);
   expect((await response.json()).session.name).toBe("Equipo teclado QA");
@@ -147,7 +147,7 @@ test("a group completing soil out of order sees the correct activity in both pro
     const activities = page.getByRole("list", {
       name: "Actividades de la ruta guiada",
     });
-    await expect(activities.getByRole("listitem").nth(3)).toContainText(
+    await expect(activities.getByRole("listitem").nth(7)).toContainText(
       "Completada",
     );
     await expect(
@@ -212,8 +212,8 @@ test("Nano ATmega168 chosen at onboarding keeps its 2D plan and offers the Ardui
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/taller\/led$/);
-  // The board explorer remains available as an optional legacy activity.
+  await expect(page).toHaveURL(/\/taller\/welcome$/);
+  // The connections activity preserves the selected controller and view.
   await page.goto("/taller/welcome");
   await expect(page.getByLabel("Tu placa")).toHaveValue("nano-168");
   await phase(page, "Conecta");

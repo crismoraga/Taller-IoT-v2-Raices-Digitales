@@ -152,31 +152,33 @@ describe("contenido del taller", () => {
       );
   });
 
-  it("el recorrido recomendado empieza con el LED, integra los sensores y termina monitoreando", () => {
+  it("el recorrido recomendado enseña conexiones y empieza la estación tras luz y aire", () => {
     const route = expressRoute.map((id) =>
       lessons.find((item) => item.id === id)!,
     );
     expect(route.every(Boolean)).toBe(true);
-    expect(route.reduce((minutes, item) => minutes + item.duration, 0)).toBe(
-      64,
-    );
     expect(route.map((item) => item.id)).toEqual([
+      "welcome",
       "led",
+      "blink",
+      "button_led",
       "ldr",
       "dht11",
+      "station",
       "soil",
       "calibration",
-      "station",
       "dashboard",
     ]);
-    expect(route.at(-2)!.tool).toBe("station");
+    expect(route[6].tool).toBe("station");
     expect(route.at(-1)!.tool).toBe("dashboard");
     expect(Object.keys(guidedRouteCopy)).toEqual(expressRoute);
-    expect(route.slice(1, 4).map((lesson) => lesson.sensor)).toEqual([
+    expect(route.slice(4, 6).map((lesson) => lesson.sensor)).toEqual([
       "light",
       "air_temperature",
-      "soil",
     ]);
+    expect(route[7].sensor).toBe("soil");
+    for (const id of ["ds18b20", "rain", "water_level", "distance", "motion"])
+      expect(lessons.find((lesson) => lesson.id === id)?.circuit, id).toBeTruthy();
   });
 
   it("todas las muestras, soluciones y reemplazos Python tienen sintaxis válida", () => {

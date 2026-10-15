@@ -3,13 +3,14 @@ import type { Lesson } from "../types";
 
 export const welcome = activity("welcome", {
   stage: 0,
-  title: "De una señal a una planta conectada",
+  essential: true,
+  title: "Entiende las conexiones",
   summary:
-    "Conoce tu placa, la protoboard y el viaje que harán los datos de tu planta.",
+    "Toca la protoboard y descubre cómo un cable une un pin con un componente.",
   duration: 5,
   icon: "rocket",
   objective:
-    "Descubrir los pines y las conexiones de tu placa, y enviarle tu primer mensaje por USB.",
+    "Reconocer una fila conectada, el canal central y GND antes de encender tu primer LED.",
   materials: [
     { name: "Placa con conexión USB", qty: 1 },
     {
@@ -21,27 +22,23 @@ export const welcome = activity("welcome", {
     { name: "Planta y kit de tu grupo", qty: 1 },
   ],
   concept: {
-    title: "¿Cómo llega una planta a una pantalla?",
+    title: "Un cable une dos puntos; una fila reparte la conexión",
     body: [
-      "Una planta no habla en números. Un sensor transforma una condición física, como la humedad, en una señal. La placa lee esa señal y tu programa le da significado.",
-      "La red transporta las lecturas al servidor. La web las muestra para que puedas decidir: observar, revisar o regar a mano. Ese encuentro entre electrónica, código y comunicaciones es una parte de la Ingeniería Civil Telemática.",
-      "Empieza conectando un LED. Después añade luz, temperatura y humedad del aire; prueba y calibra el suelo. Al final reúne los sensores y observa tu planta en vivo. Los botones, el sonido y otros sensores son experimentos opcionales.",
+      "Dentro de la protoboard hay pequeñas tiras metálicas. Los agujeros a–e del mismo número comparten una tira; f–j comparten otra. El canal central mantiene separados ambos lados. Toca a26, e26 y f26 para verlo.",
+      "Un jumper lleva la conexión desde un pin de la placa hasta una fila. Si una pata de un componente entra en esa misma tira, queda conectada al pin. GND es el retorno que permite cerrar el camino.",
+      "Primero encenderás un LED, cambiarás su ritmo y lo controlarás con un botón. Después probarás luz y aire, comenzarás la estación en tu maceta y añadirás el suelo y los demás sensores de uno en uno.",
     ],
     facts: [
-      { label: "Tu recorrido", value: "LED → sensores → planta" },
-      { label: "Grupo", value: "Una estación propia" },
-      { label: "Cadena", value: "Sensor → código → red" },
-      { label: "Primero", value: "Toca y descubre" },
+      { label: "Misma tira", value: "a26–e26" },
+      { label: "Otro lado", value: "f26–j26" },
+      { label: "Un jumper", value: "Une dos puntos" },
+      { label: "Retorno", value: "GND" },
     ],
   },
-  safety: [
-    "Desconecta el USB antes de mover componentes. Alimenta y prueba solo después de revisar el montaje.",
-    "Los pines GP de la Pico aceptan hasta 3,3 V. VBUS entrega 5 V y se mantiene separado de los rieles de 3,3 V.",
-    "La protoboard y la electrónica quedan lejos del agua. No conectes el soporte de batería de 9 V directamente a sensores o GPIO.",
-  ],
+  safety: [],
   why: "Los cinco agujeros a–e de un mismo número están unidos; f–j forman otro grupo independiente. El canal central los separa. Los rieles largos distribuyen energía y a veces están cortados al centro. Un cable debe unir nodos distintos: poner dos patas en el mismo grupo puede anular el componente.",
   expected:
-    "Conecta tu placa por USB y pulsa Conectar y descubrir. En Pico aparece la identificación de MicroPython. En Uno/Nano aparece el saludo del sketch a 115200 baudios. Localiza un pin de señal y GND en el modelo, y sigue el camino sensor → programa → red → pantalla.",
+    "Toca a26 y e26: se ilumina la misma tira. Toca f26: aparece otro grupo. Encuentra una salida y GND en tu placa. Ya puedes explicar dónde termina cada extremo de un jumper; la siguiente actividad construye ese camino con un LED.",
   codeNotes: [
     {
       line: "import sys",
@@ -61,15 +58,15 @@ export const welcome = activity("welcome", {
   ],
   experiment: [
     "En el explorador de protoboard, toca a26 y luego e26. ¿Comparten conexión? Ahora compara a26 con f26.",
-    "Localiza GP2 y su número físico. ¿Por qué GP2 no es el pin físico 2? Un nombre describe la función; el otro describe la posición.",
-    "Reparte roles: una persona cablea, otra programa y otra registra lo observado. Rota después del LED.",
+    "Localiza GP2 y GND. Imagina un jumper desde GP2 hasta a26: ¿qué agujeros recibirían esa misma señal?",
+    "Sigue un riel lateral con el explorador. Si está dividido al centro, sus dos mitades necesitan un puente para compartir la conexión.",
   ],
   challenge: {
     prompt:
-      "Dibuja o relata el viaje de una futura medición desde la tierra hasta esta página.",
+      "Indica dónde pondrías el extremo de un jumper para conectar una pata situada en d26 con un pin de la placa.",
     hints: [
-      "Parte por lo que puede sentir la humedad.",
-      "Incluye sensor, placa, programa, red, servidor y pantalla. Di qué hace cada uno.",
+      "d26 comparte tira con a26, b26, c26 y e26.",
+      "Un extremo del cable entra en el pin; el otro en un agujero libre de esa misma tira. f26 pertenece al otro lado.",
     ],
   },
   checkpoint: [
@@ -241,6 +238,7 @@ void loop() {}
 
 export const blink = activity("blink", {
   stage: 1,
+  essential: true,
   summary:
     "Conserva tu circuito y escribe su ritmo: rápido, lento o un pulso por segundo.",
   duration: 7,
@@ -490,6 +488,7 @@ export const button = activity("button", {
 export const buttonLed: Lesson = {
   ...button,
   id: "button_led",
+  essential: true,
   title: "Tu mano toma el control",
   summary:
     "Une una entrada y una salida: el pulsador decide cuándo encender el LED.",

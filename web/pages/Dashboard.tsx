@@ -34,6 +34,14 @@ import {
 } from "../lib/api";
 import { Button, Badge, EmptyState, Notice, Modal } from "../components/Common";
 import { downloadExport } from "../lib/export";
+import {
+  dashboardReadings,
+  hasReadingValue,
+  isLiveReading,
+  readingSource,
+  readingTime,
+} from "../lib/dashboard-readings";
+import "./dashboard.css";
 const LivingStation = lazy(() => import("../experience/LivingStation"));
 
 const initial: DashboardData = {
@@ -83,12 +91,13 @@ const definitions = [
   { id: "motion", unit: "0/1", Icon: Activity, min: 0, max: 1, value: 0 },
 ];
 function format(r: Reading | undefined) {
-  if (!r || r.value === null) return "—";
+  if (!hasReadingValue(r)) return "—";
   if (r.sensor === "rain") return r.value ? "Sí" : "No";
   if (r.sensor === "motion") return r.value ? "Detectado" : "Sin actividad";
   return Number(r.value).toLocaleString("es-CL", { maximumFractionDigits: 1 });
 }
 function age(iso: string) {
+  if (!Number.isFinite(Date.parse(iso))) return "Sin fecha";
   const seconds = Math.max(
     0,
     Math.floor((Date.now() - new Date(iso).getTime()) / 1000),
@@ -127,7 +136,8 @@ export default function Dashboard() {
     [, setTick] = useState(0);
   const valuesRef = useRef(values),
     failedRef = useRef(failed),
-    refreshGeneration = useRef(0);
+    refreshGeneration = useRef(0),
+    refreshRequest = useRef(0);
   const simulationDefinitions = definitions.filter(
     ({ id }) =>
       moreSimulationSensors ||
@@ -141,13 +151,22 @@ export default function Dashboard() {
   const refresh = async () => {
     if (!app.session) return;
     const generation = refreshGeneration.current;
+    const request = ++refreshRequest.current;
     try {
       const updated = await api<DashboardData>(`/dashboard?range=${range}`);
-      if (generation !== refreshGeneration.current) return;
+      if (
+        generation !== refreshGeneration.current ||
+        request !== refreshRequest.current
+      )
+        return;
       setData(updated);
       setConnectionIssue("");
     } catch {
-      if (generation !== refreshGeneration.current) return;
+      if (
+        generation !== refreshGeneration.current ||
+        request !== refreshRequest.current
+      )
+        return;
       setConnectionIssue(
         "Sin conexión con el servidor. Mostramos las últimas lecturas; volveremos a intentar automáticamente.",
       );
@@ -201,75 +220,40 @@ export default function Dashboard() {
     const interval = setInterval(() => void sendSimulation(), 5000);
     return () => clearInterval(interval);
   }, [streaming]);
-  const latest = [...data.latest, ...app.localReadings].filter(
-    (r) => source === "all" || r.source === source,
+  const allReadings = [...data.latest, ...app.localReadings];
+  const { source: sceneSource, latest: latestMap } = dashboardReadings(
+    allReadings,
+    source,
   );
-  const latestMap = new Map<string, Reading>();
-  for (const r of latest) {
-    if (
-      !latestMap.has(r.sensor) ||
-      new Date(r.timestamp || 0) >
-        new Date(latestMap.get(r.sensor)?.timestamp || 0)
-    )
-      latestMap.set(r.sensor, r);
-  }
-  // One source drives the whole model: never combine simulated soil with a physical light sensor.
-  const sceneSource: "hardware" | "simulation" =
-    source === "hardware" || source === "simulation"
-      ? source
-      : latest
-            .filter((reading) => reading.status !== "DISABLED")
-            .sort(
-              (a, b) =>
-                new Date(b.timestamp || 0).getTime() -
-                new Date(a.timestamp || 0).getTime(),
-            )[0]?.source === "simulation"
-        ? "simulation"
-        : "hardware";
-  const sceneMap = new Map<string, Reading>();
-  for (const reading of latest) {
-    if (
-      (reading.source === "simulation" ? "simulation" : "hardware") !==
-      sceneSource
-    )
-      continue;
-    const previous = sceneMap.get(reading.sensor);
-    if (
-      !previous ||
-      new Date(reading.timestamp || 0) >= new Date(previous.timestamp || 0)
-    )
-      sceneMap.set(reading.sensor, reading);
-  }
+  const latest = [...latestMap.values()];
   const sceneValue = (sensor: string) => {
-    const reading = sceneMap.get(sensor);
-    return reading &&
+    const reading = latestMap.get(sensor);
+    return hasReadingValue(reading) &&
       ["READING", "OUT_OF_RANGE"].includes(reading.status) &&
-      typeof reading.value === "number" &&
-      Number.isFinite(reading.value)
+      isLiveReading(reading)
       ? reading.value
       : undefined;
   };
   const history = data.history.filter(
-    (r) =>
-      r.sensor === chartSensor && (source === "all" || r.source === source),
+    (reading) =>
+      reading.sensor === chartSensor && readingSource(reading) === sceneSource,
   );
-  const online =
-    latest.some(
-      (r) =>
-        r.timestamp && Date.now() - new Date(r.timestamp).getTime() < 20000,
-    ) ||
-    data.devices.some(
-      (d) =>
-        d.online && !d.revoked && (source === "all" || d.source === source),
+  const liveSensorCount = latest.filter((reading) =>
+    isLiveReading(reading),
+  ).length;
+  // A connected browser/event stream is different from receiving fresh sensor data.
+  const online = liveSensorCount > 0;
+  const variableRules = data.rules.filter((rule) => {
+    const reading = latestMap.get(rule.sensor);
+    return (
+      hasReadingValue(reading) &&
+      ["READING", "OUT_OF_RANGE"].includes(reading.status) &&
+      isLiveReading(reading)
     );
-  const variableRules = data.rules.filter(
-    (r) =>
-      latestMap.get(r.sensor)?.value !== null &&
-      latestMap.get(r.sensor)?.value !== undefined,
-  );
-  const inRange = variableRules.filter((r) => {
-    const v = latestMap.get(r.sensor)!.value!;
-    return v >= r.min && v <= r.max;
+  });
+  const inRange = variableRules.filter((rule) => {
+    const value = latestMap.get(rule.sensor)!.value!;
+    return value >= rule.min && value <= rule.max;
   }).length;
   const createRule = async () => {
     if (loading) return;
@@ -335,9 +319,9 @@ export default function Dashboard() {
   return (
     <div className="dashboard-page">
       <PageHeader
-        kicker="Descubre · Mi planta"
+        kicker="Cultiva · Mi estación"
         title="Tu planta tiene algo que contarte"
-        subtitle="Toca la estación, observa una variable y descubre cómo cambia."
+        subtitle="Monta un sensor, recibe su señal y descubre lo que cambia en tu planta."
         art={
           <Icon
             name="sprout"
@@ -388,32 +372,38 @@ export default function Dashboard() {
                   `Planta del grupo ${app.session.groupNumber}`}
               </h3>
               <span className="muted">
-                {data.devices.length
-                  ? `${data.devices.length} dispositivo(s) vinculado(s)`
+                {liveSensorCount
+                  ? `${liveSensorCount} ${liveSensorCount === 1 ? "variable en vivo" : "variables en vivo"}`
                   : latest.length
-                    ? "Lecturas recibidas en tu espacio"
+                    ? "Conservamos tus últimas lecturas"
                     : "Tu primera lectura está por llegar"}
               </span>
             </div>
             <div className="station-summary-status">
               <Badge tone={online ? "sage" : "neutral"}>
                 {online ? <Wifi size={13} /> : <WifiOff size={13} />}{" "}
-                {online ? "RECIBIENDO DATOS" : "SIN DATOS RECIENTES"}
+                {online
+                  ? sceneSource === "simulation"
+                    ? "SIMULACIÓN EN VIVO"
+                    : "RECIBIENDO DATOS"
+                  : "ESPERANDO LA PLACA"}
               </Badge>
               <small>Actualización del panel: {eventState}</small>
             </div>
-            <div className="range-summary">
-              <strong>
-                {variableRules.length
-                  ? `${inRange}/${variableRules.length}`
-                  : "—"}
-              </strong>
-              <span>
-                Variables dentro
-                <br />
-                de tus umbrales
-              </span>
-            </div>
+            {data.rules.length > 0 && (
+              <div className="range-summary">
+                <strong>
+                  {variableRules.length
+                    ? `${inRange}/${variableRules.length}`
+                    : "—"}
+                </strong>
+                <span>
+                  Variables dentro
+                  <br />
+                  de tus umbrales
+                </span>
+              </div>
+            )}
           </section>
           <div className="dashboard-controls">
             <Segmented
@@ -421,7 +411,7 @@ export default function Dashboard() {
               value={source}
               onChange={setSource}
               options={[
-                { value: "all", label: "Todas las fuentes" },
+                { value: "all", label: "Automática" },
                 { value: "hardware", label: "Hardware real", icon: "usb" },
                 { value: "simulation", label: "Simulación", icon: "flask" },
               ]}
@@ -429,7 +419,10 @@ export default function Dashboard() {
             <Button
               variant={simulation ? "secondary" : "ghost"}
               onClick={() => {
-                if (simulation) setStreaming(false);
+                if (simulation) {
+                  setStreaming(false);
+                  if (source === "simulation") setSource("all");
+                } else setSource("simulation");
                 setSimulation(!simulation);
               }}
             >
@@ -437,14 +430,12 @@ export default function Dashboard() {
               {simulation ? "Cerrar simulador" : "Practicar sin hardware"}
             </Button>
           </div>
-          {latest.some((r) => r.source === "simulation") &&
-            source !== "hardware" && (
-              <Notice>
-                Experimento en <strong>simulación educativa</strong>. Cada
-                tarjeta conserva su fuente; elige «Hardware real» para mirar tu
-                placa.
-              </Notice>
-            )}
+          {sceneSource === "simulation" && latest.length > 0 && (
+            <Notice>
+              Estás viendo <strong>datos simulados</strong>. Elige «Hardware
+              real» para ver únicamente los sensores de tu placa.
+            </Notice>
+          )}
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
             <Suspense
               fallback={
@@ -464,100 +455,144 @@ export default function Dashboard() {
               />
             </Suspense>
             <div className="min-w-0 space-y-4">
-              <div className="rounded-xl border border-border bg-surface p-4">
-                <p className="t-overline text-ink-accent">Sigue la señal</p>
-                <h2 className="mt-2 font-display text-lg font-bold text-ink">
-                  Toca una lectura para ver su historia
-                </h2>
-                <p className="mt-1 text-sm text-ink-soft">
-                  Las tarjetas y el modelo muestran la fuente elegida arriba.
-                </p>
+              <div className="dashboard-growth-heading">
+                <div>
+                  <p className="t-overline text-ink-accent">
+                    Tu jardín de datos
+                  </p>
+                  <h2>Tus sensores, una señal a la vez</h2>
+                  <p>Toca una tarjeta para ver cómo cambia.</p>
+                </div>
+                <button
+                  className="dashboard-add-sensor"
+                  onClick={() => app.navigate("/taller/station")}
+                >
+                  <Plus size={16} /> Añadir sensor
+                </button>
               </div>
               {!relevantSensors.length && (
                 <EmptyState
                   title="Todo listo para tu primera lectura"
-                  description="Conecta y configura los sensores que usarás, o abre el simulador para practicar."
+                  description="Empieza con luz y temperatura. Después añade humedad del suelo y lleva tu estación a la maceta."
                   action={
                     <Button
                       variant="secondary"
-                      onClick={() => app.navigate("/estacion")}
+                      onClick={() => app.navigate("/taller/station")}
                     >
                       Elegir mis sensores <ArrowRight size={16} />
                     </Button>
                   }
                 />
               )}
-              <div
-                className="sensor-grid"
-                style={{
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
-                }}
-              >
-                {visibleSensors.map(({ id, unit, Icon }) => {
-                  const reading = latestMap.get(id);
-                  const rule = data.rules.find((r) => r.sensor === id);
-                  const outside =
-                    reading?.value != null &&
-                    rule &&
-                    (reading.value < rule.min || reading.value > rule.max);
-                  const sensorProblem =
-                    reading &&
-                    ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
-                      reading.status,
-                    );
+              <div className="dashboard-sensor-groups">
+                {[
+                  { title: "En la maceta", ids: ["soil", "soil_temperature"] },
+                  {
+                    title: "A su alrededor",
+                    ids: ["air_temperature", "air_humidity", "light"],
+                  },
+                  {
+                    title: "Agua y entorno",
+                    ids: ["water_level", "rain", "distance", "motion"],
+                  },
+                ].map((group) => {
+                  const sensors = visibleSensors.filter(({ id }) =>
+                    group.ids.includes(id),
+                  );
+                  if (!sensors.length) return null;
                   return (
-                    <button
-                      key={id}
-                      className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside || sensorProblem ? "alerting" : ""}`}
-                      aria-pressed={chartSensor === id}
-                      onClick={() => {
-                        setChartSensor(id);
-                        setHistoryOpen(true);
-                      }}
+                    <section
+                      className="dashboard-sensor-group"
+                      aria-label={group.title}
+                      key={group.title}
                     >
-                      <div className="sensor-card-top">
-                        <span className="sensor-icon">
-                          <Icon size={19} />
-                        </span>
-                        <span
-                          className={`sensor-state ${reading?.status === "READING" ? "good" : ""}`}
-                        >
-                          {reading
-                            ? statusLabels[reading.status] || reading.status
-                            : "Esperando"}
-                        </span>
+                      <h3 className="dashboard-group-label">{group.title}</h3>
+                      <div className="sensor-grid">
+                        {sensors.map(({ id, unit, Icon }) => {
+                          const reading = latestMap.get(id);
+                          const rule = data.rules.find((r) => r.sensor === id);
+                          const fresh = isLiveReading(reading);
+                          const outside =
+                            hasReadingValue(reading) &&
+                            fresh &&
+                            rule &&
+                            (reading.value < rule.min ||
+                              reading.value > rule.max);
+                          const sensorProblem =
+                            reading &&
+                            ["NO_RESPONSE", "ERROR", "OUT_OF_RANGE"].includes(
+                              reading.status,
+                            );
+                          return (
+                            <button
+                              key={id}
+                              className={`sensor-card ${chartSensor === id ? "selected" : ""} ${outside || sensorProblem ? "alerting" : ""}`}
+                              aria-pressed={chartSensor === id}
+                              data-sensor={id}
+                              data-source={
+                                reading ? readingSource(reading) : sceneSource
+                              }
+                              onClick={() => {
+                                setChartSensor(id);
+                                setHistoryOpen(true);
+                              }}
+                            >
+                              <div className="sensor-card-top">
+                                <span className="sensor-icon">
+                                  <Icon size={19} />
+                                </span>
+                                <span
+                                  className={`sensor-state ${fresh && reading?.status === "READING" && hasReadingValue(reading) ? "good" : ""}`}
+                                >
+                                  {reading
+                                    ? !fresh && hasReadingValue(reading)
+                                      ? "Última lectura"
+                                      : statusLabels[reading.status] ||
+                                        reading.status
+                                    : "Esperando"}
+                                </span>
+                              </div>
+                              <h3>{sensorLabels[id]}</h3>
+                              <div className="sensor-value">
+                                {format(reading)}
+                                <span>
+                                  {hasReadingValue(reading) && unit !== "0/1"
+                                    ? unit
+                                    : ""}
+                                </span>
+                              </div>
+                              <div className="sensor-card-bottom">
+                                <span>
+                                  {reading?.source === "simulation"
+                                    ? "SIMULACIÓN"
+                                    : reading
+                                      ? "HARDWARE REAL"
+                                      : "SIN LECTURAS"}
+                                </span>
+                                <span>
+                                  {reading?.timestamp
+                                    ? age(reading.timestamp)
+                                    : "—"}
+                                </span>
+                              </div>
+                              {outside && (
+                                <span className="threshold-flag">
+                                  Fuera del rango {rule!.min}–{rule!.max}
+                                </span>
+                              )}
+                              {reading?.status === "NEEDS_CALIBRATION" && (
+                                <span className="threshold-flag">
+                                  {typeof reading.raw === "number"
+                                    ? `RAW ${reading.raw} · `
+                                    : ""}
+                                  calibra para ver el porcentaje
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <h3>{sensorLabels[id]}</h3>
-                      <div className="sensor-value">
-                        {format(reading)}
-                        <span>
-                          {reading?.value != null && unit !== "0/1" ? unit : ""}
-                        </span>
-                      </div>
-                      <div className="sensor-card-bottom">
-                        <span>
-                          {reading?.source === "simulation"
-                            ? "SIMULACIÓN"
-                            : reading
-                              ? "HARDWARE REAL"
-                              : "SIN LECTURAS"}
-                        </span>
-                        <span>
-                          {reading?.timestamp ? age(reading.timestamp) : "—"}
-                        </span>
-                      </div>
-                      {outside && (
-                        <span className="threshold-flag">
-                          Fuera del rango {rule!.min}–{rule!.max}
-                        </span>
-                      )}
-                      {reading?.status === "NEEDS_CALIBRATION" && (
-                        <span className="threshold-flag">
-                          RAW {reading.raw} · necesita referencias
-                        </span>
-                      )}
-                    </button>
+                    </section>
                   );
                 })}
               </div>
@@ -902,7 +937,7 @@ export default function Dashboard() {
 function HistoryChart({ readings }: { readings: Reading[] }) {
   const [index, setIndex] = useState<number | null>(null);
   const points = readings
-    .filter((r) => r.value !== null)
+    .filter((r) => hasReadingValue(r) && readingTime(r) > 0)
     .sort(
       (a, b) =>
         new Date(a.timestamp || 0).getTime() -
@@ -1075,6 +1110,9 @@ function HistoryChart({ readings }: { readings: Reading[] }) {
           {format(selected)} {selected.unit} ·{" "}
           {new Date(selected.timestamp || 0).toLocaleTimeString("es-CL")} ·{" "}
           {selected.source === "simulation" ? "Simulación" : "Hardware"}
+          {selected.status !== "READING"
+            ? ` · ${statusLabels[selected.status] || selected.status}`
+            : ""}
         </div>
       )}
     </div>

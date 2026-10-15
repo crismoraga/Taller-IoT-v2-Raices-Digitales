@@ -148,14 +148,25 @@ export function circuitForBoard(source: Circuit, board: Board): Circuit {
   const dhtParts = source.parts.filter((part) => part.type === "dht11");
   const dhtSupply = new Set(dhtParts.map((part) => `${part.id}.VCC`));
   const shared5V = source.nets.some((net) => net.includes("pico:VBUS"));
+  const plantProfile = source.id.startsWith("plant_station-");
+  const hasRain = source.parts.some((part) => part.type === "rain");
+  const hasOther3V3 = source.parts.some((part) =>
+    ["ldr", "soil", "ds18b20", "rain", "water"].includes(part.type),
+  );
   // KY-015 uses 5 V on AVR. Keep the analog sensors' existing 3V3 rails:
   // a single/basic DHT plugs into 5V; the expanded kit shares the free g1 hole.
   const unusedPowerWires = new Set(
-    dhtParts.length && source.id === "dht11"
-      ? ["w_3v3_top", "w_3v3_bottom", "w_bridge_bp"]
-      : dhtParts.length && source.id === "station_basic"
-        ? ["w_3v3_bottom", "w_bridge_bp"]
-        : [],
+    dhtParts.length && plantProfile
+      ? [
+          ...(!hasOther3V3 ? ["w_3v3_top"] : []),
+          ...(!hasRain ? ["w_3v3_bottom"] : []),
+          "w_bridge_bp",
+        ]
+      : dhtParts.length && source.id === "dht11"
+        ? ["w_3v3_top", "w_3v3_bottom", "w_bridge_bp"]
+        : dhtParts.length && source.id === "station_basic"
+          ? ["w_3v3_bottom", "w_bridge_bp"]
+          : [],
   );
   const mapPin = (name: string) => {
     const mapped = ARDUINO_STATION_PINS[name];

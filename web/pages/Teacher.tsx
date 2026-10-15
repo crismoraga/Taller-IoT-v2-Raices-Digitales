@@ -500,10 +500,10 @@ export default function Teacher() {
               ))}
             </div>
             <p>
-              Empieza con el LED. Prueba luz y DHT11 antes de conectar y
-              calibrar el suelo. Reúne esos sensores en Estación y termina
-              mirando las lecturas reales en Mi planta. Los sensores adicionales
-              y las alertas son opcionales.
+              Empieza por la protoboard. Enciende, haz parpadear y controla el
+              LED. Prueba luz y DHT11 y comienza la estación en la maceta.
+              Después añade y calibra el suelo; amplía con los demás sensores
+              mientras observas sus lecturas reales en Mi planta.
             </p>
             <Button
               variant="secondary"

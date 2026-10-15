@@ -199,7 +199,7 @@ async function avrPeer(page: Page, config: AVRPeerConfig) {
 async function openFirstLed(
   page: Page,
   config: AVRPeerConfig = {},
-  lesson: "led_onboard" | "soil" = "led_onboard",
+  lesson: "led_onboard" | "soil" | "station" = "led_onboard",
 ) {
   await avrPeer(page, config);
   // A failed readiness probe must never permanently disable a working compiler.
@@ -218,8 +218,18 @@ async function openFirstLed(
     const body = route.request().postDataJSON();
     expect(body.board).toBe(config.board || "uno");
     expect(body.code).toContain(
-      lesson === "soil" ? "analogRead(A0)" : "digitalWrite(LED_BUILTIN, HIGH)",
+      lesson === "station"
+        ? "const bool ENABLE_DHT = true;"
+        : lesson === "soil"
+          ? "analogRead(A0)"
+          : "digitalWrite(LED_BUILTIN, HIGH)",
     );
+    if (lesson === "station") {
+      for (const flag of ["LIGHT", "AIR_TEMP", "AIR_HUMIDITY"])
+        expect(body.code).toContain(`const bool ENABLE_${flag} = true;`);
+      for (const flag of ["SOIL", "WATER", "RAIN", "PIR", "DS", "DISTANCE"])
+        expect(body.code).toContain(`const bool ENABLE_${flag} = false;`);
+    }
     expect(body.code).not.toContain("from machine import");
     const response = await fetch(`${COMPILER}/api/arduino/compile`, {
       method: "POST",
@@ -248,15 +258,16 @@ async function openFirstLed(
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/led/);
+  await expect(page).toHaveURL(/taller\/welcome/);
   await page.goto(`/taller/${lesson}`);
   await page
     .getByRole("navigation", { name: "Partes de la actividad" })
     .getByRole("button", { name: /Programa/ })
     .click();
-  await expect(page.locator(".monaco-editor").first()).toContainText(
-    lesson === "soil" ? "analogRead(A0)" : "LED_BUILTIN",
-  );
+  if (lesson !== "station")
+    await expect(page.locator(".monaco-editor").first()).toContainText(
+      lesson === "soil" ? "analogRead(A0)" : "LED_BUILTIN",
+    );
   await page
     .getByRole("button", { name: "Conectar placa", exact: true })
     .first()
@@ -276,7 +287,10 @@ async function openFirstLed(
     page.getByRole("combobox", { name: "Tu placa", exact: true }),
   ).toHaveValue(config.board || "uno");
   const load = page.getByRole("button", {
-    name: "Compilar y cargar",
+    name:
+      lesson === "station"
+        ? "Instalar sensores conectados"
+        : "Compilar y cargar",
     exact: true,
   });
   await expect(load).toBeEnabled();
@@ -291,6 +305,75 @@ async function peerResult(page: Page): Promise<AVRPeerResult> {
     ).__avrPeer.result(),
   );
 }
+
+test("the first plant station compiles only light and DHT11, verifies its flash and streams both climate fields", async ({
+  page,
+}) => {
+  test.setTimeout(100000);
+  const hex = await openFirstLed(page, {}, "station");
+  const terminal = page.getByRole("log", { name: "Salida de la placa" });
+  await expect(terminal).toContainText(
+    "Programa Arduino grabado y verificado",
+    {
+      timeout: 80000,
+    },
+  );
+  const result = await peerResult(page);
+  const image = parseIntelHex(hex(), 32256);
+  expect(image.length).toBeGreaterThan(128);
+  expect(result.writes).toBe(Math.ceil(image.length / 128));
+  expect(result.readbacks).toBe(result.writes);
+  expect(result.flash.slice(0, image.length)).toEqual([...image]);
+  expect(result.speeds.at(-1)).toBe(115200);
+  const flags = (await (await page.request.get("/api/session")).json()).session
+    .sensorEnabled;
+  expect(flags).toMatchObject({
+    light: true,
+    air_temperature: true,
+    air_humidity: true,
+    soil: false,
+    soil_temperature: false,
+    rain: false,
+    water_level: false,
+    distance: false,
+    motion: false,
+  });
+  await page.evaluate(() => {
+    (
+      window as unknown as { __avrPeer: { emit: (chunks: string[]) => void } }
+    ).__avrPeer.emit([
+      '\r\n{"sensor":"air_temperature","value":23,"unit":"°C","status":"READING"}\r\n',
+      '{"sensor":"air_humidity","value":61,"unit":"%","status":"READING"}\r\n',
+      '{"sensor":"light","value":41.1,"raw":420,"unit":"%","status":"READING"}\r\n',
+    ]);
+  });
+  await expect(terminal).toContainText('"air_temperature","value":23');
+  await expect(terminal).toContainText('"air_humidity","value":61');
+  await expect
+    .poll(async () => {
+      const dashboard = await (await page.request.get("/api/dashboard")).json();
+      return dashboard.latest;
+    })
+    .toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sensor: "air_temperature",
+          value: 23,
+          source: "hardware",
+        }),
+        expect.objectContaining({
+          sensor: "air_humidity",
+          value: 61,
+          source: "hardware",
+        }),
+        expect.objectContaining({
+          sensor: "light",
+          raw: 420,
+          source: "hardware",
+        }),
+      ]),
+    );
+});
 
 test("a verified Arduino sensor upload displays fragmented JSON without empty serial scrolling", async ({
   page,

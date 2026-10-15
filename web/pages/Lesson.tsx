@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Icon, Medallion, Rutix, type IconName } from "../brand/Graphics";
 import { circuitForBoard } from "../circuit/boards";
-import { circuits } from "../circuit/layouts";
+import { circuits, plantStationCircuit } from "../circuit/layouts";
 import type { Circuit } from "../circuit/model";
 import {
   lessonById,
@@ -29,6 +29,11 @@ import { PinGuide } from "../lesson/PinGuide";
 import { Quiz } from "../lesson/Quiz";
 import { readingTone } from "../lesson/reading-status";
 import { WiringGuide } from "../lesson/WiringGuide";
+import {
+  PlantStationSetup,
+  StationInstaller,
+  usePlantStationSelection,
+} from "../lesson/PlantStationSetup";
 import { Button } from "../ui/Button";
 import { Card, Segmented, Tag } from "../ui/Card";
 import { Callout, CoachBubble, EmptyState } from "../ui/Feedback";
@@ -102,7 +107,7 @@ export default function Lesson() {
   const [celebrate, setCelebrate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
-  const [showFullStation, setShowFullStation] = useState(false);
+  const stationProfile = usePlantStationSelection(id === "calibration");
   const workbench = useRef<WorkbenchHandle>(null);
   const phasePanel = useRef<HTMLDivElement>(null);
   const pendingPhaseScroll = useRef(false);
@@ -121,7 +126,6 @@ export default function Lesson() {
     setQuizDone(false);
     setConfirmed(false);
     setCelebrate(false);
-    setShowFullStation(false);
   }, [storage]);
 
   const arduino = app.board !== "pico";
@@ -141,14 +145,14 @@ export default function Lesson() {
   const referenceCircuit = useMemo(
     () =>
       circuitForBoard(
-        lesson?.id === "station" && showFullStation
-          ? circuits.station
+        lesson?.id === "station"
+          ? plantStationCircuit(stationProfile.selected)
           : lesson?.circuit
             ? circuits[lesson.circuit]
             : EXPLORER,
         app.board,
       ),
-    [lesson?.circuit, lesson?.id, showFullStation, app.board],
+    [lesson?.circuit, lesson?.id, stationProfile.selected, app.board],
   );
 
   if (!lesson)
@@ -232,6 +236,7 @@ export default function Lesson() {
       <BoardDiscovery
         key={`${lesson.id}:discover`}
         circuit={referenceCircuit}
+        foundations={lesson.id === "welcome"}
       />
       <div className="flex flex-col gap-4 xl:sticky xl:top-36">
         <Card
@@ -287,7 +292,11 @@ export default function Lesson() {
     <div className="flex flex-col gap-4">
       {lesson.id === "welcome" ? (
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.8fr)]">
-          <BoardDiscovery key="welcome:connect" circuit={referenceCircuit} />
+          <BoardDiscovery
+            key="welcome:connect"
+            circuit={referenceCircuit}
+            foundations
+          />
           <Card
             as="section"
             className="solarpunk-discovery-card flex flex-col gap-4"
@@ -320,7 +329,7 @@ export default function Lesson() {
       ) : lesson.circuit && (!arduino || lesson.arduino) ? (
         <WiringGuide
           circuit={referenceCircuit}
-          storageKey={`raices.wiring.${app.session?.id ?? "anon"}.${lesson.id === "station" && showFullStation ? "station" : lesson.circuit}.${app.board}`}
+          storageKey={`raices.wiring.${app.session?.id ?? "anon"}.${lesson.id === "station" ? referenceCircuit.id : lesson.circuit}.${app.board}`}
           onDone={() => setPhase("programa")}
         />
       ) : arduino ? (
@@ -383,9 +392,19 @@ export default function Lesson() {
 
   const toolCard =
     lesson.tool === "calibration" ? (
-      <CalibrationTool />
+      <div className="flex flex-col gap-4">
+        <CalibrationTool />
+        <StationInstaller
+          selected={stationProfile.selected}
+          onRemember={stationProfile.update}
+          afterCalibration
+        />
+      </div>
     ) : lesson.id === "station" ? (
-      <StationInstaller />
+      <StationInstaller
+        selected={stationProfile.selected}
+        onRemember={stationProfile.update}
+      />
     ) : lesson.tool ? (
       <Card
         as="section"
@@ -735,7 +754,7 @@ export default function Lesson() {
             >
               <Icon name="chevronLeft" size={14} strokeWidth={2.6} />
               {flow.express
-                ? "Tu recorrido · LED → sensores → planta"
+                ? "Tu recorrido · conexiones → LED → planta"
                 : `${stage.label} · ${stage.title}`}
             </button>
             <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
@@ -840,20 +859,11 @@ export default function Lesson() {
       </div>
 
       {lesson.id === "station" && (
-        <Disclosure
-          title="¿Montaste más sensores? · opcional"
-          icon="flask"
-          tone="plain"
-          className="mt-3"
-        >
-          <Checkbox checked={showFullStation} onChange={setShowFullStation}>
-            Mostrar el plano completo del kit
-          </Checkbox>
-          <p className="mt-2 text-sm text-ink-soft">
-            El recorrido usa LED, luz, DHT11 y suelo. Amplía el plano sólo para
-            los sensores extra que ya probaste.
-          </p>
-        </Disclosure>
+        <PlantStationSetup
+          selected={stationProfile.selected}
+          onChange={stationProfile.update}
+          onConnect={() => setPhase("conecta")}
+        />
       )}
 
       {app.guided ? (
@@ -1070,111 +1080,6 @@ export default function Lesson() {
         </div>
       </Modal>
     </Page>
-  );
-}
-
-/** Install the already-tested basics without sending beginners into advanced settings. */
-function StationInstaller() {
-  const app = useApp();
-  const [attempted, setAttempted] = useState(false);
-  const terminal = useRef<HTMLPreElement>(null);
-  useEffect(() => {
-    const output = terminal.current;
-    if (output) output.scrollTop = output.scrollHeight;
-  }, [app.terminal]);
-
-  const install = () => {
-    setAttempted(true);
-    return app.installStation("", "", `${location.origin}/api/device/ingest`, {
-      soil: true,
-      light: true,
-      air_temperature: true,
-      air_humidity: true,
-    });
-  };
-  return (
-    <Card
-      as="section"
-      className="flex flex-col gap-4"
-      aria-labelledby="install-basic-station"
-    >
-      <div>
-        <p className="t-overline text-ink-accent">Tus sensores juntos</p>
-        <h3 id="install-basic-station" className="t-heading mt-1 text-ink">
-          Instala tu estación por USB
-        </h3>
-        <p className="mt-2 text-sm leading-6 text-ink-soft">
-          Usa los montajes que ya probaste: luz, DHT11 y suelo. El LED mantiene
-          su lugar. Conservaremos los sensores extra que tu grupo ya tenía
-          habilitados.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        {!app.connected && <ConnectButton size="lg" />}
-        <Button
-          variant="accent"
-          icon="board"
-          size="lg"
-          loading={app.busy}
-          disabled={!app.connected || app.connecting || app.busy}
-          onClick={() => void install()}
-        >
-          Instalar sensores conectados
-        </Button>
-        <Button
-          variant="outline"
-          iconRight="arrowRight"
-          onClick={() => app.navigate("/planta")}
-        >
-          Ver lecturas de mi planta
-        </Button>
-      </div>
-      {attempted && app.uploadStatus && (
-        <p
-          role="status"
-          className={cx(
-            "text-sm font-semibold",
-            app.uploadStatus.stage === "error"
-              ? "text-danger-ink"
-              : "text-ink-soft",
-          )}
-        >
-          {app.uploadStatus.message}
-          {typeof app.uploadStatus.percent === "number"
-            ? ` · ${Math.round(app.uploadStatus.percent)} %`
-            : ""}
-        </p>
-      )}
-      <div>
-        <h4 className="t-label mb-2 text-ink">Terminal serial</h4>
-        <pre
-          ref={terminal}
-          role="log"
-          aria-label="Salida de la placa"
-          aria-live="off"
-          className="scrollbar-thin h-44 overflow-auto whitespace-pre-wrap break-all rounded-md bg-code p-3 font-mono text-xs leading-5 text-cream-soft"
-        >
-          {app.terminal ||
-            "Al instalar aparecerán aquí las lecturas de tus sensores."}
-        </pre>
-        <p className="mt-2 text-xs leading-5 text-ink-soft">
-          Mantén USB y esta página abiertos mientras monitoreas.
-        </p>
-      </div>
-      <Disclosure
-        title="Ajustar sensores o conexión · opcional"
-        icon="settings"
-        tone="plain"
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => app.navigate("/estacion")}
-        >
-          Abrir ajustes de estación
-        </Button>
-      </Disclosure>
-    </Card>
   );
 }
 

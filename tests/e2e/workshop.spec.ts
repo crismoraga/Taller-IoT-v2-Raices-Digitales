@@ -19,7 +19,7 @@ async function createGroup(page: Page, name = "Raíces QA", number = 1) {
   await dialog
     .getByRole("button", { name: "Comenzar el taller", exact: true })
     .click();
-  await expect(page).toHaveURL(/taller\/led/);
+  await expect(page).toHaveURL(/taller\/welcome/);
 }
 async function phase(page: Page, name: string) {
   await page
@@ -27,7 +27,7 @@ async function phase(page: Page, name: string) {
     .getByRole("button", { name: new RegExp(name) })
     .click();
 }
-test("living 3D home, seven-step LED-to-plant journey, theme and narrow screens", async ({
+test("living 3D home, connections-to-plant journey, theme and narrow screens", async ({
   page,
 }) => {
   test.setTimeout(90000);
@@ -46,11 +46,11 @@ test("living 3D home, seven-step LED-to-plant journey, theme and narrow screens"
     page.getByRole("heading", { name: /Haz que tu planta hable/ }),
   ).toBeVisible();
   await expect(
-    page.getByText("7 actividades · paso a paso", { exact: true }),
+    page.getByText("10 actividades · paso a paso", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "LED → sensores → tu planta",
+      name: "Conexiones → LED → sensores → tu planta",
       exact: true,
     }),
   ).toBeVisible();
@@ -160,7 +160,7 @@ test("checkpoint feedback and group progress survive reload", async ({
     .getByRole("dialog")
     .getByRole("button", { name: /Siguiente:/ })
     .click();
-  await expect(page).toHaveURL(/taller\/ldr/);
+  await expect(page).toHaveURL(/taller\/blink/);
   await page.reload();
   expect(
     (await (await page.request.get("/api/session")).json()).session.progress,

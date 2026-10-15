@@ -219,6 +219,8 @@ export const dht11 = activity("dht11", {
   circuit: "dht11",
   summary:
     "Recibe temperatura y humedad del aire en un mensaje digital y reconoce errores reales.",
+  objective:
+    "Conservar LED y LDR y añadir el DHT11 para recibir temperatura y humedad del aire por una sola señal.",
   concept: {
     title: "Dos medidas viajan por un mismo cable",
     body: [
@@ -249,7 +251,7 @@ export const dht11 = activity("dht11", {
     ],
     notes: [
       "En Uno/Nano el sketch usa la biblioteca DHT instalada en el compilador. No reutilices la alimentación de 3,3 V del sensor junto con señales de 5 V.",
-      "Retira el pulsador que use D4 antes de este montaje.",
+      "Primero retira el pulsador y su jumper de D4. Ese pin recibirá DATA del DHT11; conserva el LED en D2 y la LDR en A1.",
     ],
   },
   why: "DATA necesita un estado alto definido mediante pull-up. La alimentación debe coincidir con el nivel lógico permitido por tu placa y variante. El mismo cable transporta dos variables: no necesitas dos entradas para medir el aire.",
@@ -336,13 +338,13 @@ export const soil = activity("soil", {
   icon: "sprout",
   circuit: "soil",
   summary:
-    "Empieza por una sonda: conecta la maceta al código y compara tierra seca y húmeda.",
+    "Añade la sonda a tu maceta y compara tierra seca y húmeda antes de calibrarla.",
   concept: {
     title: "La tierra modifica una señal",
     body: [
       "La sonda capacitiva no necesita que sus pistas metálicas toquen directamente el agua. El entorno cambia su capacitancia y la electrónica produce un voltaje relacionado con esa condición.",
       "El ADC convierte ese voltaje en raw, un número crudo. Es como una regla sin etiquetas: hasta que midas referencias de tu propia sonda, no sabes qué número representa seco o húmedo.",
-      "En esta etapa basta la sonda de suelo. Si avanzas rápido, añade DHT11 o DS18B20 siguiendo su actividad completa. La estación con todos los sensores es una ampliación, no una carrera por conectar todo de golpe.",
+      "Conserva la luz y el DHT11 de tu estación y añade esta sonda. Coloca su zona sensora en la tierra hasta la marca; el conector queda fuera de la maceta. Prueba dos condiciones a la misma profundidad y después guarda tus referencias en Calibración.",
     ],
     facts: [
       { label: "Modelo", value: "Capacitive v1.2" },
@@ -364,11 +366,12 @@ export const soil = activity("soil", {
     ],
     notes: [
       "El raw usa una referencia ADC de 5 V y un rango de 0–1023. Calibra con esos números, sin copiar los de otro modelo de placa.",
+      "Conserva el LED, la LDR y el DHT11; esta sonda añade A0. Si probaste LM35 o potenciómetro, retira su salida de A0 antes de conectar AOUT.",
     ],
   },
   why: "VCC y GND alimentan la electrónica; AOUT lleva solo la señal al ADC. Mantener la misma sonda, profundidad y alimentación hace comparables tus referencias. Una entrada analógica puede entregar números aun sin sensor: provocar un cambio y revisar el montaje es indispensable.",
   expected:
-    "La terminal muestra JSON con raw una vez por segundo. value queda nulo y el estado es NEEDS_CALIBRATION: faltan referencias. Anota diez lecturas con la sonda quieta, luego compara tierra seca y húmeda a la misma profundidad. Una diferencia repetible permite avanzar a Calibración; un número aislado no demuestra respuesta física.",
+    "Este ejemplo muestra solo suelo: llega un JSON con raw cada segundo. value queda nulo y aparece NEEDS_CALIBRATION hasta guardar referencias. Compara tierra seca y húmeda a la misma profundidad. En Calibración podrás reincorporar la sonda al programa de estación junto con luz y aire.",
   sampleOutput:
     '{"sensor":"soil","value":null,"raw":42000,"unit":"%","status":"NEEDS_CALIBRATION"}\nEjemplo de formato, no una lectura de tu planta.',
   codeNotes: [

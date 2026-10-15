@@ -8,8 +8,8 @@ export const stages: Stage[] = [
   {
     id: 0,
     label: "Etapa 0",
-    title: "Bienvenida",
-    summary: "Conoce tu placa y el viaje que harán los datos de tu planta.",
+    title: "Entiende las conexiones",
+    summary: "Descubre qué agujeros están unidos y cómo llega una señal desde Arduino.",
     icon: "rocket",
     glyph: "rocket",
     lessons: ["welcome"],
@@ -72,7 +72,7 @@ export const stages: Stage[] = [
     id: 7,
     label: "Etapa 7",
     title: "Estación integrada",
-    summary: "Todos los sensores funcionando a la vez.",
+    summary: "Empieza con luz y aire; añade sensores a tu maceta de uno en uno.",
     icon: "board",
     glyph: "chip",
     lessons: ["station"],
@@ -127,14 +127,17 @@ export const stages: Stage[] = [
   },
 ];
 
-/** Un recorrido: primero el LED, después los sensores y al final la planta. */
+/** Un recorrido incremental: conexiones, LED, dos sensores y una estación que crece. */
 export const expressRoute = [
+  "welcome",
   "led",
+  "blink",
+  "button_led",
   "ldr",
   "dht11",
+  "station",
   "soil",
   "calibration",
-  "station",
   "dashboard",
 ];
 
@@ -143,9 +146,21 @@ export const guidedRouteCopy: Record<
   string,
   { title: string; summary: string }
 > = {
+  welcome: {
+    title: "Entiende las conexiones",
+    summary: "Toca la protoboard y descubre cómo conectar un pin, una fila y GND.",
+  },
   led: {
     title: "Enciende un LED",
     summary: "Conecta el LED, carga el programa y comprueba que se enciende.",
+  },
+  blink: {
+    title: "Hazlo parpadear",
+    summary: "Conserva los cables y cambia el ritmo desde el programa.",
+  },
+  button_led: {
+    title: "Controla el LED",
+    summary: "Añade un pulsador: aprieta para encender y suelta para apagar.",
   },
   ldr: {
     title: "Mide la luz",
@@ -155,18 +170,18 @@ export const guidedRouteCopy: Record<
     title: "Mide temperatura y humedad",
     summary: "Conecta el DHT11 y recibe las dos medidas del aire.",
   },
+  station: {
+    title: "Empieza tu estación",
+    summary: "Lleva luz y aire a tu maceta y mira sus primeras lecturas juntas.",
+  },
   soil: {
-    title: "Mide la humedad del suelo",
-    summary: "Conecta la sonda capacitiva y compara tierra seca y húmeda.",
+    title: "Añade la sonda de suelo",
+    summary: "Amplía tu estación con la sonda capacitiva y prueba cómo responde.",
   },
   calibration: {
     title: "Calibra tu sonda",
     summary:
       "Guarda tus dos referencias para interpretar la humedad del suelo.",
-  },
-  station: {
-    title: "Conecta los sensores de tu planta",
-    summary: "Reúne luz, temperatura, humedad y suelo en un solo programa.",
   },
   dashboard: {
     title: "Monitorea tu planta",

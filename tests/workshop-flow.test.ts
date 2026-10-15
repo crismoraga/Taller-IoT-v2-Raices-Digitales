@@ -29,30 +29,33 @@ describe("recorrido del taller", () => {
 
   it("cambiar la vista a Libre conserva el recorrido y deja el catálogo disponible", () => {
     expect(lessonFlow(lessonById("welcome")!, false).following?.id).toBe(
-      "led_onboard",
+      "led",
     );
     expect(lessonFlow(lessonById("welcome")!, true).following?.id).toBe(
-      "led_onboard",
+      "led",
     );
-    expect(lessonFlow(lessonById("soil")!, true).previous?.id).toBe("dht11");
-    expect(lessonFlow(lessonById("soil")!, false).previous?.id).toBe("dht11");
-    expect(lessonFlow(lessonById("led")!, false).following?.id).toBe("ldr");
+    expect(lessonFlow(lessonById("soil")!, true).previous?.id).toBe("station");
+    expect(lessonFlow(lessonById("soil")!, false).previous?.id).toBe("station");
+    expect(lessonFlow(lessonById("led")!, false).following?.id).toBe("blink");
     expect(nextLesson("led", false)?.id).toBe("blink");
     expect(workshopRoute(false)).toEqual(workshopRoute(true));
   });
 
-  it("aprende luz y aire antes del suelo y abre el monitoreo después de integrar", () => {
+  it("entiende las conexiones, controla el LED y empieza la estación tras dos sensores", () => {
     const route = workshopRoute(true);
-    expect(route[0].id).toBe("led");
+    expect(route.map((lesson) => lesson.id)).toEqual([
+      "welcome", "led", "blink", "button_led", "ldr", "dht11",
+      "station", "soil", "calibration", "dashboard",
+    ]);
     for (let index = 0; index < route.length; index++) {
       const flow = lessonFlow(route[index], true);
       expect(flow.index).toBe(index);
-      expect(flow.total).toBe(7);
+      expect(flow.total).toBe(10);
       expect(flow.previous?.id).toBe(route[index - 1]?.id);
       expect(flow.following?.id).toBe(route[index + 1]?.id);
       expect(nextLesson(route[index].id, true)?.id).toBe(route[index + 1]?.id);
     }
-    expect(nextLesson("station", true)?.id).toBe("dashboard");
+    expect(nextLesson("station", true)?.id).toBe("soil");
   });
 
   it("conserva el progreso antiguo y retoma los básicos nuevos pendientes", () => {
@@ -74,12 +77,12 @@ describe("recorrido del taller", () => {
       "calibration",
       "cloud",
     ]);
-    expect(resumeWorkshop(true, new Set(progress))?.id).toBe("ldr");
+    expect(resumeWorkshop(true, new Set(progress))?.id).toBe("button_led");
     expect(nextLesson("sensors", true)?.id).toBe("calibration");
   });
 
   it("una actividad opcional no se intercala en el recorrido principal", () => {
-    const optional = lessonFlow(lessonById("blink")!, true);
+    const optional = lessonFlow(lessonById("led_onboard")!, true);
     expect(optional.express).toBe(false);
     expect(optional.following?.id).toBe("button");
     expect(workshopRoute(true).some((lesson) => lesson.id === "cloud")).toBe(

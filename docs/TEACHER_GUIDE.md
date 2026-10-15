@@ -46,17 +46,17 @@ Una página pública permite consultar el taller desde cualquier lugar; la ejecu
 6. Para Pico Wi-Fi, prepara una red 2.4 GHz sin portal cautivo accesible desde el servidor. Prueba URL, certificado y conexión real con ese firmware. Evita depender de una red institucional que aísle clientes. `localhost` desde Pico significa la propia Pico, no el computador: la URL debe ser accesible por la placa.
 7. Para la prueba final de bot, crea un bot con BotFather, inicia conversación desde la cuenta/chat que recibirá mensajes y obtén el chat ID. Configura token/chat en la sección docente y prueba su entrega. No muestres el token en la proyección. [Instrucciones oficiales Telegram](https://core.telegram.org/bots/tutorial).
 
-## Guion de 60 minutos
+## Guion de referencia (ajusta el tiempo al grupo)
 
-| Tiempo | Acción de estudiantes                                                                                                | Evidencia de aprendizaje                                      |
-| ------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| 0–5    | Crear nombre de estación, reconocer placa/protoboard y conectar USB                                                  | Pueden señalar sensor, código y red en la ruta                |
-| 5–13   | Cablear LED con 220 Ω, ejecutar encendido y apagar cambiando código                                                  | LED real cambia, no solo una animación                        |
-| 13–20  | Ejecutar parpadeo y editar intervalo                                                                                 | Predicen el ciclo completo de encendido/apagado               |
-| 20–35  | Cablear sonda suelo y leer raw; añadir DHT/DS si el grupo tiene tiempo                                               | Distinguen ADC y mensaje digital; provocan cambio físico      |
-| 35–45  | Guardar seco/húmedo, probar condición intermedia                                                                     | Explican qué significa porcentaje relativo                    |
-| 45–58  | Instalar la estación con referencias, ver telemetría Wi-Fi o puente USB, crear umbral y probar alerta y recuperación | Dos lecturas recientes Hardware y los dos eventos de la regla |
-| 58–60  | Exportar CSV, explicar una conexión/cambio/transporte, detener y desconectar                                         | Bitácora y archivo conservados; kit seguro para guardar       |
+| Momento | Acción | Evidencia |
+| --- | --- | --- |
+| Conexiones | Explorar filas, canal y rieles; reconocer D2, A0 y GND | Distinguen un nodo de un agujero aislado |
+| LED | Encender, parpadear y controlar con pulsador | El LED físico cambia y pueden explicar por qué |
+| Primeros sensores | LDR en A1 y DHT11 en D4; retirar primero el pulsador de D4 | Luz, temperatura y humedad responden |
+| Primera estación | Instalar sólo luz y DHT11 junto a la maceta | La terminal y Mi planta reciben hardware reciente |
+| Suelo | Añadir sonda A0, registrar seco/húmedo y reinstalar | Una escala relativa del montaje, sin copiar referencias |
+| Ampliación | Añadir DS18B20, lluvia, nivel, distancia o movimiento individualmente | Selección, plano y firmware coinciden |
+| Cierre | Observar cambios y exportar CSV | Explican conexión, programa y transporte de una lectura |
 
 Roles sugeridos por mesa: responsable de cableado, responsable de código, observador de datos y relator. Rotan al pasar de LED a sensores. No conectes otra estación al mismo perfil de navegador por accidente: una sesión identifica un grupo; usa perfiles separados para grupos en un mismo computador.
 
@@ -66,7 +66,7 @@ Roles sugeridos por mesa: responsable de cableado, responsable de código, obser
 2. **LED:** «Antes de ejecutar, predice. Ahora cambia una orden: ¿cambió la luz física o solo el texto?». Revisa la resistencia y la polaridad con USB desconectado.
 3. **Parpadeo:** «Con medio segundo encendido y medio segundo apagado, ¿cuánto dura un ciclo?». La respuesta es un segundo; C++ expresa la pausa en milisegundos.
 4. **Suelo:** «Anota diez raw quietos y dos condiciones. ¿El cambio es repetible y mayor que la fluctuación?». No prometas una dirección universal ni trates un raw aislado como prueba de presencia.
-5. **Calibración:** «¿Qué condiciones etiquetaste como 0 y 100?». En Pico, Capturar detiene el programa. En Uno/Nano se copian raw de la terminal a los campos; no hay captura MicroPython automática. Guardar requiere reinstalar estación para aplicar las referencias.
+5. **Calibración:** «¿Qué condiciones etiquetaste como 0 y 100?». En Pico, Capturar detiene el programa. En Uno/Nano, Tomar lectura USB usa un RAW reciente; también se pueden copiar RAW de la terminal. Guardar requiere reinstalar estación para aplicar las referencias.
 6. **Red:** «Muéstrame tu dispositivo, el origen Hardware y dos horas recientes. ¿Dónde se evaluó la alerta?». Cierra con una limitación que puedan explicar.
 
 Para el ensayo final usa una regla temporal de Suelo: mínimo 30, máximo vacío, histéresis 3 y pausa 120 segundos. Con referencias etiquetadas correctamente, la tierra seca produce una lectura cercana a 0 y la húmeda a 100. Una lectura válida bajo 30 activa; al menos 33 recupera. Conserva profundidad y evita agua cerca de la electrónica. El mínimo es una prueba de la plataforma y **no una recomendación universal de riego**. Ajusta o retira la regla de ensayo al terminar.
@@ -77,7 +77,7 @@ Pregunta primero qué debería pasar y después qué pasó. Una hipótesis útil
 
 Cada lección presenta cinco fases: Entiende, Conecta, Programa, Experimenta y Comprueba. Pide una predicción breve antes de ejecutar. En las modificaciones, cambia un solo parámetro y conserva una observación; el botón de aplicar modifica el editor y la ejecución posterior modifica la placa. Los ejemplos incluyen alternativas de C++ donde cambian sintaxis, escala y pines. No proyectes una instrucción Python como si fuera aplicable literalmente a un sketch.
 
-En Conecta, la guía muestra una conexión por paso y sus puntos exactos de protoboard. El explorador permite identificar grupos unidos, pines y canales. En Uno/Nano se utiliza una tabla explícita: el plano Pico no se transfiere agujero por agujero a otra geometría. Para componentes con pinout variable, prepara una ficha del modelo real antes de ofrecer la actividad.
+En Conecta, la guía muestra una conexión por paso y sus puntos exactos de protoboard. El explorador permite identificar grupos unidos, pines y canales. Uno/Nano disponen de su propio plano 2D/3D y sus pines se actualizan al cambiar de placa. Para componentes con pinout variable, prepara una ficha del modelo real antes de ofrecer la actividad.
 
 Usa tres preguntas para acompañar una mesa: «¿qué debería ocurrir?», «¿qué conexión o línea cambiaste?» y «¿qué evidencia viste?». Puedes pedir que el relator distinga la luz física, la salida serial y la recepción en el servidor: son tres tramos diferentes. El checkpoint y las medallas registran comprensión y avance declarado, no detección automática de un montaje correcto.
 

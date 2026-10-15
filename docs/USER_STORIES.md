@@ -30,7 +30,7 @@ Esta matriz describe el recorrido del taller real y sus criterios de aceptación
 | HU-19 · Todos programan a la vez | Diez grupos con el mismo programa comparten una compilación. Los trabajos diferentes esperan en orden sin mezclar MCU; un error permite reintentar. | `compile-queue.test.ts` y compilador CLI real con diez solicitudes simultáneas. |
 | HU-20 · Retomar un sensor | Una configuración opcional dañada, un sensor ausente o un fallo de Wi-Fi/RTC no detiene los otros sensores; un driver inicialmente ausente puede recuperarse. | `tests/firmware/`: Python y estación Arduino con HAL C++ y JSON real. |
 | HU-21 · Recuperar el puerto | Cancelar una apertura o cambiar de velocidad al desconectar libera los locks. Una escritura parcial conserva el programa anterior. | `serial.test.ts`, `arduino-upload.test.ts`, incluida escritura parcial ejecutada en Python real. |
-| HU-22 · Avanzar fuera de orden | Completar suelo muestra el cuarto segmento logrado, sin marcar actividades que no hice; se conserva al recargar. | `experience-resilience.spec.ts`, sesión y API reales. |
+| HU-22 · Avanzar fuera de orden | Completar una actividad muestra su segmento real dentro de la ruta, sin marcar actividades que no hice; se conserva al recargar. | `experience-resilience.spec.ts`, sesión y API reales. |
 | HU-23 · Buscar y usar teclado | Buscar con espacios o sin tildes encuentra la misma actividad. Limpiar conserva el foco; el formulario de equipo comienza en su nombre y mantiene Tab/Escape funcionales. | `experience-resilience.spec.ts`. |
 | HU-24 · Explorar la placa correcta | Nano ATmega168 conserva su PCB Nano, MCU y plano 2D al cambiar de variante. Los contactos Pico siguen siendo individuales aunque se dibujen mediante instancias. | `experience-resilience.spec.ts`, `hardwareRender.test.ts`, revisión WebGL real. |
 | HU-25 · Identidad coherente | Símbolo, favicon, iconos, logos claros/oscuros y vista compartida usan bosque, lima y crema; los assets son locales y autocontenidos. | Revisión visual de marca 16–64 px, SVG y escenas claro/oscuro. |
@@ -46,4 +46,13 @@ Esta matriz describe el recorrido del taller real y sus criterios de aceptación
 - Auditoría visual PC aprobada: 32 vistas (inicio, explorador LED, cable Pico, suelo, Uno, Nano, estación y planta; 1366/1920 px en claro/oscuro), sin errores JavaScript ni desbordamiento horizontal. Revisión de escenas, contraste de controles y etiquetas del montaje.
 - Compilación Arduino: se valida con el compilador real del proyecto; no equivale a cargar el binario en una placa física.
 - Montaje y USB físicos: pendientes de comprobar con el kit del taller. Los tests verifican geometría, netlist, firmware, API, permisos y transporte de protocolo; no pueden comprobar el tipo de módulo comprado, un cable defectuoso ni la posición efectiva de las patas en la protoboard.
-- Raspberry cubierta por este proyecto: Raspberry Pi Pico/Pico W con MicroPython. Una Raspberry Pi con Linux no se convierte en un puerto MicroPython por conectarla con un cable USB.
+- Arduino Uno es la placa principal del taller. Pico/Pico W/Pico 2/Pico 2 W tienen perfil MicroPython. Raspberry Pi 3/4 con Linux dispone de un comprobador GPIO opcional y acotado; no se programa como Arduino ni como Pico mediante Web Serial. Los sensores analógicos requieren MCP3008.
+
+## Recorrido incremental de la planta
+
+- Como principiante, identifico primero qué agujeros comparten conexión y qué separa el canal central; después sigo cada extremo de cada cable del LED.
+- Como participante, enciendo el LED, cambio su parpadeo y lo controlo con un pulsador antes de leer sensores. Retiro el pulsador de D4 cuando ese pin pasa al DHT11.
+- Después de probar luz y DHT11, comienzo la estación en la maceta. Añado suelo y cada sensor adicional por separado; selección, plano y firmware deben coincidir.
+- Como equipo, distingo lecturas recientes de hardware, simulación y datos antiguos; un sensor deshabilitado no aparece midiendo en vivo.
+
+Estos criterios se comprueban con las pruebas de ruta, netlist, selección de estación, dashboard y navegador del repositorio. La verificación del montaje físico sigue requiriendo el kit real.
