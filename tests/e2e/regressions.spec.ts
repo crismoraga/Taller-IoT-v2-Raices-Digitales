@@ -215,7 +215,7 @@ test("both activity views close at monitoring and optional legacy lessons retain
   test.setTimeout(120000);
   await routeStoryWithoutGpu(page);
   await createGroup(page, "Última actividad QA");
-  await seedProgress(page, [...ESSENTIALS, "welcome", "blink", "cloud"]);
+  await seedProgress(page, [...ESSENTIALS, "led_onboard", "cloud"]);
   await page.goto("/taller/dashboard");
   await phase(page, "Comprueba");
   await page
@@ -251,7 +251,7 @@ test("both activity views close at monitoring and optional legacy lessons retain
   const session = (await (await page.request.get("/api/session")).json())
     .session;
   expect(session.progress).toEqual(
-    expect.arrayContaining([...ESSENTIALS, "welcome", "blink", "cloud"]),
+    expect.arrayContaining([...ESSENTIALS, "led_onboard", "cloud"]),
   );
 });
 
